@@ -1,0 +1,78 @@
+[
+  {
+    "id": "temporary_emergency_shelter",
+    "name": "Temporary Emergency Shelter (Disaster / Rapid Deployment)",
+    "capacity": 4,
+    "default_length": 4.0,
+    "default_width": 3.0,
+    "default_height": 2.4,
+    "shape": "rectangular",
+    "floor_area_m2": 12.0,
+    "internal_volume_m3": 28.8,
+    "recommended_envelope": {
+      "wall_material": "eps_insulation",
+      "roof_material": "corrugated_galvanized_iron_cgi",
+      "floor_material": "plywood_sheathing",
+      "glazing": "double_clear_air_12mm",
+      "thermal_mass": "concrete_standard"
+    },
+    "description": "Compact, lightweight, prefabricated modular shelter designed for rapid field deployment in disaster response or temporary emergency relief. Optimized for minimal transport footprint and quick assembly."
+  },
+  {
+    "id": "small_permanent_shelter",
+    "name": "Small Permanent Passive Shelter (High-Altitude Guard/Field Post)",
+    "capacity": 2,
+    "default_length": 5.0,
+    "default_width": 3.5,
+    "default_height": 2.7,
+    "shape": "rectangular_trombe",
+    "floor_area_m2": 17.5,
+    "internal_volume_m3": 47.25,
+    "recommended_envelope": {
+      "wall_material": "mud_brick",
+      "roof_material": "wood_timber_pine",
+      "floor_material": "soil_gravel_floor_bed",
+      "glazing": "double_low_e_argon_16mm",
+      "thermal_mass": "trombe_wall_mass"
+    },
+    "description": "Permanent passive solar outpost designed for high-altitude cold environments such as Ladakh pass checkpoints and observation posts. Features a south-facing Trombe wall and heavy earth/stone mass core."
+  },
+  {
+    "id": "family_shelter",
+    "name": "Family Passive Solar Shelter (Rural Cold-Climate Residence)",
+    "capacity": 6,
+    "default_length": 8.0,
+    "default_width": 5.5,
+    "default_height": 2.8,
+    "shape": "rectangular_shed_roof",
+    "floor_area_m2": 44.0,
+    "internal_volume_m3": 123.2,
+    "recommended_envelope": {
+      "wall_material": "rammed_earth",
+      "roof_material": "wood_timber_pine",
+      "floor_material": "concrete_standard",
+      "glazing": "double_low_e_air_12mm",
+      "thermal_mass": "mud_brick"
+    },
+    "description": "Medium-sized multi-room passive solar shelter configured for rural families in cold desert and mountainous regions. Integrates direct solar gain, thick insulating walls on north/west/east facades, and attached sunspace buffer."
+  },
+  {
+    "id": "field_shelter",
+    "name": "Field Research & Medical Station",
+    "capacity": 8,
+    "default_length": 10.0,
+    "default_width": 6.0,
+    "default_height": 3.0,
+    "shape": "modular_rectangular",
+    "floor_area_m2": 60.0,
+    "internal_volume_m3": 180.0,
+    "recommended_envelope": {
+      "wall_material": "mineral_wool",
+      "roof_material": "wood_timber_pine",
+      "floor_material": "plywood_sheathing",
+      "glazing": "double_low_e_argon_16mm",
+      "thermal_mass": "concrete_standard"
+    },
+    "description": "Spacious modular field workstation and medical triage facility with partitioned functional zones, high thermal insulation, and provisions for solar thermal air collectors."
+  }
+]

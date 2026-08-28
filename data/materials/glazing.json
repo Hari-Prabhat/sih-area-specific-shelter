@@ -1,0 +1,177 @@
+[
+  {
+    "id": "single_clear_4mm",
+    "name": "Single Clear Float Glass (4mm)",
+    "U_value": {
+      "typical_value": 5.8,
+      "min_value": 5.6,
+      "max_value": 6.0,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.85,
+      "min_value": 0.82,
+      "max_value": 0.87,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.004,
+      "min_value": 0.0038,
+      "max_value": 0.0042,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.9,
+    "source": "NFRC 100/200 / ASHRAE Handbook - Fundamentals (Chapter 15)",
+    "notes": "Standard single-pane window. High solar gain but very poor thermal insulation (severe conductive heat loss in cold climates like Ladakh)."
+  },
+  {
+    "id": "double_clear_air_12mm",
+    "name": "Double Glazing (4mm Clear + 12mm Air + 4mm Clear)",
+    "U_value": {
+      "typical_value": 2.8,
+      "min_value": 2.65,
+      "max_value": 3.0,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.76,
+      "min_value": 0.72,
+      "max_value": 0.79,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.02,
+      "min_value": 0.019,
+      "max_value": 0.021,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.81,
+    "source": "EN 673 / ASHRAE Fundamentals / IS 16231",
+    "notes": "Standard insulated glazing unit (IGU) with 12mm sealed air gap. Reduces heat loss by ~50% compared to single glazing."
+  },
+  {
+    "id": "double_low_e_air_12mm",
+    "name": "Low-E Double Glazing (4mm Low-E + 12mm Air + 4mm Clear)",
+    "U_value": {
+      "typical_value": 1.8,
+      "min_value": 1.65,
+      "max_value": 1.95,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.6,
+      "min_value": 0.55,
+      "max_value": 0.65,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.02,
+      "min_value": 0.019,
+      "max_value": 0.021,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.75,
+    "source": "NFRC Certified Products Directory / ECBC 2017 Glazing Tables",
+    "notes": "Low-emissivity coating on surface #2 or #3 reflecting long-wave infrared radiation back into the room, reducing radiative heat loss."
+  },
+  {
+    "id": "double_low_e_argon_16mm",
+    "name": "High-Performance Low-E Double Glazing (4mm Low-E + 16mm Argon + 4mm Clear)",
+    "U_value": {
+      "typical_value": 1.2,
+      "min_value": 1.1,
+      "max_value": 1.35,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.55,
+      "min_value": 0.5,
+      "max_value": 0.6,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.024,
+      "min_value": 0.023,
+      "max_value": 0.025,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.72,
+    "source": "Passivhaus Institute Component Database / ASHRAE Fundamentals",
+    "notes": "Argon gas-filled cavity combined with soft-coat Low-E. Highly recommended for severe sub-zero climates in Ladakh and high altitude posts."
+  },
+  {
+    "id": "triple_low_e_argon",
+    "name": "Triple Glazing (Low-E + Argon + Clear + Argon + Low-E)",
+    "U_value": {
+      "typical_value": 0.75,
+      "min_value": 0.65,
+      "max_value": 0.85,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.48,
+      "min_value": 0.42,
+      "max_value": 0.52,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.036,
+      "min_value": 0.034,
+      "max_value": 0.038,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.64,
+    "source": "Passivhaus Cold Climate Standards & EN 673",
+    "notes": "Premium ultra-low U-value triple glazed unit for extreme sub-zero conditions (-20\u00b0C to -35\u00b0C)."
+  },
+  {
+    "id": "polycarbonate_twinwall_10mm",
+    "name": "Twin-Wall Polycarbonate Sheet (10mm)",
+    "U_value": {
+      "typical_value": 3.0,
+      "min_value": 2.8,
+      "max_value": 3.2,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.77,
+      "min_value": 0.72,
+      "max_value": 0.82,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.01,
+      "min_value": 0.0095,
+      "max_value": 0.0105,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.79,
+    "source": "Manufacturer Technical Data & SECMOL / DIHAR Ladakh Greenhouse Studies",
+    "notes": "Lightweight, shatterproof, UV-stabilized fluted sheet widely deployed for passive solar greenhouses, sunspaces, and attached solariums in Ladakh."
+  },
+  {
+    "id": "polycarbonate_multiwall_16mm",
+    "name": "Multi-Wall Polycarbonate Sheet (16mm Triple-Wall)",
+    "U_value": {
+      "typical_value": 2.2,
+      "min_value": 2.0,
+      "max_value": 2.4,
+      "unit": "W/m\u00b2\u00b7K"
+    },
+    "SHGC": {
+      "typical_value": 0.68,
+      "min_value": 0.62,
+      "max_value": 0.74,
+      "unit": "dimensionless"
+    },
+    "thickness": {
+      "typical_value": 0.016,
+      "min_value": 0.015,
+      "max_value": 0.017,
+      "unit": "m"
+    },
+    "visible_transmittance": 0.7,
+    "source": "ASTM D1003 / EN 16153",
+    "notes": "Reinforced multiwall fluted polycarbonate providing improved thermal insulation over standard twin-wall sheets while remaining lightweight."
+  }
+]
