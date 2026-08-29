@@ -1,4 +1,4 @@
-﻿"""
+"""
 THERMOSHELTER AI - Services Package
 ===================================
 Central formula engine and simulation service layer.
@@ -147,4 +147,21 @@ __all__ = [
     "calculate_total_solar_energy",
     "calculate_external_energy_requirement",
     "calculate_design_score",
+    "calculate_assembly_u_value",
+    "run_simulation",
+    "simulate_shelter",
+    "SHELTER_MODELS",
+    "GLAZING_PROPERTIES",
+    "ORIENTATION_FACTORS",
 ]
+
+from services.simulation_service import (
+    calculate_assembly_u_value,
+    run_simulation,
+    simulate_shelter,
+    SHELTER_MODELS,
+    GLAZING_PROPERTIES,
+    ORIENTATION_FACTORS,
+)
+
+

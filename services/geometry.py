@@ -1,4 +1,4 @@
-﻿"""
+"""
 THERMOSHELTER AI - Geometric Calculation Formulas
 ==================================================
 Deterministic, pure mathematical functions for shelter surface areas,
@@ -192,3 +192,43 @@ def calculate_net_wall_area(
         )
 
     return float(gross_wall_area - openings)
+
+
+def calculate_pitched_roof_geometry(
+    length: float,
+    width: float,
+    height: float,
+    pitch_angle_deg: float = 30.0
+) -> dict:
+    """
+    Calculates detailed roof area, gable wall area, and volume for a pitched/gabled shelter.
+
+    Parameters:
+        length: Shelter length in meters.
+        width: Shelter width in meters (gable span).
+        height: Eave height in meters.
+        pitch_angle_deg: Roof slope angle in degrees (default 30.0°).
+
+    Returns:
+        Dict with "roof_area", "gable_area", "gross_wall_area", "volume", "ridge_height", "total_height".
+    """
+    import math
+    if length <= 0.0 or width <= 0.0 or height <= 0.0:
+        raise ValueError("Dimensions must be strictly positive.")
+
+    rad = math.radians(pitch_angle_deg)
+    ridge_height = (width / 2.0) * math.tan(rad)
+    roof_area = (length * width) / math.cos(rad)
+    gable_area = 2.0 * (0.5 * width * ridge_height)
+    gross_wall = calculate_wall_area(length, width, height) + gable_area
+    volume = calculate_volume(length, width, height) + (0.5 * width * ridge_height * length)
+
+    return {
+        "roof_area": round(float(roof_area), 3),
+        "gable_area": round(float(gable_area), 3),
+        "gross_wall_area": round(float(gross_wall), 3),
+        "volume": round(float(volume), 3),
+        "ridge_height": round(float(ridge_height), 3),
+        "total_height": round(float(height + ridge_height), 3),
+    }
+

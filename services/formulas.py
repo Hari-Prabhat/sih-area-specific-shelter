@@ -31,11 +31,13 @@ from services.formula_constants import (
 from services.geometry import (
     calculate_floor_area,
     calculate_net_wall_area,
+    calculate_pitched_roof_geometry,
     calculate_roof_area_flat,
     calculate_total_envelope_area,
     calculate_volume,
     calculate_wall_area,
 )
+
 
 # Re-export Solar
 from services.solar import (

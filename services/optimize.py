@@ -1,110 +1,180 @@
 import os
 import sys
+from typing import Any, Dict, List, Optional
 import optuna
 
 # Ensure services directory is discoverable
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
 
-try:
-    from services.climate_service import get_climate_data
-except ImportError:
-    from climate_service import get_climate_data
+from simulation_service import run_simulation, GLAZING_PROPERTIES, ORIENTATION_FACTORS
+from climate_service import get_climate_data
 
 # Suppress Optuna's default verbose logging to keep terminal and UI clean
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-def _objective(trial, city: str, substeps: int = 60):
+
+def _objective(
+    trial: optuna.Trial,
+    city: str,
+    length: float = 4.0,
+    width: float = 3.0,
+    height: float = 2.8,
+    wall_material: Optional[str] = None,
+    glazing: Optional[str] = None,
+    orientation: Optional[str] = None,
+    occupants: int = 2,
+    substeps: int = 60,
+) -> float:
     """
-    Evaluates one design trial for a specific climate zone using a numerically
-    stable sub-hour explicit time-stepping scheme.
+    Evaluates one candidate design combination using the authoritative simulation_service.
     """
-    # 1. AI Suggests Design Parameters
-    insulation_thickness = trial.suggest_float("insulation_thickness_m", 0.02, 0.25)
-    window_area = trial.suggest_float("window_area_m2", 0.5, 10.0)
-    
-    # 2. Fetch Weather (First 168 hours = 1 Week)
-    weather = get_climate_data(city)
-    if "error" in weather:
-        raise ValueError(weather["error"])
-        
-    outdoor_temps = weather['hourly_temperature'][:168]
-    solar_rad = [d + s for d, s in zip(weather['hourly_direct_solar'][:168], weather['hourly_diffuse_solar'][:168])]
-    
-    # 3. Physics Constants (PUF Insulation k=0.025, Glass k=1.0)
-    U_wall = 0.025 / insulation_thickness
-    U_glass = 1.0 / 0.006  # 6mm single glass
-    U_roof = 0.025 / 0.15  # 15cm roof insulation
-    
-    length, width, height = 4.0, 3.0, 2.8
-    volume = length * width * height
-    total_wall_area = 2 * (length * height) + 2 * (width * height)
-    solid_wall_area = max(0.0, total_wall_area - window_area)
-    roof_area = length * width
-    
-    # Thermal Mass
-    total_thermal_mass = volume * 1.2 * 1005 * 3.0 
-    
-    dt = 3600.0 / substeps  # Time step in seconds (60 seconds per sub-step)
-    
-    T_in = 20.0  # Start temperature
-    discomfort = 0.0  # The score to minimize (degree-hours)
-    
-    # 4. Run Stable Physics Loop
-    for hour in range(168):
-        T_out = outdoor_temps[hour]
-        solar_radiation = solar_rad[hour]
-        
-        for _ in range(substeps):
-            Q_solar = solar_radiation * window_area * 0.8  # 0.8 SHGC
-            Q_internal = 200  # People + lights (Watts)
-            
-            Q_walls = U_wall * solid_wall_area * (T_in - T_out)
-            Q_roof = U_roof * roof_area * (T_in - T_out)
-            Q_windows = U_glass * window_area * (T_in - T_out)
-            Q_vent = 0.33 * volume * 0.5 * (T_in - T_out)  # 0.5 ACH
-            
-            Q_net = (Q_solar + Q_internal) - (Q_walls + Q_roof + Q_windows + Q_vent)
-            delta_T = (Q_net / total_thermal_mass) * dt
-            T_in += delta_T
-        
-        # 5. Calculate Discomfort Penalty per hour (Target: 18°C to 24°C)
-        if T_in < 18.0:
-            discomfort += (18.0 - T_in)
-        elif T_in > 24.0:
-            discomfort += (T_in - 24.0)
-            
-    return discomfort
+    # 1. Parameter candidate suggestions
+    insulation_thickness = trial.suggest_float("insulation_thickness_m", 0.0, 0.25, step=0.005)
+
+    # Max reasonable window area (up to 40% of total wall area)
+    total_wall_area = 2.0 * (length + width) * height
+    max_win = min(12.0, total_wall_area * 0.40)
+    window_area = trial.suggest_float("window_area_m2", 0.5, round(max_win, 1), step=0.1)
+
+    # Wall Material
+    if wall_material and wall_material != "auto":
+        wall_mat_choice = wall_material
+    else:
+        wall_mat_choice = trial.suggest_categorical("wall_material", ["brick", "concrete", "puf_insulation"])
+
+    # Glazing
+    if glazing and glazing != "auto":
+        glaze_choice = glazing
+    else:
+        glaze_choice = trial.suggest_categorical(
+            "glazing", ["single_clear", "double_clear", "double_low_e", "triple_low_e"]
+        )
+
+    # Orientation
+    if orientation and orientation != "auto":
+        orient_choice = orientation
+    else:
+        orient_choice = trial.suggest_categorical("orientation", ["south", "north", "east", "west"])
+
+    # 2. Run authoritative simulation
+    sim_result = run_simulation(
+        city=city,
+        length=length,
+        width=width,
+        height=height,
+        wall_material=wall_mat_choice,
+        insulation_thickness_m=insulation_thickness,
+        window_area=window_area,
+        glazing=glaze_choice,
+        orientation=orient_choice,
+        occupants=occupants,
+        hours_to_simulate=168,
+        substeps=substeps,
+    )
+
+    if "error" in sim_result:
+        raise ValueError(sim_result["error"])
+
+    # 3. Discomfort score to minimize
+    discomfort = sim_result["comfort_metrics"]["discomfort_dh"]
+    return float(discomfort)
 
 
-def run_optimization(city: str, n_trials: int = 50) -> dict:
+def run_optimization(
+    city: str,
+    length: float = 4.0,
+    width: float = 3.0,
+    height: float = 2.8,
+    wall_material: Optional[str] = None,
+    glazing: Optional[str] = None,
+    orientation: Optional[str] = None,
+    occupants: int = 2,
+    n_trials: int = 40,
+) -> Dict[str, Any]:
     """
-    Runs Optuna optimization for a shelter in the given city.
-    
+    Runs Optuna TPE optimization across design parameters:
+      - insulation thickness (m)
+      - window area (m²)
+      - wall material
+      - glazing spec
+      - solar orientation
+
     Returns:
-        dict: {
-            "insulation_thickness_m": float,
-            "window_area_m2": float,
-            "discomfort_score": float
-        }
+        dict containing best parameters, discomfort score, and full verification simulation.
     """
     weather = get_climate_data(city)
     if "error" in weather:
         raise ValueError(weather["error"])
-        
-    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
-    study.optimize(lambda trial: _objective(trial, city, substeps=60), n_trials=n_trials)
-    
+
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(seed=42)
+    )
+    study.optimize(
+        lambda trial: _objective(
+            trial=trial,
+            city=city,
+            length=length,
+            width=width,
+            height=height,
+            wall_material=wall_material,
+            glazing=glazing,
+            orientation=orientation,
+            occupants=occupants,
+            substeps=60,
+        ),
+        n_trials=n_trials,
+    )
+
+    best_p = study.best_params
+    best_ins = round(float(best_p.get("insulation_thickness_m", 0.05)), 3)
+    best_win = round(float(best_p.get("window_area_m2", 2.0)), 2)
+    best_mat = str(best_p.get("wall_material", wall_material if wall_material and wall_material != "auto" else "brick"))
+    best_glaze = str(best_p.get("glazing", glazing if glazing and glazing != "auto" else "double_clear"))
+    best_orient = str(best_p.get("orientation", orientation if orientation and orientation != "auto" else "south"))
+    best_score = round(float(study.best_value), 2)
+
+    # Run final authoritative simulation with the best candidate design
+    best_sim = run_simulation(
+        city=city,
+        length=length,
+        width=width,
+        height=height,
+        wall_material=best_mat,
+        insulation_thickness_m=best_ins,
+        window_area=best_win,
+        glazing=best_glaze,
+        orientation=best_orient,
+        occupants=occupants,
+        hours_to_simulate=168,
+    )
+
+    glaze_name = GLAZING_PROPERTIES.get(best_glaze, {}).get("name", best_glaze)
+
     return {
-        "insulation_thickness_m": round(float(study.best_params["insulation_thickness_m"]), 3),
-        "window_area_m2": round(float(study.best_params["window_area_m2"]), 2),
-        "discomfort_score": round(float(study.best_value), 2)
+        "city": city,
+        "insulation_thickness_m": best_ins,
+        "insulation_mm": round(best_ins * 1000.0, 1),
+        "window_area_m2": best_win,
+        "wall_material": best_mat,
+        "glazing": best_glaze,
+        "glazing_name": glaze_name,
+        "orientation": best_orient,
+        "discomfort_score": best_score,
+        "simulation_result": best_sim,
     }
 
 
 if __name__ == "__main__":
-    test_city = "chennai"
-    print(f"🧠 Running optimization for {test_city.upper()} (50 trials)...")
-    res = run_optimization(test_city, n_trials=50)
-    print(f"Optimal Insulation: {res['insulation_thickness_m'] * 1000:.0f} mm")
+    test_city = "leh"
+    print(f"🧠 Running optimization for {test_city.upper()} (40 trials)...")
+    res = run_optimization(test_city, n_trials=40)
+    print(f"Optimal Insulation: {res['insulation_mm']} mm")
     print(f"Optimal Window Area: {res['window_area_m2']:.2f} m²")
+    print(f"Optimal Material: {res['wall_material']}")
+    print(f"Optimal Glazing: {res['glazing_name']}")
+    print(f"Optimal Orientation: {res['orientation'].title()}")
     print(f"Discomfort Score: {res['discomfort_score']:.2f} degree-hours")
+

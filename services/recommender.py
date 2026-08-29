@@ -180,8 +180,16 @@ def get_recommendation(city: str, people: int, home_type: str, n_trials: int = 4
     geo = auto_size_shelter(people, home_type)
     mat_rec = recommend_materials(climate_type, home_type)
     
-    # Run AI Optimization
-    opt_result = run_optimization(city, n_trials=n_trials)
+    # Run AI Optimization using auto-sized geometry and selected wall material
+    opt_result = run_optimization(
+        city=city,
+        length=geo["length_m"],
+        width=geo["width_m"],
+        height=geo["height_m"],
+        wall_material=mat_rec["wall_material_id"],
+        occupants=people,
+        n_trials=n_trials,
+    )
     insulation_mm = round(opt_result["insulation_thickness_m"] * 1000, 0)
     window_area_m2 = opt_result["window_area_m2"]
     
@@ -204,6 +212,12 @@ def get_recommendation(city: str, people: int, home_type: str, n_trials: int = 4
         "optimal_insulation_m": opt_result["insulation_thickness_m"],
         "optimal_insulation_mm": insulation_mm,
         "optimal_window_area_m2": window_area_m2,
+        "optimal_wall_material": opt_result["wall_material"],
+        "optimal_glazing": opt_result["glazing"],
+        "optimal_glazing_name": opt_result.get("glazing_name", opt_result["glazing"]),
+        "optimal_orientation": opt_result["orientation"],
         "discomfort_score": opt_result["discomfort_score"],
+        "simulation_result": opt_result.get("simulation_result"),
         "explanation": explanation
     }
+

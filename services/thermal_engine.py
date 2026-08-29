@@ -1,93 +1,34 @@
 import os
+import sys
 import matplotlib.pyplot as plt
-from climate_service import get_climate_data
-from material_service import get_material
 
-def simulate_shelter(city, length, width, height, wall_material_name, window_area):
+# Ensure services directory is discoverable
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+
+from simulation_service import simulate_shelter as _simulate_shelter
+from climate_service import get_climate_data
+
+
+def simulate_shelter(city, length, width, height, wall_material_name, window_area, insulation_thickness_m=0.0):
     """
     Calculates the indoor temperature of a shelter hour-by-hour.
+    Delegates to the authoritative simulation_service.
     """
-    # 1. Fetch Data
-    weather = get_climate_data(city)
-    if "error" in weather:
-        return weather
-        
-    wall_mat = get_material(wall_material_name)
-    if "error" in wall_mat:
-        return wall_mat
+    return _simulate_shelter(
+        city=city,
+        length=length,
+        width=width,
+        height=height,
+        wall_material_name=wall_material_name,
+        window_area=window_area,
+        insulation_thickness_m=insulation_thickness_m,
+    )
 
-    # 2. Define Geometry & Constants
-    volume = length * width * height
-    roof_area = length * width
-    floor_area = length * width
-    total_wall_area = 2 * (length * height) + 2 * (width * height)
-    
-    # Subtract window area from solid wall area
-    solid_wall_area = total_wall_area - window_area
-    if solid_wall_area < 0: solid_wall_area = 0
-
-    # 3. Calculate U-Values (Heat Transfer Coefficients)
-    # U = k / thickness (Assuming 0.2m wall thickness, 0.05m insulation, 0.15m roof)
-    wall_thickness = 0.23  # meters (standard brick wall)
-    roof_thickness = 0.15  
-    glass_thickness = 0.006 # 6mm glass
-    
-    U_wall = wall_mat['thermal_conductivity'] / wall_thickness
-    U_roof = 0.5 / roof_thickness # Assuming standard concrete roof
-    U_glass = 1.0 / glass_thickness # Single pane glass
-    
-    # 4. Calculate Thermal Mass (Capacitance)
-    # Heat capacity of the air inside + the floor/furniture (simplified)
-    air_density = 1.2 # kg/m3
-    air_specific_heat = 1005 # J/kgK
-    air_mass = volume * air_density
-    
-    # Add thermal mass of the floor and interior (simplified as 2x air mass for stability)
-    total_thermal_mass = (air_mass * air_specific_heat) * 3.0 
-
-    # 5. Run the 8760 Hour Simulation
-    indoor_temps = []
-    T_in = 20.0 # Starting temperature (20 C)
-    
-    # We only simulate the first 168 hours (1 week) for a fast visual graph
-    hours_to_simulate = 168 
-    
-    for hour in range(hours_to_simulate):
-        T_out = weather['hourly_temperature'][hour]
-        solar_radiation = weather['hourly_direct_solar'][hour] + weather['hourly_diffuse_solar'][hour]
-        
-        # HEAT GAINS (Watts)
-        # Solar heat coming through windows (SHGC = 0.8 for standard glass)
-        Q_solar = solar_radiation * window_area * 0.8 
-        
-        # Internal heat from 2 people + lights (approx 200 Watts)
-        Q_internal = 200 
-        
-        # HEAT LOSSES (Watts)
-        # Q = U * Area * (T_in - T_out)
-        Q_walls = U_wall * solid_wall_area * (T_in - T_out)
-        Q_roof = U_roof * roof_area * (T_in - T_out)
-        Q_windows = U_glass * window_area * (T_in - T_out)
-        
-        # Ventilation/Infiltration losses (Air leaking out)
-        # Formula: 0.33 * Volume * AirChangesPerHour * (T_in - T_out)
-        ACH = 0.5 # 0.5 air changes per hour (standard shelter)
-        Q_vent = 0.33 * volume * ACH * (T_in - T_out)
-        
-        # TOTAL NET HEAT FLOW
-        Q_net = (Q_solar + Q_internal) - (Q_walls + Q_roof + Q_windows + Q_vent)
-        
-        # UPDATE TEMPERATURE
-        # Delta T = Q_net / Thermal Mass (converted for 1 hour = 3600 seconds)
-        delta_T = (Q_net / total_thermal_mass) * 3600
-        T_in = T_in + delta_T
-        
-        indoor_temps.append(T_in)
-
-    return indoor_temps
 
 # ==========================================
-# TEST IT RIGHT NOW
+# CLI TEST HARNESS
 # ==========================================
 if __name__ == "__main__":
     print("Simulating a Brick Shelter in Leh during Winter...")
@@ -118,4 +59,4 @@ if __name__ == "__main__":
     plt.ylabel("Temperature (°C)")
     plt.legend()
     plt.grid(True)
-    plt.show()
+    plt.show()
