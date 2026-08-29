@@ -13,9 +13,10 @@ except ImportError:
 # Suppress Optuna's default verbose logging to keep terminal and UI clean
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-def _objective(trial, city: str):
+def _objective(trial, city: str, substeps: int = 60):
     """
-    Evaluates one design trial for a specific climate zone.
+    Evaluates one design trial for a specific climate zone using a numerically
+    stable sub-hour explicit time-stepping scheme.
     """
     # 1. AI Suggests Design Parameters
     insulation_thickness = trial.suggest_float("insulation_thickness_m", 0.02, 0.25)
@@ -43,25 +44,30 @@ def _objective(trial, city: str):
     # Thermal Mass
     total_thermal_mass = volume * 1.2 * 1005 * 3.0 
     
-    T_in = 15.0  # Start temperature
-    discomfort = 0.0  # The score to minimize
+    dt = 3600.0 / substeps  # Time step in seconds (60 seconds per sub-step)
     
-    # 4. Run Physics Loop
+    T_in = 20.0  # Start temperature
+    discomfort = 0.0  # The score to minimize (degree-hours)
+    
+    # 4. Run Stable Physics Loop
     for hour in range(168):
         T_out = outdoor_temps[hour]
-        Q_solar = solar_rad[hour] * window_area * 0.8  # 0.8 SHGC
-        Q_internal = 200  # People + lights (Watts)
+        solar_radiation = solar_rad[hour]
         
-        Q_walls = U_wall * solid_wall_area * (T_in - T_out)
-        Q_roof = U_roof * roof_area * (T_in - T_out)
-        Q_windows = U_glass * window_area * (T_in - T_out)
-        Q_vent = 0.33 * volume * 0.5 * (T_in - T_out)  # 0.5 ACH
+        for _ in range(substeps):
+            Q_solar = solar_radiation * window_area * 0.8  # 0.8 SHGC
+            Q_internal = 200  # People + lights (Watts)
+            
+            Q_walls = U_wall * solid_wall_area * (T_in - T_out)
+            Q_roof = U_roof * roof_area * (T_in - T_out)
+            Q_windows = U_glass * window_area * (T_in - T_out)
+            Q_vent = 0.33 * volume * 0.5 * (T_in - T_out)  # 0.5 ACH
+            
+            Q_net = (Q_solar + Q_internal) - (Q_walls + Q_roof + Q_windows + Q_vent)
+            delta_T = (Q_net / total_thermal_mass) * dt
+            T_in += delta_T
         
-        Q_net = (Q_solar + Q_internal) - (Q_walls + Q_roof + Q_windows + Q_vent)
-        delta_T = (Q_net / total_thermal_mass) * 3600
-        T_in += delta_T
-        
-        # 5. Calculate Discomfort Penalty (Target: 18°C to 24°C)
+        # 5. Calculate Discomfort Penalty per hour (Target: 18°C to 24°C)
         if T_in < 18.0:
             discomfort += (18.0 - T_in)
         elif T_in > 24.0:
@@ -86,7 +92,7 @@ def run_optimization(city: str, n_trials: int = 50) -> dict:
         raise ValueError(weather["error"])
         
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
-    study.optimize(lambda trial: _objective(trial, city), n_trials=n_trials)
+    study.optimize(lambda trial: _objective(trial, city, substeps=60), n_trials=n_trials)
     
     return {
         "insulation_thickness_m": round(float(study.best_params["insulation_thickness_m"]), 3),
@@ -96,7 +102,7 @@ def run_optimization(city: str, n_trials: int = 50) -> dict:
 
 
 if __name__ == "__main__":
-    test_city = "leh"
+    test_city = "chennai"
     print(f"🧠 Running optimization for {test_city.upper()} (50 trials)...")
     res = run_optimization(test_city, n_trials=50)
     print(f"Optimal Insulation: {res['insulation_thickness_m'] * 1000:.0f} mm")
