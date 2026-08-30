@@ -1191,7 +1191,7 @@ elif nav_mode == "🧱 Material Comparison Studio":
                 textposition="auto",
                 hovertemplate="<b>%{x}</b>: %{y:.1f} °C·h<extra></extra>"
             ))
-            fig_dh.update_xaxes(tickangle=-90, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11))
+            fig_dh.update_xaxes(tickangle=-25, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11))
             fig_dh.update_yaxes(title="Discomfort (°C·h)")
             apply_dark_theme(fig_dh, "📉 Discomfort Degree-Hours (Lower is Better)", height=350, show_legend=False)
             st.plotly_chart(fig_dh, use_container_width=True)
