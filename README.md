@@ -396,5 +396,5 @@ Build an evidence-backed platform that moves from:
 
 ---
 
-### ❤️ ThermoShelter AI
+### ThermoShelter AI
 **Climate-aware design. Physics-based exploration. Transparent optimization.**
