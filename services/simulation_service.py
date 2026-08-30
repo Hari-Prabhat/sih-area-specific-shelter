@@ -500,6 +500,7 @@ def run_simulation(
             "roof_u": u_roof,
             "floor_u": u_floor,
             "glass_u": round(u_glass, 4),
+            "window_u": round(u_glass, 4),
             "wall_r_total": wall_u_data["R_total"],
             "roof_r_total": roof_u_data["R_total"],
             "floor_r_total": floor_u_data["R_total"],

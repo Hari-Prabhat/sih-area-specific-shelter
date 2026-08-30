@@ -30,8 +30,8 @@ def render_envelope_specifications(
             f"""<div class='card'>
 <h4>🧱 Wall Assembly</h4>
 <p><b>Material:</b> {mats['wall_material_name']}</p>
-<p><b>Assembly U-Value:</b> <span class='metric-badge'>{u_vals['wall_u']:.3f} W/m²K</span></p>
-<p><b>Total Thermal R:</b> {u_vals['wall_r_total']:.2f} m²K/W</p>
+<p><b>Assembly U-Value:</b> <span class='metric-badge'>{u_vals.get('wall_u', 0.50):.3f} W/m²K</span></p>
+<p><b>Total Thermal R:</b> {u_vals.get('wall_r_total', 2.0):.2f} m²K/W</p>
 <p><b>Thermal Mass:</b> {'High Thermal Mass' if home_type == 'Permanent' else 'Lightweight Prefab Panel'}</p>
 </div>""",
             unsafe_allow_html=True,
@@ -40,8 +40,8 @@ def render_envelope_specifications(
             f"""<div class='card'>
 <h4>🏠 Roof System</h4>
 <p><b>Design:</b> {mats['roof_material']}</p>
-<p><b>Roof U-Value:</b> <span class='metric-badge'>{u_vals['roof_u']:.3f} W/m²K</span></p>
-<p><b>Total Roof R:</b> {u_vals['roof_r_total']:.2f} m²K/W</p>
+<p><b>Roof U-Value:</b> <span class='metric-badge'>{u_vals.get('roof_u', 0.40):.3f} W/m²K</span></p>
+<p><b>Total Roof R:</b> {u_vals.get('roof_r_total', 2.5):.2f} m²K/W</p>
 <p><b>Profile:</b> {mats['roof_type'].title()} Roof</p>
 </div>""",
             unsafe_allow_html=True,
@@ -54,7 +54,7 @@ def render_envelope_specifications(
 <p><b>Type:</b> {mats['insulation_type']}</p>
 <p><b>Optimal Thickness:</b> <span class='metric-badge'>{rec['optimal_insulation_mm']:.1f} mm</span></p>
 <p><b>Core Conductivity:</b> 0.025 W/m·K (PUF Core)</p>
-<p><b>Added Insulation R:</b> {u_vals['wall_r_total'] - u_vals.get('wall_base_r', 0.5):.2f} m²K/W</p>
+<p><b>Added Insulation R:</b> {u_vals.get('wall_r_total', 2.0) - u_vals.get('wall_base_r', 0.5):.2f} m²K/W</p>
 </div>""",
             unsafe_allow_html=True,
         )
@@ -63,7 +63,7 @@ def render_envelope_specifications(
 <h4>🪟 Fenestration & Glazing</h4>
 <p><b>Specification:</b> {rec.get('optimal_glazing_name', mats['glazing_type'])}</p>
 <p><b>Aperture Area:</b> <span class='metric-badge'>{rec['optimal_window_area_m2']:.2f} m²</span></p>
-<p><b>Glazing U-Value:</b> {u_vals['window_u']:.2f} W/m²K</p>
+<p><b>Glazing U-Value:</b> {u_vals.get('glass_u', u_vals.get('window_u', 2.80)):.2f} W/m²K</p>
 <p><b>WWR:</b> {(rec['optimal_window_area_m2'] / max(1.0, 2.0 * (geo['length_m'] + geo['width_m']) * geo['height_m'])) * 100.0:.1f} %</p>
 </div>""",
             unsafe_allow_html=True,
