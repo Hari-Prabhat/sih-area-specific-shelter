@@ -1,794 +1,400 @@
 # 🌡️ ThermoShelter AI
-
 ### Area-Specific Passive Shelter Design & Thermal Simulation Platform
 
-> **Design the shelter for the climate — instead of designing the climate control for the shelter.**
+> **Explore climate-specific shelter designs before building them.**
 
-ThermoShelter AI is a software-based platform for designing **climate-specific, energy-efficient passive shelters**.
+ThermoShelter AI is a **Python + Streamlit prototype** for early-stage passive shelter design exploration. It combines local climate data, a reduced-order thermal model, material comparison, rule-based recommendations, Optuna optimization, and interactive 2D/3D visualization.
 
-The platform takes local atmospheric conditions, shelter geometry, material properties, openings, occupancy, and thermal characteristics as inputs. It then performs a physics-based thermal simulation and compares multiple possible designs to recommend a configuration that provides better thermal comfort while reducing external heating/cooling requirements.
-
-The initial focus is on **high-altitude cold regions such as Ladakh**, with an architecture designed to support other climatic regions in the future.
+> **Important:** The current repository does **not** contain a trained AI/ML model or live EnergyPlus, ANSYS, NASA, or IMD API integration. The name “AI” refers to the intended intelligent design workflow; the current recommendation system is rule-based and optimization-driven.
 
 ---
 
 ## 🎯 Problem Statement
 
-Conventional shelters are often designed using generic configurations rather than being optimized for the climatic conditions of their deployment region.
+Shelters can behave very differently under different climates. Choosing the right geometry, insulation, materials, glazing, orientation and ventilation assumptions is difficult when design decisions are made using generic shelter templates or disconnected calculations.
 
-In extreme climates such as Ladakh, this can result in:
+ThermoShelter AI addresses this early-stage design problem by connecting:
 
-* High heat losses through walls and roofs
-* Significant heat loss through doors and windows
-* Poor thermal comfort during night-time
-* Greater dependence on external heating
-* Increased fuel consumption
-* Higher operating costs
-* Increased environmental impact
-
-Ladakh presents an interesting passive-design opportunity because of its cold climate combined with strong solar availability.
-
-The challenge is therefore:
-
-> **How can we computationally determine the most suitable shelter shape, orientation, materials, insulation, openings, and thermal mass for a particular climate?**
+**Climate → Shelter Design → Thermal Simulation → Optimization → Comparison → Visualization**
 
 ---
 
-# 💡 Our Solution
+## 💡 Our Solution
 
-ThermoShelter AI provides a simple workflow:
+The platform lets users explore climate-specific shelter concepts and understand their modeled thermal performance before moving to detailed engineering.
 
 ```text
-Location
+User Inputs
     ↓
-Climate Data
+Climate + Weather Data
     ↓
-Shelter Parameters
+Auto-Sizing + Climate Rules
     ↓
-Material Selection
+Material / Geometry / Glazing
     ↓
-Thermal Simulation
+Reduced-Order Thermal Simulation
     ↓
-Design Optimization
+Comfort + Heat-Loss Metrics
     ↓
-Thermal Comfort Analysis
+Optuna Optimization / Comparison
     ↓
-Recommended Shelter
-    ↓
-3D Visualization
+2D Floor Plan + 3D Visualization
 ```
 
-Instead of requiring users to manually run complex engineering simulations for every configuration, the platform provides a simplified interface for rapidly exploring multiple designs.
+---
+
+## 🚀 Key Features
+
+- 🌍 **5 active climate locations:** Leh, Jaisalmer, Delhi, Chennai, Bengaluru
+- 🏠 **Shelter auto-sizing** based on occupants and temporary/permanent use
+- 🌡️ **168-hour transient thermal simulation**
+- 🧱 **Material database and comparison**
+- 🪟 **Glazing and window-area exploration**
+- ☀️ **Solar-gain and heat-flow analysis**
+- 🧭 **Orientation comparison**
+- 🤖 **Optuna TPE optimization** for reduced discomfort degree-hours
+- 📊 **Baseline vs optimized design comparison**
+- 🏗️ **Flat, pitched, compact, elongated and custom shelter models**
+- 📐 **Interactive 2D floor plan**
+- 🧊 **Interactive Plotly 3D shelter visualization**
+- 🧪 **Automated tests and dataset validation**
 
 ---
 
-# 🚀 Key Features
+## 🧾 User Inputs
 
-## 1. 📍 Area-Specific Design
+| Workflow | Inputs |
+|---|---|
+| Design a Shelter | Location, occupants, temporary/permanent |
+| Improve a Shelter | Location, occupants, temporary/permanent |
+| Choose Materials | Climate, insulation thickness, window area, occupants |
+| Compare Shelter Types | Climate, shelter type, occupants, dimensions/roof for custom model |
 
-The user can define a location and corresponding climatic conditions.
+---
 
-Example:
+## 📊 Simulation Outputs
+
+The application provides:
+
+- Indoor/outdoor temperature profiles
+- Average, minimum and maximum indoor temperature
+- Comfort hours and comfort percentage
+- Discomfort degree-hours
+- Wall, roof, floor and window heat flow
+- Ventilation and radiation heat flow
+- Solar irradiance and useful solar gain
+- Integrated modeled thermal energy
+- Envelope U-values
+- Floor area, volume and other geometry metrics
+
+These are **modeled results**, not measured field energy consumption.
+
+---
+
+## 🧮 Thermal Model
+
+The current engine is a **reduced-order, single-zone thermal model**. The shelter is represented as one thermal node with heat entering and leaving through simplified pathways.
+
+Conceptually:
 
 ```text
-Location: Leh, Ladakh
-Altitude: High
-Climate: Cold
-Solar availability: High
+Net Heat = Solar Gain + Internal Heat
+           - Conduction - Ventilation - Radiation
+
+Indoor Temperature
+        ↓
+   updated over time
 ```
 
-The same framework can later be applied to different climatic regions.
+The implementation uses thermal resistance/U-values, conduction, simplified solar glazing gain, ventilation heat exchange, internal gains, longwave radiation and lumped thermal capacitance with forward-Euler time stepping.
+
+The comfort model is a simple **18–24 °C temperature band**. It is not PMV/PPD, CFD, or a full humidity-coupled comfort model.
 
 ---
 
-## 2. 🏠 Custom Shelter Configuration
+## 🧱 Materials & Climate Data
 
-Users can define:
+### Materials
 
-* Shelter type
-* Number of occupants
-* Length
-* Width
-* Height
-* Shape
-* Orientation
-* Wall material
-* Roof material
-* Floor material
-* Insulation
-* Window area
-* Door area
-* Glazing type
-* Thermal mass
+`data/materials/materials.json` stores properties such as:
 
----
+- thermal conductivity
+- density
+- specific heat
+- emissivity
+- solar absorptivity
+- indicative cost
+- source/notes
 
-## 3. ☀️ Solar Energy Estimation
+`data/materials/glazing.json` contains glazing metadata. The active simulation also defines its runtime glazing presets in `services/simulation_service.py`.
 
-The platform estimates useful solar thermal gain based on:
+### Climate
 
-* Solar irradiance
-* Surface area
-* Orientation
-* Material properties
-* Window area
-* Glazing characteristics
-
----
-
-## 4. 🔥 Thermal Simulation
-
-The system uses a reduced-order transient thermal model to estimate:
-
-* Indoor temperature
-* Heat gain
-* Heat loss
-* Conductive losses
-* Ventilation/infiltration losses
-* Thermal storage
-* Net heat flow
-
-The model is designed for **rapid design-space exploration**, rather than replacing high-fidelity CFD software.
-
----
-
-## 5. 🌡️ Thermal Comfort Analysis
-
-The system evaluates indoor temperature against a configurable comfort range.
-
-Example:
+The active simulation reads local EPW files:
 
 ```text
-Too Cold
-   ↓
-Comfortable
-   ↓
-Too Hot
+data/weather/
+├── leh.epw
+├── chennai.epw
+├── delhi.epw
+├── jaisalmer.epw
+└── bengaluru.epw
 ```
 
-The dashboard reports:
-
-* Minimum temperature
-* Maximum temperature
-* Comfort hours
-* Temperature variation
+Weather is therefore **bundled/local**, not fetched from a live API.
 
 ---
 
-## 6. 🧱 Material Comparison
+## 🧠 Optimization & Recommendations
 
-Different materials can be evaluated under the same climatic conditions.
+The current optimization system uses **Optuna's TPE sampler**.
 
-Example:
+It searches combinations of:
 
-```text
-Mud Brick
-Stone
-Concrete
-Wood
-EPS Insulation
-Mineral Wool
-Composite Materials
-```
+- insulation thickness
+- window area
+- wall material
+- glazing
+- orientation
 
-The system compares their thermal performance based on material properties such as:
+The objective is to minimize simulated **discomfort degree-hours** for the selected scenario.
 
-* Thermal conductivity
-* Density
-* Specific heat
-* Emissivity
-* Absorptivity
-* Thickness
+The recommendation layer in `services/recommender.py` uses **deterministic climate rules** and then integrates optimization results. It is not a trained machine-learning model.
 
 ---
 
-## 7. 🔬 Design Optimization
+## ⭐ USP
 
-The platform can evaluate multiple combinations of:
+ThermoShelter AI combines several early-stage design tasks in one workflow:
 
-* Materials
-* Insulation
-* Orientation
-* Window area
-* Glazing
-* Thermal mass
-* Shelter geometry
+> **Climate-aware recommendation + physics-based screening + optimization + material comparison + 2D/3D visualization**
 
-The designs are ranked according to configurable performance criteria.
+The emphasis is on **fast and explainable design exploration**, rather than replacing professional engineering tools.
 
-Example:
+---
+
+## 🛠️ Technology Stack
+
+| Component | Technology |
+|---|---|
+| UI | Streamlit |
+| Language | Python |
+| Visualization | Plotly |
+| Numerical computing | NumPy |
+| Data handling | Pandas |
+| Weather parsing | pvlib |
+| Optimization | Optuna |
+| Testing | pytest |
+| Data | JSON, CSV, EPW |
+
+---
+
+## 🏛️ Architecture
 
 ```text
-                Design A   Design B   Design C
-
-Comfort Hours      10         17         21
-Heat Loss         High       Medium      Low
-Solar Gain        Medium      High       High
-Energy Demand     High       Medium      Low
-
+                    Streamlit UI
+                         │
+        ┌────────────────┼────────────────┐
+        ↓                ↓                ↓
+   Climate/Data     Recommender      Optimizer
+        │                │                │
+        └────────────────┼────────────────┘
                          ↓
-
-                 🏆 DESIGN C
+                Thermal Simulation
+                         │
+          ┌──────────────┼──────────────┐
+          ↓              ↓              ↓
+       Thermal         Solar        Ventilation
+          │              │              │
+          └──────────────┼──────────────┘
+                         ↓
+                 Results & Metrics
+                         │
+                 ┌───────┴───────┐
+                 ↓               ↓
+             Plotly 2D        Plotly 3D
 ```
 
 ---
 
-## 8. 🧠 Explainable Recommendation
-
-Instead of simply saying:
-
-> "Design C is best."
-
-ThermoShelter AI explains why.
-
-Example:
+## 📁 Project Structure
 
 ```text
-Recommended Design
-
-✓ Lower conductive heat loss
-✓ Better thermal retention
-✓ Higher useful solar gain
-✓ More comfort hours
-✓ Lower external heating requirement
-```
-
-This makes the optimization transparent and understandable.
-
----
-
-## 9. 🌐 3D Shelter Visualization
-
-The selected design can be represented as a lightweight interactive 3D model.
-
-The model reflects parameters such as:
-
-* Length
-* Width
-* Height
-* Shape
-* Orientation
-* Windows
-* Doors
-* Roof
-* Materials
-
-Users can:
-
-* Rotate
-* Zoom
-* Pan
-* Inspect the shelter
-
----
-
-# 🧮 Thermal Model
-
-The MVP uses a simplified transient energy-balance approach.
-
-The basic model is:
-
-$$
-C_{eff}\frac{dT_{in}}{dt}
-=
-Q_{solar}
-+
-Q_{internal}
--
-Q_{conduction}
--
-Q_{ventilation}
--
-Q_{radiation}
-$$
-
-### Conductive heat transfer
-
-$$
-Q_{conduction}=UA(T_{in}-T_{out})
-$$
-
-where:
-
-$$
-U=\frac{1}{R_{total}}
-$$
-
-For multilayer construction:
-
-$$
-R_{total}=R_{inside}+\sum\frac{L_i}{k_i}+R_{outside}
-$$
-
-### Thermal mass
-
-$$
-C=mC_p
-$$
-
-### Solar gain
-
-A simplified solar-gain model is used for the MVP.
-
-### Ventilation
-
-Ventilation/infiltration losses are estimated using air-exchange rate and shelter volume.
-
-All assumptions and equations are documented in:
-
-```text
-docs/equations.md
-```
-
----
-
-# 🏗️ System Architecture
-
-```text
-                    ┌──────────────────┐
-                    │      USER        │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │ React Frontend   │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │   FastAPI API    │
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┼───────────────┐
-              ▼              ▼               ▼
-      ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-      │ Climate     │ │ Thermal     │ │ Optimization│
-      │ Engine      │ │ Engine      │ │ Engine      │
-      └─────────────┘ └─────────────┘ └─────────────┘
-              │              │               │
-              └──────────────┼───────────────┘
-                             ▼
-                    ┌──────────────────┐
-                    │ Results Engine   │
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┴─────────────┐
-              ▼                            ▼
-       ┌──────────────┐             ┌──────────────┐
-       │ Data Charts  │             │ 3D Shelter   │
-       │ & Analytics  │             │ Visualization│
-       └──────────────┘             └──────────────┘
-```
-
----
-
-# 🛠️ Technology Stack
-
-## Frontend
-
-* React
-* Vite
-* Tailwind CSS
-* Recharts
-* Three.js / React Three Fiber
-
-## Backend
-
-* Python
-* FastAPI
-* Pydantic
-
-## Scientific Computing
-
-* NumPy
-* Pandas
-* SciPy
-
-## Data
-
-* CSV
-* JSON
-* SQLite/PostgreSQL-ready architecture
-
----
-
-# 📁 Project Structure
-
-```text
-thermoshelter-ai/
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   └── README.md
-│
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   └── main.py
-│   └── tests/
-│
-├── simulation/
-│   ├── thermal/
-│   ├── solar/
-│   ├── ventilation/
-│   ├── thermal_mass/
-│   └── tests/
-│
-├── optimization/
-│   ├── optimizer.py
-│   ├── scoring.py
-│   └── tests/
-│
+sih-area-specific-shelter/
+├── app.py
+├── data_loader.py
 ├── data/
 │   ├── climate/
 │   ├── materials/
-│   ├── glazing/
-│   └── shelters/
-│
-├── visualization/
-│   ├── models/
-│   └── components/
-│
+│   ├── shelters/
+│   └── weather/
+├── services/
+│   ├── climate_service.py
+│   ├── comfort.py
+│   ├── formulas.py
+│   ├── geometry.py
+│   ├── material_service.py
+│   ├── optimize.py
+│   ├── recommender.py
+│   ├── simulation_service.py
+│   ├── solar.py
+│   ├── thermal.py
+│   ├── ventilation.py
+│   ├── visual3d.py
+│   └── tests/
 ├── docs/
-│   ├── architecture.md
-│   ├── equations.md
-│   ├── api.md
-│   ├── data_dictionary.md
-│   └── validation.md
-│
-├── tests/
-│
-├── .env.example
-├── .gitignore
-├── docker-compose.yml
+├── scripts/
 └── README.md
 ```
 
 ---
 
-# 🔌 API
+## 💻 Installation & Run
 
-The backend exposes APIs such as:
-
-```text
-GET  /health
-GET  /locations
-GET  /locations/{location_id}
-GET  /materials
-GET  /materials/{material_id}
-POST /simulate
-POST /optimize
-```
-
-# 🎯 MVP
-
-The Minimum Viable Product focuses on the complete end-to-end workflow:
-
-```text
-User Input
-     ↓
-Climate Data
-     ↓
-Material Selection
-     ↓
-Thermal Simulation
-     ↓
-Temperature Prediction
-     ↓
-Heat Loss Calculation
-     ↓
-Solar Energy Calculation
-     ↓
-Design Comparison
-     ↓
-Optimization
-     ↓
-Recommended Design
-     ↓
-3D Visualization
-```
-
-### MVP outputs
-
-The system must provide:
-
-* Predicted indoor temperature
-* Ambient temperature comparison
-* Solar energy gain
-* Heat loss
-* Heat flow
-* Comfort hours
-* External energy requirement
-* Design ranking
-* Recommended configuration
-* 3D shelter visualization
-
----
-
-# 🏆 USP
-
-### From Simulation to Recommendation
-
-Existing engineering tools can perform sophisticated thermal simulations.
-
-ThermoShelter AI focuses on making the process:
-
-**Climate-specific + Parametric + Explainable + User-friendly**
-
-Instead of asking:
-
-> "What happens if I build this shelter?"
-
-ThermoShelter asks:
-
-> **"What shelter should I build for this climate?"**
-
----
-
-
-# 🔄 Development Workflow
-
-We use Git feature branches.
-
-```text
-main
- │
- └── develop
-       │
-       ├── feature/thermal-engine
-       ├── feature/data-engine
-       ├── feature/backend
-       ├── feature/frontend
-       ├── feature/visualization
-       └── feature/devops
-```
-
----
-
-# 🧪 Validation Strategy
-
-The MVP uses a reduced-order physics model.
-
-Validation will be performed progressively using:
-
-1. Analytical calculations
-2. Synthetic test cases
-3. Reference measurements where available
-4. ANSYS/EnergyPlus comparison
-5. Real shelter sensor data in future versions
-
-Potential validation metrics include:
-
-```text
-MAE
-RMSE
-MAPE
-```
-
-The system will clearly distinguish between:
-
-**simulated data**
-
-and
-
-**measured/reference data**.
-
----
-
-# ⚠️ Model Limitations
-
-The initial version is not intended to replace high-fidelity CFD.
-
-The reduced-order model uses simplified assumptions for:
-
-* solar gain
-* radiation
-* airflow
-* thermal mass
-* indoor comfort
-
-Future versions can improve these using:
-
-* detailed solar-position calculations
-* CFD
-* EnergyPlus
-* ANSYS
-* real sensor data
-* advanced thermal comfort models
-
----
-
-# 🚀 Getting Started
-
-## Prerequisites
-
-Install:
-
-* Git
-* Python 3.11+
-* Node.js 20+
-* npm
-* Docker (optional)
-
----
-
-## Clone Repository
+Create a virtual environment:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/thermoshelter-ai.git
+python -m venv .venv
+```
 
-cd thermoshelter-ai
+Activate it, then install the current dependencies:
+
+```bash
+python -m pip install streamlit plotly numpy pandas pvlib optuna pytest
+```
+
+Run the application:
+
+```bash
+streamlit run app.py
 ```
 
 ---
 
-## Backend
+## 🧪 Validation & Testing
+
+The repository includes:
+
+- formula unit tests
+- thermal simulation tests
+- 3D visualization tests
+- dataset validation through `scripts/validate_data.py`
+
+Run tests:
 
 ```bash
-cd backend
-
-python -m venv venv
+python -m pytest services/tests
 ```
 
-### Windows
+Validate datasets:
 
 ```bash
-venv\Scripts\activate
+python scripts/validate_data.py
 ```
 
-### Linux/macOS
-
-```bash
-source venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Backend:
-
-```text
-http://localhost:8000
-```
-
-API documentation:
-
-```text
-http://localhost:8000/docs
-```
+No unsupported accuracy or performance percentage is claimed here.
 
 ---
 
-## Frontend
+## ⚠️ Limitations
 
-Open another terminal:
+The current prototype is intentionally simplified:
 
-```bash
-cd frontend
+- single-zone reduced-order thermal model
+- 168-hour simulation horizon in the main UI workflows
+- simplified radiation and solar modelling
+- simplified ventilation/infiltration treatment
+- simple 18–24 °C comfort band
+- bundled weather data only
+- limited active location coverage
+- no field calibration
+- no high-fidelity CFD/building simulation
 
-npm install
-
-npm run dev
-```
-
-Frontend:
-
-```text
-http://localhost:5173
-```
+Therefore, ThermoShelter AI is for **early-stage design exploration and decision support**, not final engineering certification or construction approval.
 
 ---
 
-# 🐳 Docker
+## 🚧 Future Scope
 
-The project is designed to support Docker-based deployment.
+Planned upgrades include:
 
-Run:
+- annual/seasonal simulation
+- more climate locations
+- improved solar and thermal-mass modelling
+- humidity and adaptive comfort modelling
+- multi-objective optimization
+- measured-field calibration
+- high-fidelity simulation verification
+- live climate-data integrations
+- CAD/BIM and report export
 
-```bash
-docker compose up --build
-```
-
-This will start the frontend and backend services.
-
----
-
-# 📊 Example Use Case
-
-### Scenario
-
-A relief organization wants to deploy a shelter for six people in Leh.
-
-The user enters:
-
-```text
-Location:
-Leh
-
-Occupants:
-6
-
-Shelter:
-Permanent
-
-Dimensions:
-5m × 4m × 3m
-
-Orientation:
-South
-
-Wall:
-Mud brick
-
-Insulation:
-EPS
-
-Glazing:
-Double glazing
-
-Thermal Mass:
-High
-```
-
-The system simulates the shelter and compares alternative configurations.
-
-The final result provides:
-
-```text
-Indoor Temperature
-Solar Gain
-Heat Loss
-Comfort Hours
-Energy Requirement
-Recommended Design
-```
-
-The user can then inspect the recommended design through the 3D model.
+These are **future capabilities**, not current features.
 
 ---
 
-# 🌱 Impact
+## 🌱 Sustainability Impact
 
-ThermoShelter AI aims to contribute toward:
+The project aims to support more climate-responsive shelter design by making passive alternatives easier to compare before construction.
 
-* Reduced heating/cooling energy demand
-* Reduced fossil-fuel dependence
-* Improved thermal comfort
-* Climate-resilient shelter design
-* Faster engineering decision-making
-* Better utilization of passive solar energy
-* Sustainable infrastructure in remote regions
+Potential benefits include better envelope decisions, greater use of passive strategies, fewer early design iterations, and improved climate resilience.
+
+No measured carbon or energy-savings percentage is claimed by the current prototype.
 
 ---
 
-# 🧭 Vision
+## 👥 Team Rocket
 
-The long-term vision is to create a platform where anyone can answer:
-
-> **"Given this location, climate, budget and population, what is the most thermally efficient shelter I can build?"**
-
-without requiring every design iteration to be manually modeled from scratch in a high-fidelity engineering package.
+| Member | Role |
+|---|---|
+| **M. Yagneshwar** | Team Leader |
+| **Hari Prabhat Kumar** | Team Member |
+| **Shaik Sohail** | Team Member |
+| **K. M. Shanthan** | Team Member |
+| **Syed Abid Ali** | Team Member |
+| **K. Trishathi** | Team Member |
 
 ---
 
-## ⭐ ThermoShelter AI
+## 🏆 Smart India Hackathon 2026
 
-**Climate-aware design.
-Physics-based simulation.
-Intelligent optimization.
-Passive comfort.**
+**Project:** ThermoShelter AI  
+**Team:** Rocket  
+**Theme:** Area-Specific Passive Shelter Design & Thermal Simulation
 
-> **Design better shelters. Use less energy. Adapt to the climate.**
+The repository documents the current prototype implementation. Official challenge IDs and other competition metadata are intentionally omitted unless verified from the official project information.
+
+---
+
+## 📚 References
+
+Technical references used by the repository include:
+
+- ISO 6946 — Thermal resistance and transmittance
+- IS 3792 — Thermal performance of buildings
+- ASHRAE Handbook — Fundamentals
+- ASHRAE Standard 55 — Thermal comfort
+- EN 673 — Glass thermal performance
+- NFRC 100 / 200 — Fenestration performance
+- BIPM SI Brochure — SI units
+- CODATA physical constants
+
+Project-specific equations and data definitions are documented in `docs/equations.md` and `docs/data_dictionary.md`.
+
+---
+
+## ⚖️ Disclaimer
+
+ThermoShelter AI provides **simulation-based estimates for early-stage design exploration**. Results depend on model assumptions and supplied data and should not be treated as structural, HVAC, fire-safety, building-code, or professional engineering certification.
+
+---
+
+## 🔭 Long-Term Vision
+
+Build an evidence-backed platform that moves from:
+
+**Climate Data → Rapid Screening → Optimization → High-Fidelity Verification → Field Validation → Climate-Specific Shelter Design Guidance**
+
+---
+
+### ThermoShelter AI
+**Climate-aware design. Physics-based exploration. Transparent optimization.**
