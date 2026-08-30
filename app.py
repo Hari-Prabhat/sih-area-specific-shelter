@@ -34,6 +34,7 @@ from services.recommender import (
     CLIMATE_MAPPING,
     CLIMATE_DESCRIPTIONS,
 )
+from services.visual3d import build_3d_shelter
 
 # ==============================================================================
 # PAGE CONFIG
@@ -401,71 +402,20 @@ def create_2d_floorplan(length, width, window_area, orientation_advice, climate_
     return fig
 
 
-def create_3d_shelter(length, width, height, roof_type, window_area, climate_type):
-    fig = go.Figure()
-    pad = 1.2
-    fig.add_trace(go.Mesh3d(x=[-pad,length+pad,length+pad,-pad],
-        y=[-pad,-pad,width+pad,width+pad], z=[-0.02]*4,
-        i=[0,0], j=[1,2], k=[2,3],
-        color="#334155", opacity=0.8, name="Ground Plane", showlegend=True))
-
-    vx=[0,length,length,0,0,length,length,0]
-    vy=[0,0,width,width,0,0,width,width]
-    vz=[0,0,0,0,height,height,height,height]
-    wi=[0,0,1,1,2,2,3,3]; wj=[1,5,2,6,3,7,0,4]; wk=[5,4,6,5,7,6,4,7]
-    wc="#f1f5f9" if climate_type=="cold" else "#e2e8f0"
-    fig.add_trace(go.Mesh3d(x=vx,y=vy,z=vz,i=wi,j=wj,k=wk,
-        color=wc, opacity=0.92, name="Solid Envelope", flatshading=True, showlegend=True))
-
-    if roof_type == "pitched":
-        rh = height + 1.2
-        rx=vx+[0,length]; ry=vy+[width/2,width/2]; rz=vz+[rh,rh]
-        ri=[4,5,4,4,7,7]; rj=[7,6,5,9,6,9]; rk=[8,9,9,8,9,8]
-        fig.add_trace(go.Mesh3d(x=rx,y=ry,z=rz,i=ri,j=rj,k=rk,
-            color="#64748b", opacity=0.95, name="Pitched Roof (Attic Buffer)",
-            flatshading=True, showlegend=True))
-    else:
-        fig.add_trace(go.Mesh3d(x=[0,length,length,0],y=[0,0,width,width],
-            z=[height]*4, i=[0,0], j=[1,2], k=[2,3],
-            color="#475569", opacity=0.95, name="Flat Roof Assembly",
-            flatshading=True, showlegend=True))
-
-    ww=min(length*0.65,max(1.2,window_area/1.3))
-    wh=min(height*0.55,max(1.0,window_area/ww))
-    wx1=(length-ww)/2; wx2=wx1+ww
-    wz1=0.85; wz2=min(height-0.2, wz1+wh)
-    fig.add_trace(go.Mesh3d(x=[wx1,wx2,wx2,wx1],y=[-0.02]*4,
-        z=[wz1,wz1,wz2,wz2], i=[0,0], j=[1,2], k=[2,3],
-        color="#38bdf8", opacity=0.85, name="Glazing Fenestration", showlegend=True))
-
-    fig.add_trace(go.Mesh3d(x=[0.3,1.2,1.2,0.3],y=[-0.02]*4,
-        z=[0,0,2.05,2.05], i=[0,0], j=[1,2], k=[2,3],
-        color="#f97316", opacity=0.95, name="Entry Door", showlegend=True))
-
-    fig.update_layout(
-        title=dict(
-            text=f"<b>🏗️ 3D Shelter Interactive Model ({roof_type.title()} Roof)</b>",
-            font=dict(family=DARK_FONT_FAMILY, size=15, color=DARK_ACCENT_CYAN),
-            x=0.01, y=0.97
-        ),
-        paper_bgcolor=DARK_PAPER_BG,
-        font=dict(family=DARK_FONT_FAMILY, color=DARK_TEXT_PRIMARY),
-        scene=dict(
-            bgcolor=DARK_PLOT_BG,
-            xaxis=dict(title="L (m)", showbackground=False, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_MUTED)),
-            yaxis=dict(title="W (m)", showbackground=False, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_MUTED)),
-            zaxis=dict(title="H (m)", showbackground=False, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_MUTED)),
-            aspectmode="data",
-            camera=dict(eye=dict(x=-1.55, y=-1.85, z=1.25), center=dict(x=0, y=0, z=-0.1))
-        ),
-        legend=dict(
-            orientation="h", yanchor="bottom", y=0.98, xanchor="right", x=1,
-            font=dict(color=DARK_TEXT_PRIMARY, size=11),
-            bgcolor="rgba(15, 23, 42, 0.85)", bordercolor="rgba(56, 189, 248, 0.25)", borderwidth=1
-        ),
-        margin=dict(l=0, r=0, t=50, b=0), height=460
+def create_3d_shelter(length, width, height, roof_type, window_area, climate_type, wall_material="brick", insulation_mm=50.0, glazing_name="Double Clear"):
+    """
+    Delegates to the authoritative climate-adaptive 3D engine in services.visual3d.
+    """
+    return build_3d_shelter(
+        climate_type=climate_type,
+        length=length,
+        width=width,
+        height=height,
+        window_area=window_area,
+        wall_material=wall_material,
+        insulation_mm=insulation_mm,
+        glazing_name=glazing_name
     )
-    return fig
 
 
 def render_three_simulation_sections(city: str, sim_res: dict, title_suffix: str = ""):
@@ -651,10 +601,20 @@ if nav_mode == "🏕️ Shelter Designer":
                 mats["orientation_advice"], rec["climate_type"]),
                 use_container_width=True)
         with g2:
-            st.plotly_chart(create_3d_shelter(
-                geo["length_m"], geo["width_m"], geo["height_m"],
-                mats["roof_type"], rec["optimal_window_area_m2"],
-                rec["climate_type"]), use_container_width=True)
+            st.plotly_chart(
+                build_3d_shelter(
+                    climate_type=rec["climate_type"],
+                    length=geo["length_m"],
+                    width=geo["width_m"],
+                    height=geo["height_m"],
+                    window_area=rec["optimal_window_area_m2"],
+                    wall_material=rec.get("optimal_wall_material", mats["wall_material_id"]),
+                    insulation_mm=rec["optimal_insulation_mm"],
+                    glazing_name=rec.get("optimal_glazing_name", mats.get("glazing_type", "Double Clear")),
+                    city_name=city_s
+                ),
+                use_container_width=True
+            )
         st.markdown("---")
         st.markdown("### 💡 6. Design Rationale & Physics Explanation")
         st.info(rec["explanation"])
@@ -1085,7 +1045,20 @@ elif nav_mode == "🏛️ Multiple Shelter Models":
         a_g1, a_g2 = st.columns(2)
         with a_g1:
             ct = CLIMATE_MAPPING.get(arch_city, "composite")
-            st.plotly_chart(create_3d_shelter(dims[0], dims[1], dims[2], a_data["roof_type"], 2.2, ct), use_container_width=True)
+            st.plotly_chart(
+                build_3d_shelter(
+                    climate_type=ct,
+                    length=dims[0],
+                    width=dims[1],
+                    height=dims[2],
+                    window_area=2.2,
+                    wall_material="brick",
+                    insulation_mm=60.0,
+                    glazing_name="Double Clear Glazing",
+                    city_name=arch_city
+                ),
+                use_container_width=True
+            )
         with a_g2:
             st.plotly_chart(create_2d_floorplan(dims[0], dims[1], 2.2, "South Facade", ct), use_container_width=True)
 
