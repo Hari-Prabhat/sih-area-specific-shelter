@@ -1,7 +1,6 @@
 import os
 import sys
 from typing import Any, Dict, List, Optional
-import optuna
 
 # Ensure services directory is discoverable
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,12 +10,9 @@ if CURRENT_DIR not in sys.path:
 from simulation_service import run_simulation, GLAZING_PROPERTIES, ORIENTATION_FACTORS
 from climate_service import get_climate_data
 
-# Suppress Optuna's default verbose logging to keep terminal and UI clean
-optuna.logging.set_verbosity(optuna.logging.WARNING)
-
 
 def _objective(
-    trial: optuna.Trial,
+    trial: Any,
     city: str,
     length: float = 4.0,
     width: float = 3.0,
@@ -25,7 +21,7 @@ def _objective(
     glazing: Optional[str] = None,
     orientation: Optional[str] = None,
     occupants: int = 2,
-    substeps: int = 60,
+    substeps: int = 15,
 ) -> float:
     """
     Evaluates one candidate design combination using the authoritative simulation_service.
@@ -104,6 +100,9 @@ def run_optimization(
     Returns:
         dict containing best parameters, discomfort score, and full verification simulation.
     """
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
     weather = get_climate_data(city)
     if "error" in weather:
         raise ValueError(weather["error"])
@@ -123,7 +122,7 @@ def run_optimization(
             glazing=glazing,
             orientation=orientation,
             occupants=occupants,
-            substeps=60,
+            substeps=15,
         ),
         n_trials=n_trials,
     )

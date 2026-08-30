@@ -42,7 +42,7 @@ st.set_page_config(
     page_title="Area-Specific Shelter Designer | SIH",
     page_icon="🏕️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ==============================================================================
@@ -464,220 +464,119 @@ st.markdown("---")
 
 
 # ==============================================================================
-# 🏕️ FEATURE 1: SHELTER DESIGNER (SIMPLE & ADVANCED)
+# 🏕️ FEATURE 1: SHELTER DESIGNER
 # ==============================================================================
 if nav_mode == "🏕️ Shelter Designer":
-    app_mode = st.sidebar.radio("Interface Mode:", ["👤 Simple Mode", "🛠️ Advanced Mode"])
+    st.subheader("📋 Shelter Requirements")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        city_s = st.selectbox("1. Location",
+            ["leh","chennai","delhi","jaisalmer","bengaluru"],
+            format_func=lambda x: {"leh":"🏔️ Leh (Cold)",
+                "chennai":"🌊 Chennai (Humid)","delhi":"🏙️ Delhi (Composite)",
+                "jaisalmer":"🏜️ Jaisalmer (Hot-Dry)",
+                "bengaluru":"🌳 Bengaluru (Moderate)"}[x])
+    with c2:
+        people = st.slider("2. Occupants", 1, 10, 4)
+    with c3:
+        home_type = st.radio("3. Permanence", ["Temporary","Permanent"], horizontal=True)
 
-    if app_mode == "👤 Simple Mode":
-        st.subheader("📋 Shelter Requirements")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            city_s = st.selectbox("1. Location",
-                ["leh","chennai","delhi","jaisalmer","bengaluru"],
-                format_func=lambda x: {"leh":"🏔️ Leh (Cold)",
-                    "chennai":"🌊 Chennai (Humid)","delhi":"🏙️ Delhi (Composite)",
-                    "jaisalmer":"🏜️ Jaisalmer (Hot-Dry)",
-                    "bengaluru":"🌳 Bengaluru (Moderate)"}[x])
-        with c2:
-            people = st.slider("2. Occupants", 1, 10, 4)
-        with c3:
-            home_type = st.radio("3. Permanence", ["Temporary","Permanent"], horizontal=True)
+    if st.button("✨ Generate Climate-Optimized Design", type="primary", use_container_width=True):
+        with st.spinner(f"Running Bayesian optimization for {city_s.upper()}…"):
+            rec = get_recommendation(city=city_s, people=people, home_type=home_type, n_trials=40)
+            weather = get_climate_data(city_s)
+            if "error" in weather:
+                st.error(weather["error"]); st.stop()
 
-        if st.button("✨ Generate Climate-Optimized Design", type="primary", use_container_width=True):
-            with st.spinner(f"Running Bayesian optimization for {city_s.upper()}…"):
-                rec = get_recommendation(city=city_s, people=people, home_type=home_type, n_trials=40)
-                weather = get_climate_data(city_s)
-                if "error" in weather:
-                    st.error(weather["error"]); st.stop()
+            geo  = rec["geometry"]
+            mats = rec["materials"]
 
-                geo  = rec["geometry"]
-                mats = rec["materials"]
+            sim_res = run_simulation(
+                city=city_s,
+                length=geo["length_m"],
+                width=geo["width_m"],
+                height=geo["height_m"],
+                wall_material=rec.get("optimal_wall_material", mats["wall_material_id"]),
+                insulation_thickness_m=rec["optimal_insulation_m"],
+                window_area=rec["optimal_window_area_m2"],
+                glazing=rec.get("optimal_glazing", "double_clear"),
+                orientation=rec.get("optimal_orientation", "south"),
+                occupants=people,
+                hours_to_simulate=168,
+            )
+            if "error" in sim_res:
+                st.error(sim_res["error"]); st.stop()
 
-                sim_res = run_simulation(
-                    city=city_s,
-                    length=geo["length_m"],
-                    width=geo["width_m"],
-                    height=geo["height_m"],
-                    wall_material=rec.get("optimal_wall_material", mats["wall_material_id"]),
-                    insulation_thickness_m=rec["optimal_insulation_m"],
-                    window_area=rec["optimal_window_area_m2"],
-                    glazing=rec.get("optimal_glazing", "double_clear"),
-                    orientation=rec.get("optimal_orientation", "south"),
-                    occupants=people,
-                    hours_to_simulate=168,
-                )
-                if "error" in sim_res:
-                    st.error(sim_res["error"]); st.stop()
+            st.session_state["s_rec"]        = rec
+            st.session_state["s_weather"]    = weather
+            st.session_state["s_sim_result"] = sim_res
 
-                st.session_state["s_rec"]        = rec
-                st.session_state["s_weather"]    = weather
-                st.session_state["s_sim_result"] = sim_res
+    if "s_rec" in st.session_state and st.session_state["s_rec"]["city"]==city_s:
+        rec     = st.session_state["s_rec"]
+        sim_res = st.session_state["s_sim_result"]
+        geo     = rec["geometry"]
+        mats    = rec["materials"]
+        u_vals  = sim_res["u_values"]
 
-        if "s_rec" in st.session_state and st.session_state["s_rec"]["city"]==city_s:
-            rec     = st.session_state["s_rec"]
-            sim_res = st.session_state["s_sim_result"]
-            geo     = rec["geometry"]
-            mats    = rec["materials"]
-            u_vals  = sim_res["u_values"]
+        st.success(f"✅ Design for **{city_s.upper()}** ({rec['climate_name']}) — Discomfort: **{sim_res['discomfort_degree_hours']:.2f} DH**")
 
-            st.success(f"✅ Design for **{city_s.upper()}** ({rec['climate_name']}) — Discomfort: **{sim_res['discomfort_degree_hours']:.2f} DH**")
+        render_three_simulation_sections(city_s, sim_res, f"— {home_type} Shelter")
 
-            render_three_simulation_sections(city_s, sim_res, f"— {home_type} Shelter")
-
-            st.markdown("### 🏆 4. Recommended Envelope Specifications")
-            r1, r2, r3 = st.columns(3)
-            with r1:
-                st.markdown(f"""<div class='card'>
+        st.markdown("### 🏆 4. Recommended Envelope Specifications")
+        r1, r2, r3 = st.columns(3)
+        with r1:
+            st.markdown(f"""<div class='card'>
 <h4>🧱 Wall Assembly</h4>
 <p><b>Material:</b> {mats['wall_material_name']}</p>
 <p><b>Assembly U-Value:</b> {u_vals['wall_u']:.3f} W/m²K (R = {u_vals['wall_r_total']:.2f} m²K/W)</p>
 <p><b>Thermal Mass:</b> {'High Mass' if home_type=='Permanent' else 'Lightweight Prefab'}</p>
 </div>""", unsafe_allow_html=True)
-                st.markdown(f"""<div class='card'>
+            st.markdown(f"""<div class='card'>
 <h4>🏠 Roof System</h4>
 <p><b>Design:</b> {mats['roof_material']}</p>
 <p><b>Roof U-Value:</b> {u_vals['roof_u']:.3f} W/m²K (R = {u_vals['roof_r_total']:.2f} m²K/W)</p>
 <p><b>Profile:</b> {mats['roof_type'].title()} Roof</p>
 </div>""", unsafe_allow_html=True)
-            with r2:
-                st.markdown(f"""<div class='card'>
+        with r2:
+            st.markdown(f"""<div class='card'>
 <h4>🛡️ Thermal Insulation</h4>
 <p><b>Type:</b> {mats['insulation_type']}</p>
 <p><b>Optimal Thickness:</b> <span class='metric-badge'>{rec['optimal_insulation_mm']:.2f} mm</span></p>
 </div>""", unsafe_allow_html=True)
-                st.markdown(f"""<div class='card'>
+            st.markdown(f"""<div class='card'>
 <h4>🪟 Fenestration & Glazing</h4>
 <p><b>Spec:</b> {rec.get('optimal_glazing_name', mats['glazing_type'])}</p>
 <p><b>Window Area:</b> <span class='metric-badge'>{rec['optimal_window_area_m2']:.2f} m²</span></p>
 </div>""", unsafe_allow_html=True)
-            with r3:
-                st.markdown(f"""<div class='card'>
+        with r3:
+            st.markdown(f"""<div class='card'>
 <h4>🧭 Orientation & Passive Solar</h4>
 <p><b>Orientation:</b> {rec.get('optimal_orientation', 'south').title()} ({mats['orientation_advice']})</p>
 <p><b>Shading:</b> {mats['shading_advice']}</p>
 </div>""", unsafe_allow_html=True)
-                st.markdown(f"""<div class='card'>
+            st.markdown(f"""<div class='card'>
 <h4>📐 Auto-Sizing Summary</h4>
 <p><b>Floor:</b> {geo['floor_area_m2']:.2f} m² ({geo['length_m']:.2f} × {geo['width_m']:.2f})</p>
 <p><b>Height:</b> {geo['height_m']:.2f} m &nbsp;|&nbsp; <b>Vol:</b> {geo['volume_m3']:.2f} m³</p>
 </div>""", unsafe_allow_html=True)
 
-            st.markdown("---")
-            st.markdown("### 🏗️ 5. Floor Plan & 3D Interactive Model")
-            g1, g2 = st.columns(2)
-            with g1:
-                st.plotly_chart(create_2d_floorplan(
-                    geo["length_m"], geo["width_m"],
-                    rec["optimal_window_area_m2"],
-                    mats["orientation_advice"], rec["climate_type"]),
-                    use_container_width=True)
-            with g2:
-                st.plotly_chart(create_3d_shelter(
-                    geo["length_m"], geo["width_m"], geo["height_m"],
-                    mats["roof_type"], rec["optimal_window_area_m2"],
-                    rec["climate_type"]), use_container_width=True)
-            st.markdown("---")
-            st.markdown("### 💡 6. Design Rationale & Physics Explanation")
-            st.info(rec["explanation"])
-
-    else:
-        st.subheader("🛠️ Engineering Parameter Control")
-        st.sidebar.header("📍 1. Location")
-        city_a = st.sidebar.selectbox("Climate Zone", ["leh","chennai","delhi","jaisalmer","bengaluru"])
-
-        st.sidebar.header("📐 2. Geometry")
-        l_a = st.sidebar.slider("Length (m)", 3.0, 10.0, 4.0, 0.1)
-        w_a = st.sidebar.slider("Width (m)",  3.0, 10.0, 3.0, 0.1)
-        h_a = st.sidebar.slider("Height (m)", 2.5,  4.0, 2.8, 0.1)
-        rf_type_a = st.sidebar.selectbox("Roof Type", ["flat", "pitched"])
-
-        st.sidebar.header("🧱 3. Materials & Envelope")
-        all_mat  = load_all_materials()
-        mat_keys = [k for k in all_mat if "error" not in k]
-        mat_key  = st.sidebar.selectbox("Wall Material", mat_keys,
-            format_func=lambda k: f"{all_mat[k].get('name',k)} (k={all_mat[k].get('thermal_conductivity','-')})")
-        ins_mm = st.sidebar.slider("Insulation (mm)", 0, 300, 50, 5)
-        win_a  = st.sidebar.slider("Window Area (m²)", 0.0, 15.0, 2.0, 0.2)
-        glaze_key = st.sidebar.selectbox("Glazing Type", list(GLAZING_PROPERTIES.keys()), index=1,
-            format_func=lambda k: GLAZING_PROPERTIES[k]["name"])
-        orient_key = st.sidebar.selectbox("Glazing Orientation", ["south", "north", "east", "west"], index=0,
-            format_func=lambda k: f"{k.title()} Facade")
-        occ_a  = st.sidebar.slider("Occupants", 1, 10, 2)
-
-        tab_sim, tab_opt = st.tabs(["🔬 Simulation", "🤖 AI Optimization"])
-
-        with tab_sim:
-            st.markdown("#### Physical Building Simulation")
-            if st.button("🚀 Run Simulation", type="primary"):
-                with st.spinner(f"Simulating {city_a.upper()}…"):
-                    sim_res_a = run_simulation(
-                        city=city_a,
-                        length=l_a,
-                        width=w_a,
-                        height=h_a,
-                        roof_type=rf_type_a,
-                        wall_material=mat_key,
-                        insulation_thickness_m=ins_mm / 1000.0,
-                        window_area=win_a,
-                        glazing=glaze_key,
-                        orientation=orient_key,
-                        occupants=occ_a,
-                        hours_to_simulate=168,
-                    )
-                    if "error" in sim_res_a:
-                        st.error(sim_res_a["error"]); st.stop()
-
-                    render_three_simulation_sections(
-                        city_a, sim_res_a,
-                        f"({all_mat[mat_key]['name']} + {ins_mm}mm Ins, {GLAZING_PROPERTIES[glaze_key]['name']})"
-                    )
-
-                    st.markdown("#### 🏗️ 3D Preview")
-                    ct = CLIMATE_MAPPING.get(city_a, "composite")
-                    st.plotly_chart(create_3d_shelter(l_a,w_a,h_a,rf_type_a,win_a,ct), use_container_width=True)
-
-        with tab_opt:
-            st.markdown("#### Multi-Variable Bayesian Optimization (Optuna TPE)")
-            oc1, oc2 = st.columns(2)
-            with oc1:
-                trials = st.slider("Trials", 20, 100, 40, 10)
-            with oc2:
-                ct_a = CLIMATE_MAPPING.get(city_a, "composite")
-                st.info(f"Zone: **{city_a.upper()}** ({CLIMATE_DESCRIPTIONS.get(ct_a, ct_a)})")
-
-            if st.button("🧠 Execute Optimization"):
-                prog = st.progress(0); stat = st.empty()
-                stat.text("Optimizing 5-parameter envelope space…"); prog.progress(25)
-                try:
-                    res = run_optimization(
-                        city=city_a,
-                        length=l_a,
-                        width=w_a,
-                        height=h_a,
-                        wall_material=None,
-                        glazing=None,
-                        orientation=None,
-                        occupants=occ_a,
-                        n_trials=trials
-                    )
-                    prog.progress(100); stat.text("Converged!")
-                    st.subheader(f"🏆 Optimal Parameters for {city_a.upper()}")
-                    rc1, rc2, rc3, rc4, rc5 = st.columns(5)
-                    rc1.metric("Insulation", f"{res['insulation_mm']:.1f} mm")
-                    rc2.metric("Window Area", f"{res['window_area_m2']:.2f} m²")
-                    rc3.metric("Wall Material", all_mat.get(res['wall_material'], {}).get('name', res['wall_material']))
-                    rc4.metric("Glazing Spec", res['glazing_name'])
-                    rc5.metric("Orientation", res['orientation'].title())
-
-                    st.markdown(f"**Discomfort Score:** `{res['discomfort_score']:.2f} °C·h`")
-                    opt_sim = res.get("simulation_result")
-                    render_three_simulation_sections(
-                        city_a, opt_sim,
-                        f"(Optimized: {res['insulation_mm']:.0f}mm Ins, {res['window_area_m2']:.1f}m² Win)"
-                    )
-                except Exception as e:
-                    st.error(f"Optimization failed: {e}")
+        st.markdown("---")
+        st.markdown("### 🏗️ 5. Floor Plan & 3D Interactive Model")
+        g1, g2 = st.columns(2)
+        with g1:
+            st.plotly_chart(create_2d_floorplan(
+                geo["length_m"], geo["width_m"],
+                rec["optimal_window_area_m2"],
+                mats["orientation_advice"], rec["climate_type"]),
+                use_container_width=True)
+        with g2:
+            st.plotly_chart(create_3d_shelter(
+                geo["length_m"], geo["width_m"], geo["height_m"],
+                mats["roof_type"], rec["optimal_window_area_m2"],
+                rec["climate_type"]), use_container_width=True)
+        st.markdown("---")
+        st.markdown("### 💡 6. Design Rationale & Physics Explanation")
+        st.info(rec["explanation"])
 
 
 # ==============================================================================

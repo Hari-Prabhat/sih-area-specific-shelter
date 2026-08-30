@@ -1,5 +1,6 @@
 import json
 import os
+from functools import lru_cache
 from typing import Any, Dict
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,6 +15,7 @@ def _extract_val(v: Any, default: float = 1.0) -> float:
     return default
 
 
+@lru_cache(maxsize=1)
 def load_all_materials() -> Dict[str, Dict[str, Any]]:
     """
     Returns normalized material database keyed by material ID and common aliases.

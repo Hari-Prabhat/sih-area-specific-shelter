@@ -304,8 +304,18 @@ def run_simulation(
     air_mass = volume * AIR_DENSITY_DEFAULT
     total_thermal_mass = (air_mass * AIR_SPECIFIC_HEAT) * 3.0
 
+    # Precompute invariant conductance coefficients
+    ua_walls = float(u_wall * solid_wall_area)
+    ua_roof = float(u_roof * roof_area)
+    ua_floor = float(u_floor * floor_area)
+    ua_windows = float(u_glass * window_area_clamped)
+    ua_vent = float((ach * volume * AIR_DENSITY_DEFAULT * AIR_SPECIFIC_HEAT) / SECONDS_PER_HOUR)
+    ua_cond_vent = ua_walls + ua_roof + ua_floor + ua_windows + ua_vent
+    rad_coeff = float(5.670374419e-8 * 0.90 * roof_area)
+
     # 5. Simulation Time-stepping
     dt = SECONDS_PER_HOUR / substeps
+    inv_thermal_mass = float(dt / total_thermal_mass)
     t_in = float(initial_indoor_temp)
 
     indoor_temps: List[float] = []
@@ -347,40 +357,21 @@ def run_simulation(
         hour_q_vent = 0.0
         hour_q_rad = 0.0
         hour_q_net = 0.0
+        t_out_k4 = (t_out + 273.15) ** 4
 
         for _ in range(substeps):
-            q_walls = f.calculate_conduction_heat_loss(u_wall, solid_wall_area, t_in, t_out)
-            q_roof = f.calculate_conduction_heat_loss(u_roof, roof_area, t_in, t_out)
-            q_floor = f.calculate_conduction_heat_loss(u_floor, floor_area, t_in, t_out)
-            q_windows = f.calculate_conduction_heat_loss(u_glass, window_area_clamped, t_in, t_out)
-            q_vent = f.calculate_ventilation_loss_from_ach(ach, volume, t_in, t_out)
-            q_rad = f.calculate_radiative_heat_transfer(
-                emissivity=0.90,
-                area=roof_area,
-                surface_temperature_c=t_in,
-                surrounding_temperature_c=t_out
-            )
+            delta_t = t_in - t_out
+            t_in_k4 = (t_in + 273.15) ** 4
+            q_rad = rad_coeff * (t_in_k4 - t_out_k4)
+            q_cond_vent = ua_cond_vent * delta_t
+            q_net = q_sol + q_internal_total - (q_cond_vent + q_rad)
+            t_in += q_net * inv_thermal_mass
 
-            q_cond = q_walls + q_roof + q_floor + q_windows
-            q_net = f.calculate_net_heat_flow(
-                solar_gain=q_sol,
-                internal_gain=q_internal_total,
-                conduction_loss=q_cond,
-                ventilation_loss=q_vent,
-                radiation_loss=q_rad
-            )
-            t_in = f.calculate_temperature_update(
-                current_temperature=t_in,
-                net_heat_flow=q_net,
-                thermal_capacity=total_thermal_mass,
-                time_step_seconds=dt
-            )
-
-            hour_q_walls += q_walls
-            hour_q_roof += q_roof
-            hour_q_floor += q_floor
-            hour_q_windows += q_windows
-            hour_q_vent += q_vent
+            hour_q_walls += ua_walls * delta_t
+            hour_q_roof += ua_roof * delta_t
+            hour_q_floor += ua_floor * delta_t
+            hour_q_windows += ua_windows * delta_t
+            hour_q_vent += ua_vent * delta_t
             hour_q_rad += q_rad
             hour_q_net += q_net
 

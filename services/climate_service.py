@@ -1,15 +1,18 @@
 import os
-from pvlib.iotools import read_epw
+from functools import lru_cache
 
 # This magic line finds the project root folder no matter where you run the script from
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEATHER_DIR = os.path.join(BASE_DIR, "data", "weather")
 
+@lru_cache(maxsize=32)
 def get_climate_data(city_name):
     """
-    Load hourly weather data for a city.
+    Load hourly weather data for a city (cached in-memory for high performance).
     """
-    file_path = os.path.join(WEATHER_DIR, f"{city_name.lower()}.epw")
+    from pvlib.iotools import read_epw
+
+    file_path = os.path.join(WEATHER_DIR, f"{str(city_name).lower()}.epw")
 
     if not os.path.exists(file_path):
         return {"error": f"Weather file for '{city_name}' not found."}
@@ -18,7 +21,7 @@ def get_climate_data(city_name):
     df, metadata = read_epw(file_path)
 
     return {
-        "city": city_name,
+        "city": str(city_name).lower(),
         "latitude": metadata["latitude"],
         "longitude": metadata["longitude"],
         "hourly_temperature": df["temp_air"].tolist(),
