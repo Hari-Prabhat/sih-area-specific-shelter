@@ -115,10 +115,10 @@ def apply_dark_theme(fig: go.Figure, title_text: str = "", height: int = 400, sh
         fig.update_layout(
             legend=dict(
                 orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1.0,
+                yanchor="top",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
                 font=dict(color=DARK_TEXT_PRIMARY, size=11, family=DARK_FONT_FAMILY),
                 bgcolor="rgba(15, 23, 42, 0.85)",
                 bordercolor="rgba(56, 189, 248, 0.25)",
@@ -1191,7 +1191,7 @@ elif nav_mode == "🧱 Material Comparison Studio":
                 textposition="auto",
                 hovertemplate="<b>%{x}</b>: %{y:.1f} °C·h<extra></extra>"
             ))
-            fig_dh.update_xaxes(tickangle=-25, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11))
+            fig_dh.update_xaxes(tickangle=-90, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11))
             fig_dh.update_yaxes(title="Discomfort (°C·h)")
             apply_dark_theme(fig_dh, "📉 Discomfort Degree-Hours (Lower is Better)", height=350, show_legend=False)
             st.plotly_chart(fig_dh, use_container_width=True)
