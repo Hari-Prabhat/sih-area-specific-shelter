@@ -481,22 +481,301 @@ st.markdown('<div class="sub-title"><i>Generative AI & Building Physics for '
             'Climate-Resilient Thermal Comfort Maintenance</i></div>',
             unsafe_allow_html=True)
 
-nav_mode = st.radio(
-    "Select Feature Studio:",
-    [
-        "🏕️ Shelter Designer",
-        "⚖️ Baseline vs Optimized",
-        "🧱 Material Comparison Studio",
-        "🏛️ Multiple Shelter Models",
-    ],
-    horizontal=True
-)
-st.markdown("---")
+# ==============================================================================
+# FEATURE NAVIGATION
+# ==============================================================================
 
+if "nav_mode" not in st.session_state:
+    st.session_state.nav_mode = "🏕️ Shelter Designer"
+
+st.markdown("""
+<style>
+/* Nav heading */
+.feature-heading {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 24px 0 16px 0;
+}
+
+/* --------- Column positioning for nav section ---------
+   The first two stHorizontalBlocks inside stMain are the
+   two nav rows (2x2 grid). Give their stColumns position:relative
+   so invisible button overlays can fill the column cell.
+
+   CRITICAL: The intermediate stElementContainer inside each column
+   defaults to position:relative. For the nav columns we demote it to
+   position:static (otherwise it becomes the button's containing block
+   instead of the full-width stColumn). */
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(1)
+    [data-testid="stColumn"],
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(2)
+    [data-testid="stColumn"] {
+    position: relative !important;
+    min-height: 130px !important;
+}
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(1)
+    [data-testid="stColumn"]
+    [data-testid="stElementContainer"],
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(2)
+    [data-testid="stColumn"]
+    [data-testid="stElementContainer"] {
+    position: static !important;       /* prevent collapsed CB */
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+}
+
+/* --------- Visual feature card (st.markdown) --------- */
+.nav-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 22px 24px;
+    border-radius: 16px;
+    border: 1.5px solid #353945;
+    background: linear-gradient(
+        145deg,
+        #171b24,
+        #20242e
+    );
+    transition: all 0.2s ease;
+    min-height: 130px;
+    cursor: pointer;
+    user-select: none;
+}
+.nav-card:hover {
+    border-color: #ef4444;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+    background: linear-gradient(
+        145deg,
+        #1d222c,
+        #282d38
+    );
+}
+.nav-card-selected {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.35),
+                0 4px 18px rgba(239, 68, 68, 0.10) !important;
+}
+.nav-icon {
+    font-size: 56px;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 80px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.nav-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    text-align: left;
+    min-width: 0;
+}
+.nav-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.25;
+}
+.nav-desc {
+    font-size: 15px;
+    color: #a5acb8;
+    line-height: 1.45;
+}
+
+/* --------- Invisible button overlay (on top of visual card) ---------
+   Strategy:
+     • stElementContainer: position:static, full width/height (see above)
+     • stButton wrapper (inside stElementContainer): position:static, 0×0
+        → collapses out of the flow; its absolute child is unaffected
+     • <button> inside stButton: absolute, anchored to the stColumn CB
+        (stColumn has position:relative; stVerticalBlock is width 570)
+   This avoids any 0-width intermediate containing blocks from collapsing
+   the overlay button to its whitespace label width (~16px). */
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(1)
+    [data-testid="stColumn"]
+    [data-testid="stButton"],
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(2)
+    [data-testid="stColumn"]
+    [data-testid="stButton"] {
+    position: static !important;       /* do NOT create a new CB */
+    width: 0 !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 10 !important;
+    overflow: visible !important;
+    display: block !important;
+    transform: none !important;
+    contain: none !important;
+}
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(1)
+    [data-testid="stColumn"]
+    [data-testid="stButton"] > button,
+[data-testid="stMain"]
+    [data-testid="stHorizontalBlock"]:nth-of-type(2)
+    [data-testid="stColumn"]
+    [data-testid="stButton"] > button {
+    position: absolute !important;     /* containing block = stColumn */
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    opacity: 0 !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    display: block !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+st.markdown(
+    '<div class="feature-heading">What do you want to do?</div>',
+    unsafe_allow_html=True
+)
+
+# ------------------------------------------------------------------------------
+# 2 × 2 FEATURE CARD GRID
+#   Each cell: visual card (st.markdown) + invisible overlay button (st.button)
+# ------------------------------------------------------------------------------
+
+_current_nav = st.session_state.nav_mode
+
+def _nav_card_sel(mode):
+    return "nav-card-selected" if _current_nav == mode else ""
+
+row1 = st.columns(2, gap="medium")
+row2 = st.columns(2, gap="medium")
+
+with row1[0]:
+    st.markdown(f"""
+    <div class="nav-card {_nav_card_sel("🏕️ Shelter Designer")}">
+        <div class="nav-icon">🏕️</div>
+        <div class="nav-text">
+            <div class="nav-title">Design a Shelter</div>
+            <div class="nav-desc">Create and simulate a shelter for your climate and requirements.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button(" ", key="nav_design"):
+        st.session_state.nav_mode = "🏕️ Shelter Designer"
+        st.rerun()
+
+with row1[1]:
+    st.markdown(f"""
+    <div class="nav-card {_nav_card_sel("⚖️ Baseline vs Optimized")}">
+        <div class="nav-icon">📈</div>
+        <div class="nav-text">
+            <div class="nav-title">Improve a Shelter</div>
+            <div class="nav-desc">Compare a standard shelter with an AI-optimized design.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("  ", key="nav_improve"):
+        st.session_state.nav_mode = "⚖️ Baseline vs Optimized"
+        st.rerun()
+
+with row2[0]:
+    st.markdown(f"""
+    <div class="nav-card {_nav_card_sel("🧱 Material Comparison Studio")}">
+        <div class="nav-icon">🧱</div>
+        <div class="nav-text">
+            <div class="nav-title">Choose Materials</div>
+            <div class="nav-desc">Compare materials and see their thermal performance.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("   ", key="nav_materials"):
+        st.session_state.nav_mode = "🧱 Material Comparison Studio"
+        st.rerun()
+
+with row2[1]:
+    st.markdown(f"""
+    <div class="nav-card {_nav_card_sel("🏛️ Multiple Shelter Models")}">
+        <div class="nav-icon">🏘️</div>
+        <div class="nav-text">
+            <div class="nav-title">Compare Shelter Types</div>
+            <div class="nav-desc">Compare complete shelter models and identify the best performer.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("    ", key="nav_models"):
+        st.session_state.nav_mode = "🏛️ Multiple Shelter Models"
+        st.rerun()
+
+
+nav_mode = st.session_state.nav_mode
+
+st.markdown("---")
 
 # ==============================================================================
 # 🏕️ FEATURE 1: SHELTER DESIGNER
 # ==============================================================================
+# ==============================================================================
+# SIDEBAR INTERFACE MODE - UI ONLY
+# ==============================================================================
+
+st.markdown("""
+<style>
+
+/* Interface Mode heading */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    margin-bottom: 14px !important;
+}
+
+/* Simple Mode / Advanced Mode */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label p {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+}
+
+/* Space between the two options */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
+    gap: 10px !important;
+}
+
+/* Slightly larger radio circle */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label > div:first-child {
+    transform: scale(1.12);
+    margin-right: 8px !important;
+}
+
+/* Keep emoji aligned nicely */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
+    align-items: center !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
 if nav_mode == "🏕️ Shelter Designer":
     st.subheader("📋 Shelter Requirements")
     c1, c2, c3 = st.columns(3)
