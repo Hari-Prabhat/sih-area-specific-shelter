@@ -73,52 +73,122 @@ st.markdown("""
 
 
 # ==============================================================================
-# PLOTTING & VISUALIZATION HELPERS
+# PLOTTING THEME CONFIGURATION (HIGH-CONTRAST DARK THEME)
 # ==============================================================================
+DARK_PAPER_BG = "#1e293b"      # Card slate background
+DARK_PLOT_BG  = "#0f172a"      # Deep midnight plot area
+DARK_GRID_COLOR = "rgba(148, 163, 184, 0.14)"
+DARK_ZEROLINE_COLOR = "rgba(148, 163, 184, 0.32)"
+DARK_TEXT_PRIMARY = "#f8fafc"   # Crisp bright white/slate
+DARK_TEXT_MUTED   = "#94a3b8"   # Slate muted
+DARK_ACCENT_CYAN  = "#38bdf8"   # High-visibility cyan for titles/highlights
+DARK_FONT_FAMILY  = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+
+
+def apply_dark_theme(fig: go.Figure, title_text: str = "", height: int = 400, show_legend: bool = True):
+    """
+    Applies unified high-contrast dark theme styling across all Plotly figures.
+    Ensures all labels, axes, titles, and legends are crisp, visible, and aesthetically premium.
+    """
+    fig.update_layout(
+        title=dict(
+            text=f"<b>{title_text}</b>" if title_text else "",
+            font=dict(family=DARK_FONT_FAMILY, size=15, color=DARK_ACCENT_CYAN),
+            x=0.01,
+            y=0.97
+        ),
+        paper_bgcolor=DARK_PAPER_BG,
+        plot_bgcolor=DARK_PLOT_BG,
+        font=dict(family=DARK_FONT_FAMILY, color=DARK_TEXT_PRIMARY, size=12),
+        hoverlabel=dict(
+            bgcolor="#0f172a",
+            font_size=12,
+            font_family=DARK_FONT_FAMILY,
+            font_color="#ffffff",
+            bordercolor=DARK_ACCENT_CYAN
+        ),
+        margin=dict(l=45, r=35, t=55, b=45),
+        height=height,
+    )
+    if show_legend:
+        fig.update_layout(
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1.0,
+                font=dict(color=DARK_TEXT_PRIMARY, size=11, family=DARK_FONT_FAMILY),
+                bgcolor="rgba(15, 23, 42, 0.85)",
+                bordercolor="rgba(56, 189, 248, 0.25)",
+                borderwidth=1,
+            )
+        )
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor=DARK_GRID_COLOR,
+        zeroline=False,
+        tickfont=dict(color=DARK_TEXT_PRIMARY, size=11, family=DARK_FONT_FAMILY),
+        title_font=dict(color=DARK_TEXT_MUTED, size=12, family=DARK_FONT_FAMILY)
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor=DARK_GRID_COLOR,
+        zeroline=True,
+        zerolinecolor=DARK_ZEROLINE_COLOR,
+        tickfont=dict(color=DARK_TEXT_PRIMARY, size=11, family=DARK_FONT_FAMILY),
+        title_font=dict(color=DARK_TEXT_MUTED, size=12, family=DARK_FONT_FAMILY)
+    )
+    return fig
+
+
 def plot_temperature_curves(city, outdoor_temps, indoor_temps, title_suffix=""):
     hours = list(range(len(indoor_temps)))
     fig = go.Figure()
 
+    # Comfort Zone Band (18–24 °C)
     fig.add_hrect(
         y0=18.0, y1=24.0,
-        fillcolor="rgba(46,204,113,0.15)", layer="below",
-        line=dict(color="rgba(46,204,113,0.5)", width=1, dash="dash"),
-        annotation_text="Comfort Zone (18–24 °C)",
+        fillcolor="rgba(34, 197, 94, 0.16)", layer="below",
+        line=dict(color="#22c55e", width=1.5, dash="dash"),
+        annotation_text="🌿 Comfort Zone (18–24 °C)",
         annotation_position="top left",
-        annotation=dict(font_size=11, font_color="#27ae60")
+        annotation=dict(
+            font=dict(size=11, color="#4ade80", family=DARK_FONT_FAMILY),
+            bgcolor="rgba(15, 23, 42, 0.85)",
+            bordercolor="rgba(34, 197, 94, 0.5)",
+            borderwidth=1,
+            borderpad=4
+        )
     )
 
+    # Outdoor Ambient trace
     fig.add_trace(go.Scatter(
         x=hours,
         y=[round(float(t), 2) for t in outdoor_temps[:len(indoor_temps)]],
-        mode="lines", name="Outdoor Temp (°C)",
-        line=dict(color="#3498db", width=2, dash="dot"),
-        hovertemplate="Hour %{x}: %{y:.2f} °C<extra>Outdoor</extra>"
+        mode="lines", name="Outdoor Ambient (°C)",
+        line=dict(color="#38bdf8", width=2.0, dash="dash"),
+        hovertemplate="Outdoor: <b>%{y:.2f} °C</b><extra></extra>"
     ))
 
+    # Indoor Predicted trace
     fig.add_trace(go.Scatter(
         x=hours, y=indoor_temps,
         mode="lines", name="Indoor Predicted (°C)",
-        line=dict(color="#e74c3c", width=3),
-        hovertemplate="Hour %{x}: %{y:.2f} °C<extra>Indoor</extra>"
+        line=dict(color="#f87171", width=3.2),
+        hovertemplate="Indoor: <b>%{y:.2f} °C</b><extra></extra>"
     ))
 
-    fig.update_layout(
-        title=f"<b>{city.upper()} — 168-Hour Indoor vs Outdoor Thermal Profile {title_suffix}</b>",
-        xaxis=dict(
-            title="Time (Hours)", tickmode="array",
-            tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
-            ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
-            showgrid=True, gridcolor="#e9ecef"
-        ),
-        yaxis=dict(
-            title="Temperature (°C)", showgrid=True,
-            gridcolor="#e9ecef", zeroline=True, zerolinecolor="#bdc3c7"
-        ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        height=400, margin=dict(l=40, r=30, t=60, b=40)
+    fig.update_xaxes(
+        title="Time (Simulation Hours)",
+        tickmode="array",
+        tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
+        ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
     )
+    fig.update_yaxes(title="Temperature (°C)")
+
+    apply_dark_theme(fig, f"{city.upper()} — 168-Hour Thermal Comfort Response {title_suffix}", height=420)
+    fig.update_layout(hovermode="x unified")
     return fig
 
 
@@ -134,7 +204,7 @@ def plot_solar_dynamics(sim_result: dict):
             x=hours, y=sim_result["solar_irradiance"],
             mode="lines", name="☀️ Solar Irradiance (W/m²)",
             line=dict(color="#f59e0b", width=1.8, dash="dot"),
-            hovertemplate="Hour %{x}: %{y:.1f} W/m²<extra>Irradiance</extra>"
+            hovertemplate="Irradiance: <b>%{y:.1f} W/m²</b><extra></extra>"
         ),
         secondary_y=True,
     )
@@ -142,8 +212,8 @@ def plot_solar_dynamics(sim_result: dict):
         go.Scatter(
             x=hours, y=sim_result["solar_power"],
             mode="lines", name="⚡ Incident Window Power (W)",
-            line=dict(color="#fbbf24", width=2),
-            hovertemplate="Hour %{x}: %{y:.1f} W<extra>Incident Power</extra>"
+            line=dict(color="#fbbf24", width=2.2),
+            hovertemplate="Incident Power: <b>%{y:.1f} W</b><extra></extra>"
         ),
         secondary_y=False,
     )
@@ -151,27 +221,31 @@ def plot_solar_dynamics(sim_result: dict):
         go.Scatter(
             x=hours, y=sim_result["solar_thermal_gain"],
             mode="lines", name="🔥 Useful Thermal Gain (W)",
-            line=dict(color="#ef4444", width=2.5),
-            fill="tozeroy", fillcolor="rgba(239, 68, 68, 0.12)",
-            hovertemplate="Hour %{x}: %{y:.1f} W<extra>Admitted Gain</extra>"
+            line=dict(color="#f43f5e", width=2.8),
+            fill="tozeroy", fillcolor="rgba(244, 63, 94, 0.20)",
+            hovertemplate="Thermal Gain: <b>%{y:.1f} W</b><extra></extra>"
         ),
         secondary_y=False,
     )
 
-    fig.update_layout(
-        title="<b>Hourly Solar Flux & Fenestration Thermal Harvesting</b>",
-        xaxis=dict(
-            title="Time (Hours)", tickmode="array",
-            tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
-            ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
-            showgrid=True, gridcolor="#e9ecef"
-        ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        height=380, margin=dict(l=40, r=40, t=60, b=40)
+    fig.update_xaxes(
+        title="Time (Simulation Hours)",
+        tickmode="array",
+        tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
+        ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
+        showgrid=True, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_PRIMARY)
     )
-    fig.update_yaxes(title_text="Solar Power / Gain (Watts)", secondary_y=False, showgrid=True, gridcolor="#e9ecef")
-    fig.update_yaxes(title_text="Irradiance (W/m²)", secondary_y=True, showgrid=False)
+    fig.update_yaxes(
+        title=dict(text="Solar Power / Thermal Gain (Watts)", font=dict(color="#f43f5e", size=12)),
+        secondary_y=False, showgrid=True, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_PRIMARY)
+    )
+    fig.update_yaxes(
+        title=dict(text="Global Irradiance (W/m²)", font=dict(color="#f59e0b", size=12)),
+        secondary_y=True, showgrid=False, tickfont=dict(color="#f59e0b")
+    )
+
+    apply_dark_theme(fig, "☀️ Hourly Solar Flux & Fenestration Thermal Harvesting", height=400)
+    fig.update_layout(hovermode="x unified")
     return fig
 
 
@@ -185,59 +259,56 @@ def plot_component_heat_flows(sim_result: dict):
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["wall_heat_flow"],
         mode="lines", name="🧱 Wall Loss (W)",
-        line=dict(color="#8b5cf6", width=2),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Wall Loss</extra>"
+        line=dict(color="#a78bfa", width=2.0),
+        hovertemplate="Wall Loss: <b>%{y:.1f} W</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["roof_heat_flow"],
         mode="lines", name="🏠 Roof Loss (W)",
-        line=dict(color="#ec4899", width=2),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Roof Loss</extra>"
+        line=dict(color="#f472b6", width=2.0),
+        hovertemplate="Roof Loss: <b>%{y:.1f} W</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["floor_heat_flow"],
         mode="lines", name="🪵 Floor Loss (W)",
-        line=dict(color="#a855f7", width=1.5, dash="dot"),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Floor Loss</extra>"
+        line=dict(color="#c084fc", width=1.8, dash="dot"),
+        hovertemplate="Floor Loss: <b>%{y:.1f} W</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["window_heat_flow"],
         mode="lines", name="🪟 Glazing Loss (W)",
-        line=dict(color="#06b6d4", width=2),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Glazing Loss</extra>"
+        line=dict(color="#22d3ee", width=2.0),
+        hovertemplate="Glazing Loss: <b>%{y:.1f} W</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["ventilation_heat_flow"],
         mode="lines", name="💨 Ventilation Loss (W)",
-        line=dict(color="#64748b", width=1.8, dash="dash"),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Ventilation Loss</extra>"
+        line=dict(color="#94a3b8", width=1.8, dash="dash"),
+        hovertemplate="Vent Loss: <b>%{y:.1f} W</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["radiation_heat_flow"],
         mode="lines", name="🌌 Radiation Loss (W)",
-        line=dict(color="#3b82f6", width=1.5, dash="dot"),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Radiation Loss</extra>"
+        line=dict(color="#60a5fa", width=1.8, dash="dot"),
+        hovertemplate="Rad Loss: <b>%{y:.1f} W</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=hours, y=sim_result["net_heat_flow"],
         mode="lines", name="⚖️ Net Heat Flow (W)",
-        line=dict(color="#10b981", width=2.5),
-        hovertemplate="Hour %{x}: %{y:.1f} W<extra>Net Heat Flow</extra>"
+        line=dict(color="#34d399", width=2.8),
+        hovertemplate="Net Flow: <b>%{y:.1f} W</b><extra></extra>"
     ))
 
-    fig.update_layout(
-        title="<b>Hourly Dynamic Component Heat Flow Rates (Watts)</b>",
-        xaxis=dict(
-            title="Time (Hours)", tickmode="array",
-            tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
-            ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
-            showgrid=True, gridcolor="#e9ecef"
-        ),
-        yaxis=dict(title="Thermal Power (Watts)", showgrid=True, gridcolor="#e9ecef"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        height=390, margin=dict(l=40, r=30, t=60, b=40)
+    fig.update_xaxes(
+        title="Time (Simulation Hours)",
+        tickmode="array",
+        tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
+        ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
     )
+    fig.update_yaxes(title="Thermal Power (Watts)")
+
+    apply_dark_theme(fig, "⚡ Hourly Dynamic Component Heat Flow Rates (Watts)", height=410)
+    fig.update_layout(hovermode="x unified")
     return fig
 
 
@@ -260,75 +331,73 @@ def plot_energy_balance_breakdown(sim_result: dict):
         losses.get("radiation_loss_kwh", 0),
         sim_result.get("total_heat_loss_kwh", 0),
     ]
-    colors = ["#f59e0b", "#8b5cf6", "#ec4899", "#a855f7", "#06b6d4", "#64748b", "#3b82f6", "#e11d48"]
+    colors = ["#f59e0b", "#a78bfa", "#f472b6", "#c084fc", "#22d3ee", "#94a3b8", "#60a5fa", "#ef4444"]
 
     fig = go.Figure(data=[
         go.Bar(
             x=categories, y=values,
-            marker=dict(color=colors),
-            text=[f"{v:.1f} kWh" for v in values],
+            marker=dict(color=colors, line=dict(color="rgba(255,255,255,0.15)", width=1)),
+            text=[f"<b>{v:.1f} kWh</b>" for v in values],
+            textfont=dict(color="#ffffff", size=11, family=DARK_FONT_FAMILY),
             textposition="auto",
+            hovertemplate="<b>%{x}</b>: %{y:.2f} kWh<extra></extra>"
         )
     ])
-    fig.update_layout(
-        title="<b>Weekly Component Energy Totals (kWh / 168 Hours)</b>",
-        yaxis=dict(title="Energy (kWh)", showgrid=True, gridcolor="#e9ecef"),
-        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        height=360, margin=dict(l=40, r=30, t=50, b=40)
-    )
+    fig.update_xaxes(tickangle=-25, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11, family=DARK_FONT_FAMILY))
+    fig.update_yaxes(title="Energy (kWh)")
+    apply_dark_theme(fig, "📊 Weekly Component Energy Totals (kWh / 168 h)", height=380, show_legend=False)
     return fig
 
 
 def create_2d_floorplan(length, width, window_area, orientation_advice, climate_type):
     fig = go.Figure()
     wt = 0.22
+    # Outer structure
     fig.add_shape(type="rect", x0=0, y0=0, x1=length, y1=width,
-        line=dict(color="#2c3e50", width=4), fillcolor="#e9ecef", layer="below")
+        line=dict(color="#38bdf8", width=4), fillcolor="#1e293b", layer="below")
+    # Inner perimeter
     fig.add_shape(type="rect", x0=wt, y0=wt, x1=length-wt, y1=width-wt,
-        line=dict(color="#95a5a6", width=1.5, dash="dot"), fillcolor="#ffffff")
+        line=dict(color="#475569", width=1.5, dash="dot"), fillcolor="#0f172a")
 
     wl = min(length*0.7, max(1.2, window_area/1.3))
     ws = (length - wl) / 2
+    # South Glazing
     fig.add_shape(type="rect", x0=ws, y0=-0.08, x1=ws+wl, y1=wt+0.08,
-        line=dict(color="#2980b9", width=2), fillcolor="#3498db")
+        line=dict(color="#06b6d4", width=3), fillcolor="#22d3ee")
 
+    # Door
     dw = 0.9
     fig.add_shape(type="rect", x0=0.3, y0=-0.08, x1=0.3+dw, y1=wt+0.08,
-        line=dict(color="#d35400", width=2), fillcolor="#e67e22")
+        line=dict(color="#ea580c", width=3), fillcolor="#f97316")
 
     if climate_type in ("hot_humid", "moderate"):
         fig.add_shape(type="rect", x0=ws+0.3, y0=width-wt-0.08,
             x1=ws+wl-0.3, y1=width+0.08,
-            line=dict(color="#2980b9", width=2), fillcolor="#3498db")
+            line=dict(color="#06b6d4", width=3), fillcolor="#22d3ee")
         fig.add_annotation(x=length/2, y=width+0.35,
-            text="Cross-Vent Window (N)", showarrow=False,
-            font=dict(size=10, color="#2980b9"))
+            text="<b>Cross-Vent Window (N)</b>", showarrow=False,
+            font=dict(size=11, color="#22d3ee", family=DARK_FONT_FAMILY))
 
     fa = length * width
     fig.add_annotation(x=length/2, y=width/2,
-        text=f"<b>Main Space</b><br>{fa:.1f} m² ({length:.1f}×{width:.1f})",
-        showarrow=False, font=dict(size=13, color="#2c3e50"))
-    fig.add_annotation(x=ws+wl/2, y=-0.35,
-        text=f"<b>Glazing ({wl:.1f} m)</b>", showarrow=False,
-        font=dict(size=10, color="#2980b9"))
-    fig.add_annotation(x=0.3+dw/2, y=-0.35,
-        text="<b>Entry (0.9 m)</b>", showarrow=False,
-        font=dict(size=10, color="#d35400"))
+        text=f"<b>Main Living Area</b><br><span style='color:#38bdf8;'>{fa:.1f} m²</span> ({length:.1f}m × {width:.1f}m)",
+        showarrow=False, font=dict(size=13, color="#f8fafc", family=DARK_FONT_FAMILY))
+    fig.add_annotation(x=ws+wl/2, y=-0.38,
+        text=f"<b>Primary Glazing ({wl:.1f} m)</b>", showarrow=False,
+        font=dict(size=11, color="#22d3ee", family=DARK_FONT_FAMILY))
+    fig.add_annotation(x=0.3+dw/2, y=-0.38,
+        text="<b>Entry Door (0.9 m)</b>", showarrow=False,
+        font=dict(size=11, color="#fb923c", family=DARK_FONT_FAMILY))
 
     cx, cy = length+0.6, width-0.2
     fig.add_annotation(x=cx, y=cy, ax=cx, ay=cy-0.9,
         xref="x", yref="y", axref="x", ayref="y",
         text="<b>N</b>", showarrow=True, arrowhead=2, arrowsize=1.6,
-        arrowwidth=3, arrowcolor="#c0392b", font=dict(size=15, color="#c0392b"))
+        arrowwidth=3, arrowcolor="#ef4444", font=dict(size=15, color="#ef4444", family=DARK_FONT_FAMILY))
 
-    fig.update_layout(
-        title="<b>2D Floor Plan</b>",
-        xaxis=dict(range=[-0.8,length+1.4], showgrid=True, zeroline=False,
-            title="Length (m)", gridcolor="#ecf0f1"),
-        yaxis=dict(range=[-0.8,width+0.8], showgrid=True, zeroline=False,
-            title="Width (m)", scaleanchor="x", scaleratio=1, gridcolor="#ecf0f1"),
-        plot_bgcolor="#fafafa", paper_bgcolor="#ffffff",
-        height=440, margin=dict(l=30,r=30,t=50,b=30))
+    apply_dark_theme(fig, "📐 2D Floor Plan & Fenestration Layout", height=450, show_legend=False)
+    fig.update_xaxes(range=[-0.8, length+1.4], title="Length (m)")
+    fig.update_yaxes(range=[-0.8, width+0.8], title="Width (m)", scaleanchor="x", scaleratio=1)
     return fig
 
 
@@ -338,27 +407,27 @@ def create_3d_shelter(length, width, height, roof_type, window_area, climate_typ
     fig.add_trace(go.Mesh3d(x=[-pad,length+pad,length+pad,-pad],
         y=[-pad,-pad,width+pad,width+pad], z=[-0.02]*4,
         i=[0,0], j=[1,2], k=[2,3],
-        color="#d5dbdb", opacity=0.7, name="Ground", showlegend=True))
+        color="#334155", opacity=0.8, name="Ground Plane", showlegend=True))
 
     vx=[0,length,length,0,0,length,length,0]
     vy=[0,0,width,width,0,0,width,width]
     vz=[0,0,0,0,height,height,height,height]
     wi=[0,0,1,1,2,2,3,3]; wj=[1,5,2,6,3,7,0,4]; wk=[5,4,6,5,7,6,4,7]
-    wc="#e8dfd8" if climate_type=="cold" else "#f2e9e4"
+    wc="#f1f5f9" if climate_type=="cold" else "#e2e8f0"
     fig.add_trace(go.Mesh3d(x=vx,y=vy,z=vz,i=wi,j=wj,k=wk,
-        color=wc, opacity=0.92, name="Walls", flatshading=True, showlegend=True))
+        color=wc, opacity=0.92, name="Solid Envelope", flatshading=True, showlegend=True))
 
     if roof_type == "pitched":
         rh = height + 1.2
         rx=vx+[0,length]; ry=vy+[width/2,width/2]; rz=vz+[rh,rh]
         ri=[4,5,4,4,7,7]; rj=[7,6,5,9,6,9]; rk=[8,9,9,8,9,8]
         fig.add_trace(go.Mesh3d(x=rx,y=ry,z=rz,i=ri,j=rj,k=rk,
-            color="#7f8c8d", opacity=0.95, name="Pitched Roof",
+            color="#64748b", opacity=0.95, name="Pitched Roof (Attic Buffer)",
             flatshading=True, showlegend=True))
     else:
         fig.add_trace(go.Mesh3d(x=[0,length,length,0],y=[0,0,width,width],
             z=[height]*4, i=[0,0], j=[1,2], k=[2,3],
-            color="#95a5a6", opacity=0.95, name="Flat Roof",
+            color="#475569", opacity=0.95, name="Flat Roof Assembly",
             flatshading=True, showlegend=True))
 
     ww=min(length*0.65,max(1.2,window_area/1.3))
@@ -367,23 +436,35 @@ def create_3d_shelter(length, width, height, roof_type, window_area, climate_typ
     wz1=0.85; wz2=min(height-0.2, wz1+wh)
     fig.add_trace(go.Mesh3d(x=[wx1,wx2,wx2,wx1],y=[-0.02]*4,
         z=[wz1,wz1,wz2,wz2], i=[0,0], j=[1,2], k=[2,3],
-        color="#2980b9", opacity=0.85, name="Glazing", showlegend=True))
+        color="#38bdf8", opacity=0.85, name="Glazing Fenestration", showlegend=True))
 
     fig.add_trace(go.Mesh3d(x=[0.3,1.2,1.2,0.3],y=[-0.02]*4,
         z=[0,0,2.05,2.05], i=[0,0], j=[1,2], k=[2,3],
-        color="#d35400", opacity=0.95, name="Door", showlegend=True))
+        color="#f97316", opacity=0.95, name="Entry Door", showlegend=True))
 
     fig.update_layout(
-        title=f"<b>3D Shelter Model ({roof_type.title()} Roof)</b>",
+        title=dict(
+            text=f"<b>🏗️ 3D Shelter Interactive Model ({roof_type.title()} Roof)</b>",
+            font=dict(family=DARK_FONT_FAMILY, size=15, color=DARK_ACCENT_CYAN),
+            x=0.01, y=0.97
+        ),
+        paper_bgcolor=DARK_PAPER_BG,
+        font=dict(family=DARK_FONT_FAMILY, color=DARK_TEXT_PRIMARY),
         scene=dict(
-            xaxis=dict(title="L (m)", showbackground=False),
-            yaxis=dict(title="W (m)", showbackground=False),
-            zaxis=dict(title="H (m)", showbackground=False),
+            bgcolor=DARK_PLOT_BG,
+            xaxis=dict(title="L (m)", showbackground=False, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_MUTED)),
+            yaxis=dict(title="W (m)", showbackground=False, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_MUTED)),
+            zaxis=dict(title="H (m)", showbackground=False, gridcolor=DARK_GRID_COLOR, tickfont=dict(color=DARK_TEXT_MUTED)),
             aspectmode="data",
-            camera=dict(eye=dict(x=-1.55,y=-1.85,z=1.25),
-                        center=dict(x=0,y=0,z=-0.1))),
-        legend=dict(orientation="h", yanchor="bottom", y=0.98, xanchor="right", x=1),
-        margin=dict(l=0,r=0,t=40,b=0), height=460)
+            camera=dict(eye=dict(x=-1.55, y=-1.85, z=1.25), center=dict(x=0, y=0, z=-0.1))
+        ),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=0.98, xanchor="right", x=1,
+            font=dict(color=DARK_TEXT_PRIMARY, size=11),
+            bgcolor="rgba(15, 23, 42, 0.85)", bordercolor="rgba(56, 189, 248, 0.25)", borderwidth=1
+        ),
+        margin=dict(l=0, r=0, t=50, b=0), height=460
+    )
     return fig
 
 
@@ -672,33 +753,42 @@ elif nav_mode == "⚖️ Baseline vs Optimized":
         fig_comp = go.Figure()
 
         fig_comp.add_hrect(
-            y0=18.0, y1=24.0, fillcolor="rgba(46,204,113,0.15)", layer="below",
-            line=dict(color="rgba(46,204,113,0.5)", width=1, dash="dash"),
-            annotation_text="Comfort Band (18–24 °C)", annotation_position="top left"
+            y0=18.0, y1=24.0, fillcolor="rgba(34, 197, 94, 0.16)", layer="below",
+            line=dict(color="#22c55e", width=1.5, dash="dash"),
+            annotation_text="🌿 Comfort Band (18–24 °C)", annotation_position="top left",
+            annotation=dict(
+                font=dict(size=11, color="#4ade80", family=DARK_FONT_FAMILY),
+                bgcolor="rgba(15, 23, 42, 0.85)", bordercolor="rgba(34, 197, 94, 0.5)", borderwidth=1, borderpad=4
+            )
         )
         fig_comp.add_trace(go.Scatter(
             x=hours, y=s_base["outdoor_temperature"],
             mode="lines", name="Ambient Outdoor (°C)",
-            line=dict(color="#64748b", width=1.5, dash="dot")
+            line=dict(color="#94a3b8", width=1.8, dash="dot"),
+            hovertemplate="Outdoor: <b>%{y:.2f} °C</b><extra></extra>"
         ))
         fig_comp.add_trace(go.Scatter(
             x=hours, y=s_base["indoor_temperature"],
             mode="lines", name="❌ Baseline Indoor (°C)",
-            line=dict(color="#ef4444", width=2.5, dash="dash")
+            line=dict(color="#ef4444", width=2.8, dash="dash"),
+            hovertemplate="Baseline: <b>%{y:.2f} °C</b><extra></extra>"
         ))
         fig_comp.add_trace(go.Scatter(
             x=hours, y=s_opt["indoor_temperature"],
             mode="lines", name="✅ Optimized Indoor (°C)",
-            line=dict(color="#10b981", width=3)
+            line=dict(color="#10b981", width=3.5),
+            hovertemplate="Optimized: <b>%{y:.2f} °C</b><extra></extra>"
         ))
 
-        fig_comp.update_layout(
-            title="<b>Baseline vs AI-Optimized Indoor Thermal Response</b>",
-            xaxis=dict(title="Time (Hours)", showgrid=True, gridcolor="#e9ecef"),
-            yaxis=dict(title="Temperature (°C)", showgrid=True, gridcolor="#e9ecef"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            plot_bgcolor="#ffffff", paper_bgcolor="#ffffff", height=420
+        fig_comp.update_xaxes(
+            title="Time (Simulation Hours)",
+            tickmode="array",
+            tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
+            ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
         )
+        fig_comp.update_yaxes(title="Temperature (°C)")
+        apply_dark_theme(fig_comp, "📈 Baseline vs AI-Optimized Indoor Thermal Response", height=440)
+        fig_comp.update_layout(hovermode="x unified")
         st.plotly_chart(fig_comp, use_container_width=True)
 
         # Side-by-side specs comparison table
@@ -795,32 +885,40 @@ elif nav_mode == "🧱 Material Comparison Studio":
         st.markdown("### 📈 Multi-Material Thermal Curves")
         fig_mat = go.Figure()
         fig_mat.add_hrect(
-            y0=18.0, y1=24.0, fillcolor="rgba(46,204,113,0.15)", layer="below",
-            line=dict(color="rgba(46,204,113,0.5)", width=1, dash="dash"),
-            annotation_text="Comfort Band (18–24 °C)", annotation_position="top left"
+            y0=18.0, y1=24.0, fillcolor="rgba(34, 197, 94, 0.16)", layer="below",
+            line=dict(color="#22c55e", width=1.5, dash="dash"),
+            annotation_text="🌿 Comfort Band (18–24 °C)", annotation_position="top left",
+            annotation=dict(
+                font=dict(size=11, color="#4ade80", family=DARK_FONT_FAMILY),
+                bgcolor="rgba(15, 23, 42, 0.85)", bordercolor="rgba(34, 197, 94, 0.5)", borderwidth=1, borderpad=4
+            )
         )
         if me_data:
             fig_mat.add_trace(go.Scatter(
                 x=list(range(168)), y=me_data[0]["outdoor_temps"],
                 mode="lines", name="Outdoor Ambient",
-                line=dict(color="#94a3b8", width=1.5, dash="dot")
+                line=dict(color="#94a3b8", width=1.8, dash="dot"),
+                hovertemplate="Outdoor: <b>%{y:.2f} °C</b><extra></extra>"
             ))
 
-        colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"]
+        mat_colors = ["#38bdf8", "#f43f5e", "#10b981", "#fbbf24", "#a78bfa", "#f472b6", "#22d3ee", "#a3e635"]
         for idx, item in enumerate(me_data):
             fig_mat.add_trace(go.Scatter(
                 x=list(range(168)), y=item["indoor_temps"],
                 mode="lines", name=item["name"],
-                line=dict(color=colors[idx % len(colors)], width=2.2)
+                line=dict(color=mat_colors[idx % len(mat_colors)], width=2.4),
+                hovertemplate=f"{item['name']}: <b>%{{y:.2f}} °C</b><extra></extra>"
             ))
 
-        fig_mat.update_layout(
-            title=f"<b>Indoor Temperature Progression Across Materials ({mat_city.upper()})</b>",
-            xaxis=dict(title="Time (Hours)", showgrid=True, gridcolor="#e9ecef"),
-            yaxis=dict(title="Indoor Temp (°C)", showgrid=True, gridcolor="#e9ecef"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            plot_bgcolor="#ffffff", paper_bgcolor="#ffffff", height=420
+        fig_mat.update_xaxes(
+            title="Time (Simulation Hours)",
+            tickmode="array",
+            tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
+            ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
         )
+        fig_mat.update_yaxes(title="Indoor Temperature (°C)")
+        apply_dark_theme(fig_mat, f"📈 Indoor Temperature Progression Across Materials ({mat_city.upper()})", height=440)
+        fig_mat.update_layout(hovermode="x unified")
         st.plotly_chart(fig_mat, use_container_width=True)
 
         # Comparative Summary Table
@@ -848,19 +946,29 @@ elif nav_mode == "🧱 Material Comparison Studio":
         with mc_col1:
             fig_dh = go.Figure(go.Bar(
                 x=names, y=[r["discomfort_dh"] for r in me_data],
-                marker=dict(color="#f59e0b"),
-                text=[f"{r['discomfort_dh']:.0f} DH" for r in me_data], textposition="auto"
+                marker=dict(color="#f59e0b", line=dict(color="rgba(255,255,255,0.2)", width=1)),
+                text=[f"<b>{r['discomfort_dh']:.0f} °C·h</b>" for r in me_data],
+                textfont=dict(color="#ffffff", size=11, family=DARK_FONT_FAMILY),
+                textposition="auto",
+                hovertemplate="<b>%{x}</b>: %{y:.1f} °C·h<extra></extra>"
             ))
-            fig_dh.update_layout(title="<b>Discomfort Degree-Hours (Lower is Better)</b>", yaxis_title="°C·h", height=320)
+            fig_dh.update_xaxes(tickangle=-25, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11))
+            fig_dh.update_yaxes(title="Discomfort (°C·h)")
+            apply_dark_theme(fig_dh, "📉 Discomfort Degree-Hours (Lower is Better)", height=350, show_legend=False)
             st.plotly_chart(fig_dh, use_container_width=True)
 
         with mc_col2:
             fig_hl = go.Figure(go.Bar(
                 x=names, y=[r["total_loss_kwh"] for r in me_data],
-                marker=dict(color="#ef4444"),
-                text=[f"{r['total_loss_kwh']:.0f} kWh" for r in me_data], textposition="auto"
+                marker=dict(color="#ef4444", line=dict(color="rgba(255,255,255,0.2)", width=1)),
+                text=[f"<b>{r['total_loss_kwh']:.0f} kWh</b>" for r in me_data],
+                textfont=dict(color="#ffffff", size=11, family=DARK_FONT_FAMILY),
+                textposition="auto",
+                hovertemplate="<b>%{x}</b>: %{y:.1f} kWh<extra></extra>"
             ))
-            fig_hl.update_layout(title="<b>Total Weekly Heat Loss (Lower is Better)</b>", yaxis_title="kWh", height=320)
+            fig_hl.update_xaxes(tickangle=-25, tickfont=dict(color=DARK_TEXT_PRIMARY, size=11))
+            fig_hl.update_yaxes(title="Weekly Heat Loss (kWh)")
+            apply_dark_theme(fig_hl, "⚡ Total Weekly Heat Loss (Lower is Better)", height=350, show_legend=False)
             st.plotly_chart(fig_hl, use_container_width=True)
 
 
