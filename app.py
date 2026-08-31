@@ -91,7 +91,7 @@ def main() -> None:
     # --------------------------------------------------------------------------
     # HEADER & PRODUCT WORKFLOW
     # --------------------------------------------------------------------------
-    st.markdown('<div class="main-title">🏕️ ThermoShelter AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">🏕️ ThermoShelter </div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="sub-title">Area-Specific Passive Shelter Design, Transient Building Physics & Bayesian Optimization Platform</div>',
         unsafe_allow_html=True,

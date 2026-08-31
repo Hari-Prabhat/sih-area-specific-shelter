@@ -40,7 +40,7 @@ def plot_temperature_curves(
         layer="below",
         line=dict(color="#22c55e", width=1.5, dash="dash"),
         annotation_text="🌿 Comfort Band (18–24 °C)",
-        annotation_position="top left",
+        annotation_position="top right",
         annotation=dict(
             font=dict(size=11, color="#4ade80", family=FONT_FAMILY),
             bgcolor="rgba(15, 23, 42, 0.85)" if is_dark else "rgba(255, 255, 255, 0.9)",

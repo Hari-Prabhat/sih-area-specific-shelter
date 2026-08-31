@@ -132,10 +132,10 @@ def apply_chart_theme(
         fig.update_layout(
             legend=dict(
                 orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1.0,
+                yanchor="top",
+                y=-0.17,
+                xanchor="center",
+                x=0.5,
                 font=dict(color=text_primary, size=11, family=FONT_FAMILY),
                 bgcolor=leg_bg,
                 bordercolor=leg_border,
