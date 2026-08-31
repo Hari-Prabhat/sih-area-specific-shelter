@@ -36,7 +36,7 @@ from components.comparison import render_baseline_vs_optimized_view
 # STREAMLIT PAGE CONFIGURATION
 # ==============================================================================
 st.set_page_config(
-    page_title="ThermoShelter AI | Area-Specific Passive Shelter Design",
+    page_title="ThermoShelter | Area-Specific Passive Shelter Design",
     page_icon="🏕️",
     layout="wide",
     initial_sidebar_state="collapsed",
