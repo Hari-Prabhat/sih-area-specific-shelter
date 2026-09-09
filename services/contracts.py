@@ -599,6 +599,10 @@ class OptimizationCandidate:
     total_heat_loss_kwh: float
     solar_gain_kwh: float
     u_values: Dict[str, float]
+    heating_demand_kwh: float = 0.0
+    cooling_demand_kwh: float = 0.0
+    total_conditioning_demand_kwh: float = 0.0
+    effective_thermal_capacity_j_k: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -625,7 +629,12 @@ class OptimizationCandidate:
             total_heat_loss_kwh=float(data.get("total_heat_loss_kwh", 0.0)),
             solar_gain_kwh=float(data.get("solar_gain_kwh", 0.0)),
             u_values=dict(data.get("u_values", {})),
+            heating_demand_kwh=float(data.get("heating_demand_kwh", 0.0)),
+            cooling_demand_kwh=float(data.get("cooling_demand_kwh", 0.0)),
+            total_conditioning_demand_kwh=float(data.get("total_conditioning_demand_kwh", 0.0)),
+            effective_thermal_capacity_j_k=float(data.get("effective_thermal_capacity_j_k", 0.0)),
         )
+
 
 
 @dataclass

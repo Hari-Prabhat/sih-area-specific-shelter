@@ -455,7 +455,11 @@ def run_optimization(
         comfort_score = max(0.0, min(100.0, 100.0 - (discomfort_dh / 15.0)))
         efficiency_score = max(0.0, min(100.0, 100.0 - (heat_loss / 10.0)))
         solar_score = min(100.0, solar_gain * 2.0)
-        overall_score = round(0.50 * comfort_score + 0.35 * efficiency_score + 0.15 * solar_score, 1)
+
+        w_c = weights.get("comfort", 0.50) if weights else 0.50
+        w_e = weights.get("efficiency", 0.35) if weights else 0.35
+        w_s = weights.get("solar", 0.15) if weights else 0.15
+        overall_score = round(w_c * comfort_score + w_e * efficiency_score + w_s * solar_score, 1)
 
         design_label = f"Design #{len(ranked_designs) + 1}"
         if len(ranked_designs) == 0:
@@ -489,6 +493,10 @@ def run_optimization(
             "total_heat_loss_kwh": heat_loss,
             "solar_gain_kwh": solar_gain,
             "u_values": c_sim["u_values"],
+            "heating_demand_kwh": c_sim.get("heating_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("heating_demand_kwh", 0.0)),
+            "cooling_demand_kwh": c_sim.get("cooling_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("cooling_demand_kwh", 0.0)),
+            "total_conditioning_demand_kwh": c_sim.get("total_conditioning_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("total_conditioning_demand_kwh", 0.0)),
+            "effective_thermal_capacity_j_k": c_sim.get("effective_thermal_capacity_j_k", 0.0),
         }
         ranked_designs.append(candidate_record)
 
@@ -501,7 +509,10 @@ def run_optimization(
         comfort_score = max(0.0, min(100.0, 100.0 - (c_sim["discomfort_degree_hours"] / 15.0)))
         efficiency_score = max(0.0, min(100.0, 100.0 - (c_sim["total_heat_loss_kwh"] / 10.0)))
         solar_score = min(100.0, c_sim.get("integrated_solar_energy_kwh", 0.0) * 2.0)
-        overall_score = round(0.50 * comfort_score + 0.35 * efficiency_score + 0.15 * solar_score, 1)
+        w_c = weights.get("comfort", 0.50) if weights else 0.50
+        w_e = weights.get("efficiency", 0.35) if weights else 0.35
+        w_s = weights.get("solar", 0.15) if weights else 0.15
+        overall_score = round(w_c * comfort_score + w_e * efficiency_score + w_s * solar_score, 1)
 
         ranked_designs.append({
             "rank": 1,
@@ -527,7 +538,12 @@ def run_optimization(
             "total_heat_loss_kwh": c_sim["total_heat_loss_kwh"],
             "solar_gain_kwh": c_sim.get("integrated_solar_energy_kwh", 0.0),
             "u_values": c_sim["u_values"],
+            "heating_demand_kwh": c_sim.get("heating_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("heating_demand_kwh", 0.0)),
+            "cooling_demand_kwh": c_sim.get("cooling_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("cooling_demand_kwh", 0.0)),
+            "total_conditioning_demand_kwh": c_sim.get("total_conditioning_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("total_conditioning_demand_kwh", 0.0)),
+            "effective_thermal_capacity_j_k": c_sim.get("effective_thermal_capacity_j_k", 0.0),
         })
+
 
     explanation = (
         f"Optimized {home_type} shelter configuration for {city_str.title()} achieving "

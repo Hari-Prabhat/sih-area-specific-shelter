@@ -306,7 +306,7 @@ def test_optimization_result_serialization_roundtrip():
 
 
 # =====================================================================
-# 8. BACKWARD COMPATIBILITY
+# 8. BACKWARD COMPATIBILITY & DETERMINISM TESTS
 # =====================================================================
 
 def test_run_optimization_backward_compatibility():
@@ -339,3 +339,83 @@ def test_run_optimization_backward_compatibility():
     assert "simulation_result" in raw_res
     assert "ranked_designs" in raw_res
     assert len(raw_res["ranked_designs"]) >= 1
+
+
+def test_optimization_determinism_repeated_runs():
+    """Verify identical inputs, seed, bounds, and trial counts produce 100% deterministic, identical results."""
+    opt_in = OptimizationInput(
+        city="leh",
+        home_type="Permanent",
+        length=4.0,
+        width=3.0,
+        height=2.8,
+        occupants=4,
+        n_trials=10,
+    )
+
+    res1 = optimize_shelter(opt_in)
+    res2 = optimize_shelter(opt_in)
+
+    assert res1.insulation_thickness_m == res2.insulation_thickness_m
+    assert res1.window_area_m2 == res2.window_area_m2
+    assert res1.wall_material == res2.wall_material
+    assert res1.glazing == res2.glazing
+    assert res1.orientation == res2.orientation
+    assert res1.discomfort_score == res2.discomfort_score
+    assert len(res1.ranked_designs) == len(res2.ranked_designs)
+    for c1, c2 in zip(res1.ranked_designs, res2.ranked_designs):
+        assert c1.overall_score == c2.overall_score
+        assert c1.insulation_thickness_m == c2.insulation_thickness_m
+        assert c1.window_area_m2 == c2.window_area_m2
+
+
+def test_custom_weights_materially_affect_scores():
+    """Verify changing multi-objective weights changes candidate overall scores and ranking evaluations."""
+    opt_comfort_heavy = OptimizationInput(
+        city="leh",
+        home_type="Permanent",
+        weights={"comfort": 0.90, "efficiency": 0.05, "solar": 0.05},
+        n_trials=8,
+    )
+    opt_efficiency_heavy = OptimizationInput(
+        city="leh",
+        home_type="Permanent",
+        weights={"comfort": 0.10, "efficiency": 0.80, "solar": 0.10},
+        n_trials=8,
+    )
+
+    res_comfort = optimize_shelter(opt_comfort_heavy)
+    res_efficiency = optimize_shelter(opt_efficiency_heavy)
+
+    # Sub-scores exist and overall scores reflect the distinct weighting schemes
+    cand_c = res_comfort.ranked_designs[0]
+    cand_e = res_efficiency.ranked_designs[0]
+
+    # Verify weighted calculation matches weights
+    expected_c_score = round(
+        0.90 * cand_c.sub_scores["comfort"] + 0.05 * cand_c.sub_scores["efficiency"] + 0.05 * cand_c.sub_scores["solar"], 1
+    )
+    expected_e_score = round(
+        0.10 * cand_e.sub_scores["comfort"] + 0.80 * cand_e.sub_scores["efficiency"] + 0.10 * cand_e.sub_scores["solar"], 1
+    )
+
+    assert cand_c.overall_score == expected_c_score
+    assert cand_e.overall_score == expected_e_score
+
+
+def test_candidate_thermal_metric_completeness():
+    """Verify all candidate designs expose heating demand, cooling demand, and effective thermal mass."""
+    opt_in = OptimizationInput(
+        city="leh",
+        home_type="Permanent",
+        n_trials=8,
+    )
+    res = optimize_shelter(opt_in)
+
+    for c in res.ranked_designs:
+        assert hasattr(c, "heating_demand_kwh")
+        assert hasattr(c, "cooling_demand_kwh")
+        assert hasattr(c, "total_conditioning_demand_kwh")
+        assert hasattr(c, "effective_thermal_capacity_j_k")
+        assert c.effective_thermal_capacity_j_k > 0.0
+
