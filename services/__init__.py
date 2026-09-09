@@ -166,6 +166,11 @@ __all__ = [
     "adapt_to_climate_profile",
     "adapt_to_shelter_design",
     "adapt_simulation_result",
+    # Phase C Adapters & Scenario Fixtures
+    "SimulationAdapter",
+    "get_leh_scenario",
+    "get_jaisalmer_scenario",
+    "get_chennai_scenario",
 ]
 
 from services.simulation_service import (
@@ -190,6 +195,13 @@ from services.contracts import (
     adapt_to_climate_profile,
     adapt_to_shelter_design,
     adapt_simulation_result,
+)
+
+from services.simulation_adapter import SimulationAdapter
+from services.fixtures import (
+    get_leh_scenario,
+    get_jaisalmer_scenario,
+    get_chennai_scenario,
 )
 
 
