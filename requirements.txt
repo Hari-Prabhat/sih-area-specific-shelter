@@ -3,3 +3,5 @@ pandas
 plotly
 matplotlib
 optuna
+pvlib
+pytest
