@@ -15,6 +15,7 @@ import {
   Legend,
 } from 'recharts';
 import { SimulationResult, ClimateData, ShelterDesign } from '../utils/thermalEngine';
+import ShelterModel3D from './ShelterModel3D';
 
 interface SimulationResultsProps {
   result: SimulationResult;
@@ -93,6 +94,13 @@ export default function SimulationResults({
           <p className="text-lg font-bold text-white mt-1">{result.energyEfficiency}%</p>
         </div>
       </div>
+      {/* 3D Shelter Visualization */}
+      <ShelterModel3D
+        design={shelterDesign}
+        materialName={materialName}
+        comfortIndex={result.thermalComfortIndex}
+        avgTemp={result.avgInsideTemp}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
           <h3 className="text-sm font-semibold text-slate-300 mb-4">24-Hour Temperature Profile</h3>

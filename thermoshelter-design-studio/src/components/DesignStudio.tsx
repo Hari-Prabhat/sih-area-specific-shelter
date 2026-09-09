@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { MapPin, Users, Target, Zap, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Sparkles, Building2, Mountain } from 'lucide-react';
-import { ClimateData } from '../utils/thermalEngine';
+import { ClimateData, ShelterDesign } from '../utils/thermalEngine';
 import { climatePresets } from '../data/climatePresets';
 import { materials } from '../data/materials';
+import ShelterModel3D from './ShelterModel3D';
 
 type StudioStep = 'location' | 'mission' | 'priorities' | 'resources' | 'review' | 'generating' | 'results';
 
@@ -609,6 +610,25 @@ export default function DesignStudio() {
               </div>
             </div>
           </div>
+          {/* 3D Shelter Visualization */}
+          <ShelterModel3D
+            design={{
+              length: generatedDesign.specifications.length,
+              width: generatedDesign.specifications.width,
+              height: generatedDesign.specifications.height,
+              shape: 'rectangular',
+              orientation: 180,
+              roofAngle: 30,
+              wallThickness: 0.3,
+              windowArea: 3,
+              windowGlazing: 'double',
+              doorArea: 2,
+              insulationType: 'EPS',
+              thermalMassEnabled: true,
+              thermalMassThickness: 20,
+            } as ShelterDesign}
+            materialName={generatedDesign.specifications.materialSelection[0] || 'Rammed Earth (Stabilized)'}
+          />
         </div>
       )}
 

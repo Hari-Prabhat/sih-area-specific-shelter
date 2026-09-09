@@ -1,6 +1,7 @@
 import { Settings, Play, Compass, Ruler, LayoutGrid } from 'lucide-react';
 import { ShelterDesign } from '../utils/thermalEngine';
 import { materials } from '../data/materials';
+import ShelterModel3D from './ShelterModel3D';
 
 interface ShelterDesignerProps {
   shelterDesign: ShelterDesign;
@@ -132,6 +133,8 @@ export default function ShelterDesigner({
             ))}
         </div>
       </div>
+      {/* Live 3D Preview */}
+      <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
       <div className="flex justify-center">
         <button
           onClick={onRunSimulation}
