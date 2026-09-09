@@ -412,8 +412,8 @@ def run_simulation(
 
         prev_t = indoor_temps[-1] if indoor_temps else initial_indoor_temp
         q_store = (total_thermal_mass * (t_in - prev_t)) / SECONDS_PER_HOUR
-        q_heat = f.calculate_heating_requirement(t_in, DEFAULT_COMFORT_MIN, total_thermal_mass, SECONDS_PER_HOUR)
-        q_cool = f.calculate_cooling_requirement(t_in, DEFAULT_COMFORT_MAX, total_thermal_mass, SECONDS_PER_HOUR)
+        q_heat = f.calculate_heating_requirement(t_in, DEFAULT_COMFORT_MIN, ua_cond_vent, is_conductance=True)
+        q_cool = f.calculate_cooling_requirement(t_in, DEFAULT_COMFORT_MAX, ua_cond_vent, is_conductance=True)
 
         indoor_temps.append(round(float(t_in), 4))
         hourly_solar_irradiance.append(round(float(solar_flux), 2))

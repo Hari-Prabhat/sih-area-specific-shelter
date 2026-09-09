@@ -544,70 +544,86 @@ def simulate_temperature_step(
 def calculate_heating_requirement(
     indoor_temperature: float,
     target_temperature: float,
-    thermal_capacity: float,
-    time_step_seconds: float = 3600.0
+    thermal_capacity_or_conductance: float,
+    time_step_seconds: float = 3600.0,
+    is_conductance: Optional[bool] = None
 ) -> float:
     """
-    Calculates supplemental active heating power (Watts) required to raise temperature to target.
+    Calculates supplemental sensible heating power (Watts) required to maintain or raise
+    indoor temperature to the comfort setpoint.
 
-    Formula:
-        If T_in < T_target:
-            Q_heat = (thermal_capacity * (T_target - T_in)) / time_step_seconds
-        Else:
-            Q_heat = 0.0
+    Formulas:
+        If is_conductance=True (Standard continuous space conditioning):
+            Q_heat = G_total * max(0, T_target - T_in)   [Watts]
+        If is_conductance=False (Instantaneous lump temperature step):
+            Q_heat = (C_thermal * max(0, T_target - T_in)) / time_step_seconds   [Watts]
 
     Parameters:
         indoor_temperature (float): Current simulated indoor temperature in °C.
         target_temperature (float): Desired indoor comfort setpoint in °C.
-        thermal_capacity (float): Thermal capacity of the shelter node in J/K.
+        thermal_capacity_or_conductance (float): Total heat loss coefficient (W/K) if conductance,
+                                                or thermal capacitance (J/K) if capacity. Must be > 0.
         time_step_seconds (float): Duration in seconds (s). Default is 3600.0s.
+        is_conductance (Optional[bool]): If None, auto-detects based on value magnitude (< 10000 W/K).
 
     Returns:
-        float: Required auxiliary heating power in Watts (W).
+        float: Required auxiliary sensible heating power in Watts (W).
     """
-    if thermal_capacity <= 0.0:
-        raise ValueError(f"Thermal capacity must be > 0, got {thermal_capacity}")
+    if thermal_capacity_or_conductance <= 0.0:
+        raise ValueError(f"Conductance/capacity must be > 0, got {thermal_capacity_or_conductance}")
     if time_step_seconds <= 0.0:
         raise ValueError(f"Timestep must be > 0, got {time_step_seconds}")
 
     if indoor_temperature < target_temperature:
-        needed_energy = thermal_capacity * (target_temperature - indoor_temperature)
-        return float(needed_energy / time_step_seconds)
+        delta_t = target_temperature - indoor_temperature
+        use_cond = (thermal_capacity_or_conductance < 10000.0) if is_conductance is None else is_conductance
+        if use_cond:
+            return float(thermal_capacity_or_conductance * delta_t)
+        else:
+            return float((thermal_capacity_or_conductance * delta_t) / time_step_seconds)
     return 0.0
 
 
 def calculate_cooling_requirement(
     indoor_temperature: float,
     target_temperature: float,
-    thermal_capacity: float,
-    time_step_seconds: float = 3600.0
+    thermal_capacity_or_conductance: float,
+    time_step_seconds: float = 3600.0,
+    is_conductance: Optional[bool] = None
 ) -> float:
     """
-    Calculates supplemental active cooling power (Watts) required to lower temperature to target.
+    Calculates supplemental sensible cooling power (Watts) required to maintain or lower
+    indoor temperature to the upper comfort setpoint.
 
-    Formula:
-        If T_in > T_target:
-            Q_cool = (thermal_capacity * (T_in - T_target)) / time_step_seconds
-        Else:
-            Q_cool = 0.0
+    Formulas:
+        If is_conductance=True (Standard continuous space conditioning):
+            Q_cool = G_total * max(0, T_in - T_target)   [Watts]
+        If is_conductance=False (Instantaneous lump temperature step):
+            Q_cool = (C_thermal * max(0, T_in - T_target)) / time_step_seconds   [Watts]
 
     Parameters:
         indoor_temperature (float): Current simulated indoor temperature in °C.
         target_temperature (float): Desired upper indoor comfort setpoint in °C.
-        thermal_capacity (float): Thermal capacity of the shelter node in J/K.
+        thermal_capacity_or_conductance (float): Total heat loss coefficient (W/K) if conductance,
+                                                or thermal capacitance (J/K) if capacity. Must be > 0.
         time_step_seconds (float): Duration in seconds (s). Default is 3600.0s.
+        is_conductance (Optional[bool]): If None, auto-detects based on value magnitude (< 10000 W/K).
 
     Returns:
-        float: Required auxiliary cooling thermal power in Watts (W).
+        float: Required auxiliary sensible cooling power in Watts (W).
     """
-    if thermal_capacity <= 0.0:
-        raise ValueError(f"Thermal capacity must be > 0, got {thermal_capacity}")
+    if thermal_capacity_or_conductance <= 0.0:
+        raise ValueError(f"Conductance/capacity must be > 0, got {thermal_capacity_or_conductance}")
     if time_step_seconds <= 0.0:
         raise ValueError(f"Timestep must be > 0, got {time_step_seconds}")
 
     if indoor_temperature > target_temperature:
-        needed_energy = thermal_capacity * (indoor_temperature - target_temperature)
-        return float(needed_energy / time_step_seconds)
+        delta_t = indoor_temperature - target_temperature
+        use_cond = (thermal_capacity_or_conductance < 10000.0) if is_conductance is None else is_conductance
+        if use_cond:
+            return float(thermal_capacity_or_conductance * delta_t)
+        else:
+            return float((thermal_capacity_or_conductance * delta_t) / time_step_seconds)
     return 0.0
 
 
