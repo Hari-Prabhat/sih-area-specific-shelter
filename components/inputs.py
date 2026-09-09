@@ -5,174 +5,68 @@ Captures user design criteria, location context, shelter permanence,
 and engineering constraints in a clean, unified interface.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 import streamlit as st
 
 from services.recommender import CLIMATE_MAPPING, CLIMATE_DESCRIPTIONS
 
 CITIES_METADATA = {
     "leh": {
-        "id": "leh",
-        "name": "Leh",
-        "region": "Ladakh",
-        "country": "India",
         "display": "🏔️ Leh, Ladakh (Alpine Severe Cold)",
         "badge": "⭐ Hero Demo (High-Altitude Cold)",
         "elevation": "3,524 m",
-        "altitude_m": 3524.0,
-        "latitude": 34.1526,
-        "longitude": 77.5771,
-        "climate_type": "Cold (High-Altitude Desert)",
-        "koppen_classification": "BWk (Cold Desert)",
         "winter_temp": "-18.5 °C",
         "summer_temp": "26.0 °C",
-        "design_winter_temp_c": -18.5,
-        "design_summer_temp_c": 26.0,
-        "diurnal_swing": "15–20 °C",
         "solar_ghi": "2,100 kWh/m²",
-        "annual_solar_ghi_kwh_m2": 2100.0,
         "hdd": 4850,
-        "cdd": 45,
-        "heating_degree_days_18c": 4850,
-        "cooling_degree_days_18c": 45,
-        "dominant_demand": "Extreme Heating Demand (Passive Solar / High Thermal Mass Required)",
         "source": "IMD Leh Station & NREL NSRDB / ASHRAE EPW",
         "type": "Observed Reference Dataset",
-        "notes": "Primary hero target region for ThermoShelter AI. Severe sub-zero winter nights (frequently < -15°C), low relative humidity (20–45%), thin atmosphere with high solar radiation (>900 W/m² GHI peak), and extreme diurnal swings.",
     },
     "jaisalmer": {
-        "id": "jaisalmer",
-        "name": "Jaisalmer",
-        "region": "Rajasthan (Thar Desert)",
-        "country": "India",
         "display": "🏜️ Jaisalmer, Thar (Hot & Arid Desert)",
         "badge": "Desert High Diurnal",
         "elevation": "225 m",
-        "altitude_m": 225.0,
-        "latitude": 26.9157,
-        "longitude": 70.9083,
-        "climate_type": "Hot-Dry (Arid Desert)",
-        "koppen_classification": "BWh (Hot Desert)",
         "winter_temp": "7.0 °C",
         "summer_temp": "46.0 °C",
-        "design_winter_temp_c": 7.0,
-        "design_summer_temp_c": 46.0,
-        "diurnal_swing": "16–22 °C",
         "solar_ghi": "2,250 kWh/m²",
-        "annual_solar_ghi_kwh_m2": 2250.0,
         "hdd": 220,
-        "cdd": 3400,
-        "heating_degree_days_18c": 220,
-        "cooling_degree_days_18c": 3400,
-        "dominant_demand": "Extreme Cooling & Diurnal Thermal Lag Strategy Required",
         "source": "MNRE / IMD Climatological Normals EPW",
         "type": "Observed Reference Dataset",
-        "notes": "Thar Desert climate characterized by extreme daytime heat, high solar radiation, low precipitation, and high diurnal temperature swings.",
     },
     "chennai": {
-        "id": "chennai",
-        "name": "Chennai",
-        "region": "Tamil Nadu (Coromandel Coast)",
-        "country": "India",
         "display": "🌊 Chennai, Tamil Nadu (Warm & Humid Coastal)",
         "badge": "Tropical Coastal",
         "elevation": "6 m",
-        "altitude_m": 6.0,
-        "latitude": 13.0827,
-        "longitude": 80.2707,
-        "climate_type": "Warm-Humid (Coastal)",
-        "koppen_classification": "Aw (Tropical Wet & Dry)",
         "winter_temp": "20.0 °C",
         "summer_temp": "39.0 °C",
-        "design_winter_temp_c": 20.0,
-        "design_summer_temp_c": 39.0,
-        "diurnal_swing": "6–9 °C (Narrow)",
         "solar_ghi": "1,950 kWh/m²",
-        "annual_solar_ghi_kwh_m2": 1950.0,
         "hdd": 0,
-        "cdd": 3600,
-        "heating_degree_days_18c": 0,
-        "cooling_degree_days_18c": 3600,
-        "dominant_demand": "High Humidity Dissipation & Continuous Natural Cross-Ventilation",
         "source": "BEE ECBC / IMD EPW",
         "type": "Observed Reference Dataset",
-        "notes": "Tropical coastal climate with persistent high humidity, narrow diurnal temperature ranges, and cooling/ventilation-dominated design requirements.",
     },
     "delhi": {
-        "id": "delhi",
-        "name": "Delhi",
-        "region": "National Capital Region (Northern Plains)",
-        "country": "India",
         "display": "🏙️ Delhi, NCR (Composite / Extreme Seasonal)",
         "badge": "Seasonal Extreme",
         "elevation": "216 m",
-        "altitude_m": 216.0,
-        "latitude": 28.6139,
-        "longitude": 77.2090,
-        "climate_type": "Composite (Extreme Seasonal Swings)",
-        "koppen_classification": "BSh (Hot Semi-Arid)",
         "winter_temp": "5.0 °C",
         "summer_temp": "43.5 °C",
-        "design_winter_temp_c": 5.0,
-        "design_summer_temp_c": 43.5,
-        "diurnal_swing": "12–16 °C",
         "solar_ghi": "1,900 kWh/m²",
-        "annual_solar_ghi_kwh_m2": 1900.0,
         "hdd": 450,
-        "cdd": 2850,
-        "heating_degree_days_18c": 450,
-        "cooling_degree_days_18c": 2850,
-        "dominant_demand": "Dual Regime: Severe Winter Cold Waves & Scorching Summer Heatwaves",
         "source": "ISHRAE / BEE ECBC Weather EPW",
         "type": "Observed Reference Dataset",
-        "notes": "Composite climate experiencing extreme cold waves in winter, intense dry heat in summer, and monsoon humidity in July-August.",
     },
     "bengaluru": {
-        "id": "bengaluru",
-        "name": "Bengaluru",
-        "region": "Karnataka (Deccan Plateau)",
-        "country": "India",
         "display": "🌳 Bengaluru, Karnataka (Temperate / Moderate)",
         "badge": "Moderate Plateau",
         "elevation": "920 m",
-        "altitude_m": 920.0,
-        "latitude": 12.9716,
-        "longitude": 77.5946,
-        "climate_type": "Temperate / Moderate Plateau",
-        "koppen_classification": "Aw (Tropical Savanna / Highland)",
         "winter_temp": "15.0 °C",
         "summer_temp": "34.0 °C",
-        "design_winter_temp_c": 15.0,
-        "design_summer_temp_c": 34.0,
-        "diurnal_swing": "10–14 °C",
         "solar_ghi": "1,850 kWh/m²",
-        "annual_solar_ghi_kwh_m2": 1850.0,
         "hdd": 0,
-        "cdd": 1200,
-        "heating_degree_days_18c": 0,
-        "cooling_degree_days_18c": 1200,
-        "dominant_demand": "Passive Daylighting, Natural Ventilation & Moderate Solar Shading",
         "source": "IMD Bengaluru & ISHRAE EPW",
         "type": "Observed Reference Dataset",
-        "notes": "Elevated plateau climate with pleasant year-round temperatures, moderate solar resource, and low active conditioning requirements.",
     },
 }
-
-
-def get_city_metadata(city: str) -> Dict[str, Any]:
-    """
-    Returns complete scientific climate metadata for a given city ID.
-    Falls back to 'leh' if city is not found.
-    """
-    key = str(city).strip().lower()
-    return CITIES_METADATA.get(key, CITIES_METADATA["leh"])
-
-
-def get_all_supported_cities() -> List[str]:
-    """
-    Returns list of all supported city IDs with full EPW weather datasets.
-    """
-    return list(CITIES_METADATA.keys())
 
 
 def render_climate_info_card(city: str) -> None:

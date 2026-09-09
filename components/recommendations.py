@@ -84,7 +84,7 @@ def render_envelope_specifications(
 <h4>📐 Auto-Sizing Summary</h4>
 <p><b>Floor Area:</b> {geo['floor_area_m2']:.1f} m² ({geo['length_m']:.1f}m × {geo['width_m']:.1f}m)</p>
 <p><b>Height:</b> {geo['height_m']:.1f} m | <b>Volume:</b> {geo['volume_m3']:.1f} m³</p>
-<p><b>Target Occupants:</b> {rec.get('people', rec.get('occupants', 4))} Persons</p>
+<p><b>Target Occupants:</b> {rec['people']} Persons</p>
 </div>""",
             unsafe_allow_html=True,
         )
