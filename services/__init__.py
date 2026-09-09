@@ -153,6 +153,19 @@ __all__ = [
     "SHELTER_MODELS",
     "GLAZING_PROPERTIES",
     "ORIENTATION_FACTORS",
+    # Phase B Contracts & Adapters
+    "ClimateProfile",
+    "ShelterDesign",
+    "SimulationInput",
+    "SimulationResult",
+    "OptimizationInput",
+    "OptimizationResult",
+    "OptimizationCandidate",
+    "create_mock_climate_profile",
+    "create_mock_shelter_design",
+    "adapt_to_climate_profile",
+    "adapt_to_shelter_design",
+    "adapt_simulation_result",
 ]
 
 from services.simulation_service import (
@@ -162,6 +175,21 @@ from services.simulation_service import (
     SHELTER_MODELS,
     GLAZING_PROPERTIES,
     ORIENTATION_FACTORS,
+)
+
+from services.contracts import (
+    ClimateProfile,
+    ShelterDesign,
+    SimulationInput,
+    SimulationResult,
+    OptimizationInput,
+    OptimizationResult,
+    OptimizationCandidate,
+    create_mock_climate_profile,
+    create_mock_shelter_design,
+    adapt_to_climate_profile,
+    adapt_to_shelter_design,
+    adapt_simulation_result,
 )
 
 
