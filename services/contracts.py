@@ -373,6 +373,17 @@ class SimulationResult:
     geometry: Dict[str, Any]
     specs: Dict[str, Any]
     warnings: List[str] = field(default_factory=list)
+    # Phase D Enhanced Physical Metrics (with defaults for compatibility)
+    thermal_storage_flow: Optional[List[float]] = None
+    hourly_thermal_storage: Optional[List[float]] = None
+    hourly_heating_demand: Optional[List[float]] = None
+    hourly_cooling_demand: Optional[List[float]] = None
+    hourly_net_load: Optional[List[float]] = None
+    heating_demand_kwh: float = 0.0
+    cooling_demand_kwh: float = 0.0
+    total_conditioning_demand_kwh: float = 0.0
+    effective_thermal_capacity_j_k: float = 0.0
+    thermal_mass_breakdown: Optional[Dict[str, float]] = None
 
     @property
     def indoor_temperature(self) -> List[float]:
@@ -410,6 +421,10 @@ class SimulationResult:
         roof_loss = data.get("roof_heat_flow", data.get("hourly_roof_loss", []))
         win_loss = data.get("window_heat_flow", data.get("hourly_window_loss", []))
         vent_loss = data.get("ventilation_heat_flow", data.get("hourly_vent_loss", []))
+        th_storage = data.get("thermal_storage_flow", data.get("hourly_thermal_storage"))
+        q_heat = data.get("hourly_heating_demand")
+        q_cool = data.get("hourly_cooling_demand")
+        q_net_load = data.get("hourly_net_load")
 
         return cls(
             city=str(data.get("city", "unknown")),
@@ -441,6 +456,16 @@ class SimulationResult:
             geometry=dict(data.get("geometry", {})),
             specs=dict(data.get("specs", {})),
             warnings=list(data.get("warnings", [])),
+            thermal_storage_flow=[float(x) for x in th_storage] if th_storage is not None else None,
+            hourly_thermal_storage=[float(x) for x in th_storage] if th_storage is not None else None,
+            hourly_heating_demand=[float(x) for x in q_heat] if q_heat is not None else None,
+            hourly_cooling_demand=[float(x) for x in q_cool] if q_cool is not None else None,
+            hourly_net_load=[float(x) for x in q_net_load] if q_net_load is not None else None,
+            heating_demand_kwh=float(data.get("heating_demand_kwh", data.get("energy_totals_kwh", {}).get("heating_demand_kwh", 0.0))),
+            cooling_demand_kwh=float(data.get("cooling_demand_kwh", data.get("energy_totals_kwh", {}).get("cooling_demand_kwh", 0.0))),
+            total_conditioning_demand_kwh=float(data.get("total_conditioning_demand_kwh", data.get("energy_totals_kwh", {}).get("total_conditioning_demand_kwh", 0.0))),
+            effective_thermal_capacity_j_k=float(data.get("effective_thermal_capacity_j_k", 0.0)),
+            thermal_mass_breakdown=dict(data["thermal_mass_breakdown"]) if data.get("thermal_mass_breakdown") is not None else None,
         )
 
 

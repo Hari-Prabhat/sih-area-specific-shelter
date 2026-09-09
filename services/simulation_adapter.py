@@ -112,6 +112,9 @@ class SimulationAdapter:
             initial_indoor_temp=sim_input.initial_indoor_temp,
             hours_to_simulate=sim_input.hours_to_simulate,
             substeps=sim_input.substeps,
+            hourly_temperatures=c.hourly_temperature,
+            hourly_direct_solar=c.hourly_direct_solar,
+            hourly_diffuse_solar=c.hourly_diffuse_solar,
         )
 
         if "error" in raw_res:

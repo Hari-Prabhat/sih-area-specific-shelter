@@ -206,6 +206,9 @@ def run_simulation(
     initial_indoor_temp: float = 20.0,
     hours_to_simulate: int = 168,
     substeps: int = 60,
+    hourly_temperatures: Optional[List[float]] = None,
+    hourly_direct_solar: Optional[List[float]] = None,
+    hourly_diffuse_solar: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     """
     Authoritative physical simulation runner for shelter thermal response.
@@ -219,14 +222,18 @@ def run_simulation(
       - Hourly component heat flow balance tracking (solar, internal, walls, roof, floor, glass, vent, radiation).
       - Cumulative energy metrics (kWh) and thermal comfort statistics.
     """
-    # 1. Fetch Weather Data
-    weather = get_climate_data(city)
-    if "error" in weather:
-        return {"error": weather["error"]}
-
-    outdoor_temps = weather["hourly_temperature"]
-    direct_solar = weather["hourly_direct_solar"]
-    diffuse_solar = weather["hourly_diffuse_solar"]
+    # 1. Fetch Weather Data (from input arrays if provided, else from climate service cache)
+    if hourly_temperatures is not None and hourly_direct_solar is not None and hourly_diffuse_solar is not None:
+        outdoor_temps = hourly_temperatures
+        direct_solar = hourly_direct_solar
+        diffuse_solar = hourly_diffuse_solar
+    else:
+        weather = get_climate_data(city)
+        if "error" in weather:
+            return {"error": weather["error"]}
+        outdoor_temps = weather["hourly_temperature"]
+        direct_solar = weather["hourly_direct_solar"]
+        diffuse_solar = weather["hourly_diffuse_solar"]
 
     available_hours = min(len(outdoor_temps), hours_to_simulate)
     if available_hours <= 0:
@@ -300,9 +307,33 @@ def run_simulation(
     u_roof = roof_u_data["U_value"]
     u_floor = floor_u_data["U_value"]
 
-    # 4. Thermal Mass (Air mass + interior multiplier)
-    air_mass = volume * AIR_DENSITY_DEFAULT
-    total_thermal_mass = (air_mass * AIR_SPECIFIC_HEAT) * 3.0
+    # 4. Resolve wall material thermal mass properties & calculate effective capacitance
+    if isinstance(wall_material, str):
+        mat_dict = get_material(wall_material)
+        wall_density = float(mat_dict.get("density", 1800.0)) if "error" not in mat_dict else 1800.0
+        wall_spec_heat = float(mat_dict.get("specific_heat", 900.0)) if "error" not in mat_dict else 900.0
+    elif isinstance(wall_material, dict):
+        wall_density = float(wall_material.get("density", 1800.0))
+        wall_spec_heat = float(wall_material.get("specific_heat", 900.0))
+    else:
+        wall_density = 1800.0
+        wall_spec_heat = 900.0
+
+    thermal_mass_data = f.calculate_effective_thermal_capacity(
+        volume=volume,
+        solid_wall_area=solid_wall_area,
+        wall_density=wall_density,
+        wall_specific_heat=wall_spec_heat,
+        wall_thickness_m=wall_thickness_m,
+        roof_area=roof_area,
+        roof_density=1200.0,
+        roof_specific_heat=1000.0,
+        roof_thickness_m=roof_thickness_m,
+        floor_area=floor_area,
+        floor_density=2000.0,
+        floor_specific_heat=880.0,
+    )
+    total_thermal_mass = thermal_mass_data["C_total"]
 
     # Precompute invariant conductance coefficients
     ua_walls = float(u_wall * solid_wall_area)
@@ -330,6 +361,10 @@ def run_simulation(
     hourly_q_vent: List[float] = []
     hourly_q_rad: List[float] = []
     hourly_q_net: List[float] = []
+    hourly_q_storage: List[float] = []
+    hourly_q_heat: List[float] = []
+    hourly_q_cool: List[float] = []
+    hourly_q_net_load: List[float] = []
     comfort_status_series: List[str] = []
 
     # Internal occupant gain
@@ -375,6 +410,11 @@ def run_simulation(
             hour_q_rad += q_rad
             hour_q_net += q_net
 
+        prev_t = indoor_temps[-1] if indoor_temps else initial_indoor_temp
+        q_store = (total_thermal_mass * (t_in - prev_t)) / SECONDS_PER_HOUR
+        q_heat = f.calculate_heating_requirement(t_in, DEFAULT_COMFORT_MIN, total_thermal_mass, SECONDS_PER_HOUR)
+        q_cool = f.calculate_cooling_requirement(t_in, DEFAULT_COMFORT_MAX, total_thermal_mass, SECONDS_PER_HOUR)
+
         indoor_temps.append(round(float(t_in), 4))
         hourly_solar_irradiance.append(round(float(solar_flux), 2))
         hourly_solar_power.append(round(float(p_solar_incident), 2))
@@ -387,6 +427,10 @@ def run_simulation(
         hourly_q_vent.append(round(float(hour_q_vent / substeps), 2))
         hourly_q_rad.append(round(float(hour_q_rad / substeps), 2))
         hourly_q_net.append(round(float(hour_q_net / substeps), 2))
+        hourly_q_storage.append(round(float(q_store), 2))
+        hourly_q_heat.append(round(float(q_heat), 2))
+        hourly_q_cool.append(round(float(q_cool), 2))
+        hourly_q_net_load.append(round(float(q_heat - q_cool), 2))
         comfort_status_series.append(f.calculate_comfort_status(t_in, DEFAULT_COMFORT_MIN, DEFAULT_COMFORT_MAX))
 
     # 6. Thermal Comfort Indicators via services/comfort.py
@@ -431,6 +475,9 @@ def run_simulation(
     total_window_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_windows), 2)
     total_vent_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_vent), 2)
     total_rad_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_rad), 2)
+    total_heating_kwh = round(sum(hourly_q_heat) / 1000.0, 2)
+    total_cooling_kwh = round(sum(hourly_q_cool) / 1000.0, 2)
+    total_conditioning_kwh = round(total_heating_kwh + total_cooling_kwh, 2)
 
     total_component_loss_kwh = round(
         total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh +
@@ -458,6 +505,9 @@ def run_simulation(
         "radiation_loss_kwh": total_rad_loss_kwh,
         "total_heat_loss_kwh": total_component_loss_kwh,
         "total_envelope_loss_kwh": round(total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh + total_window_loss_kwh, 2),
+        "heating_demand_kwh": total_heating_kwh,
+        "cooling_demand_kwh": total_cooling_kwh,
+        "total_conditioning_demand_kwh": total_conditioning_kwh,
     }
 
     return {
@@ -483,6 +533,16 @@ def run_simulation(
         "hourly_vent_loss": hourly_q_vent,
         "radiation_heat_flow": hourly_q_rad,
         "net_heat_flow": hourly_q_net,
+        "thermal_storage_flow": hourly_q_storage,
+        "hourly_thermal_storage": hourly_q_storage,
+        "hourly_heating_demand": hourly_q_heat,
+        "hourly_cooling_demand": hourly_q_cool,
+        "hourly_net_load": hourly_q_net_load,
+        "heating_demand_kwh": total_heating_kwh,
+        "cooling_demand_kwh": total_cooling_kwh,
+        "total_conditioning_demand_kwh": total_conditioning_kwh,
+        "effective_thermal_capacity_j_k": total_thermal_mass,
+        "thermal_mass_breakdown": thermal_mass_data,
 
         "comfort_status": overall_comfort_status,
         "comfort_status_series": comfort_status_series,
