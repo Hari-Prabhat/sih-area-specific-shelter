@@ -804,6 +804,8 @@ def adapt_to_climate_profile(raw_data: Union[ClimateProfile, Dict[str, Any]]) ->
     """
     if isinstance(raw_data, ClimateProfile):
         return raw_data
+    elif type(raw_data).__name__ == "ClimateProfile" and hasattr(raw_data, "to_dict"):
+        return ClimateProfile.from_dict(raw_data.to_dict())
     elif isinstance(raw_data, dict):
         return ClimateProfile.from_dict(raw_data)
     else:
@@ -816,6 +818,8 @@ def adapt_to_shelter_design(raw_data: Union[ShelterDesign, Dict[str, Any]]) -> S
     """
     if isinstance(raw_data, ShelterDesign):
         return raw_data
+    elif type(raw_data).__name__ == "ShelterDesign" and hasattr(raw_data, "to_dict"):
+        return ShelterDesign.from_dict(raw_data.to_dict())
     elif isinstance(raw_data, dict):
         return ShelterDesign.from_dict(raw_data)
     else:
@@ -828,7 +832,39 @@ def adapt_simulation_result(raw_result: Union[SimulationResult, Dict[str, Any]])
     """
     if isinstance(raw_result, SimulationResult):
         return raw_result
+    elif type(raw_result).__name__ == "SimulationResult" and hasattr(raw_result, "to_dict"):
+        return SimulationResult.from_dict(raw_result.to_dict())
     elif isinstance(raw_result, dict):
         return SimulationResult.from_dict(raw_result)
     else:
         raise TypeError(f"Cannot adapt object of type {type(raw_result)} to SimulationResult")
+
+
+def adapt_to_optimization_input(raw_data: Union[OptimizationInput, Dict[str, Any]]) -> OptimizationInput:
+    """
+    Adapter converting raw dictionary or config into validated OptimizationInput contract.
+    """
+    if isinstance(raw_data, OptimizationInput):
+        return raw_data
+    elif type(raw_data).__name__ == "OptimizationInput" and hasattr(raw_data, "to_dict"):
+        return OptimizationInput.from_dict(raw_data.to_dict())
+    elif isinstance(raw_data, dict):
+        return OptimizationInput.from_dict(raw_data)
+    else:
+        raise TypeError(f"Cannot adapt object of type {type(raw_data)} to OptimizationInput")
+
+
+def adapt_optimization_result(raw_result: Union[OptimizationResult, Dict[str, Any]]) -> OptimizationResult:
+    """
+    Adapter converting raw dictionary or optimization output into validated OptimizationResult contract.
+    """
+    if isinstance(raw_result, OptimizationResult):
+        return raw_result
+    elif type(raw_result).__name__ == "OptimizationResult" and hasattr(raw_result, "to_dict"):
+        return OptimizationResult.from_dict(raw_result.to_dict())
+    elif isinstance(raw_result, dict):
+        return OptimizationResult.from_dict(raw_result)
+    else:
+        raise TypeError(f"Cannot adapt object of type {type(raw_result)} to OptimizationResult")
+
+

@@ -23,9 +23,13 @@ from services.contracts import (
     ShelterDesign,
     SimulationInput,
     SimulationResult,
+    OptimizationInput,
+    OptimizationResult,
     adapt_to_climate_profile,
     adapt_to_shelter_design,
     adapt_simulation_result,
+    adapt_to_optimization_input,
+    adapt_optimization_result,
 )
 from services.simulation_service import run_simulation
 
@@ -142,3 +146,75 @@ class SimulationAdapter:
             initial_indoor_temp=initial_indoor_temp,
         )
         return cls.run_simulation_from_input(sim_in)
+
+
+class OptimizationAdapter:
+    """
+    Focused data transformation adapter bridging upstream contracts and bounds
+    to Member 3's Bayesian design optimization pipeline.
+    """
+
+    @staticmethod
+    def to_optimization_input(
+        city_or_config: Union[str, Dict[str, Any], OptimizationInput],
+        home_type: str = "Permanent",
+        length: float = 4.0,
+        width: float = 3.0,
+        height: float = 2.8,
+        occupants: int = 2,
+        n_trials: int = 40,
+        **kwargs: Any,
+    ) -> OptimizationInput:
+        """
+        Creates a validated OptimizationInput contract from keyword arguments or a dictionary.
+        """
+        if isinstance(city_or_config, OptimizationInput):
+            return city_or_config
+        elif isinstance(city_or_config, dict):
+            return adapt_to_optimization_input(city_or_config)
+        else:
+            payload = {
+                "city": city_or_config,
+                "home_type": home_type,
+                "length": length,
+                "width": width,
+                "height": height,
+                "occupants": occupants,
+                "n_trials": n_trials,
+                **kwargs,
+            }
+            return adapt_to_optimization_input(payload)
+
+    @staticmethod
+    def run_optimization_from_input(opt_input: OptimizationInput) -> OptimizationResult:
+        """
+        Executes Bayesian multi-objective optimization using the structured OptimizationInput contract.
+        """
+        from services.optimize import optimize_shelter
+        return optimize_shelter(opt_input)
+
+    @classmethod
+    def run_from_specs(
+        cls,
+        city: str,
+        home_type: str = "Permanent",
+        length: float = 4.0,
+        width: float = 3.0,
+        height: float = 2.8,
+        n_trials: int = 40,
+        **kwargs: Any,
+    ) -> OptimizationResult:
+        """
+        Convenience end-to-end optimization entrypoint.
+        """
+        opt_in = cls.to_optimization_input(
+            city_or_config=city,
+            home_type=home_type,
+            length=length,
+            width=width,
+            height=height,
+            n_trials=n_trials,
+            **kwargs,
+        )
+        return cls.run_optimization_from_input(opt_in)
+
