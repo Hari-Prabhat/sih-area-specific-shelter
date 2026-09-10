@@ -8,6 +8,9 @@ Public API exposing:
 - Canonical ShelterDesign digital twin builder & JSON serialization
 """
 
+from typing import Optional
+
+
 from services.shelter.models import (
     GlazingDefinition,
     MaterialAssembly,
