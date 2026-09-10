@@ -3,9 +3,13 @@ import { api } from "../api/client";
 import {
   City,
   ClimateData,
+  Material,
   SimulationResult,
   OptimizationResult,
   ComparisonResult,
+  GlazingCatalogItem,
+  OrientationCatalogItem,
+  ShelterModelCatalogItem,
 } from "../types";
 
 export interface DesignState {
@@ -33,8 +37,21 @@ interface AppStore {
   people: number;
   homeType: "Permanent" | "Temporary";
 
+  // Catalogs loaded from backend API
+  materialsCatalog: Record<string, Material>;
+  glazingCatalog: Record<string, GlazingCatalogItem>;
+  orientationsCatalog: Record<string, number | OrientationCatalogItem>;
+  shelterModelsCatalog: Record<string, ShelterModelCatalogItem>;
+
   // Design parameters
   design: DesignState;
+
+  // Stale tracking for simulation
+  isSimulationStale: boolean;
+  lastSimulatedDesign: (DesignState & {
+    city: string;
+    occupants: number;
+  }) | null;
 
   // Simulation & Optimization cache
   simulationResult: SimulationResult | null;
@@ -62,6 +79,12 @@ interface AppStore {
   runOptimization: (trials?: number) => Promise<void>;
   runComparison: () => Promise<void>;
   applyOptimizationRecommendation: () => void;
+  resetToNewDesign: (params?: {
+    city?: string;
+    people?: number;
+    homeType?: "Permanent" | "Temporary";
+    archetype?: "recommended" | "standard" | "compact" | "solar";
+  }) => Promise<void>;
 }
 
 export const useDesignStore = create<AppStore>((set, get) => ({
@@ -75,6 +98,12 @@ export const useDesignStore = create<AppStore>((set, get) => ({
   people: 4,
   homeType: "Permanent",
 
+  // Catalogs initialized with resilient defaults
+  materialsCatalog: {},
+  glazingCatalog: {},
+  orientationsCatalog: {},
+  shelterModelsCatalog: {},
+
   design: {
     length: 4.5,
     width: 3.2,
@@ -87,6 +116,9 @@ export const useDesignStore = create<AppStore>((set, get) => ({
     glazing: "double_clear",
     orientation: "south",
   },
+
+  isSimulationStale: false,
+  lastSimulatedDesign: null,
 
   simulationResult: null,
   optimizationResult: null,
@@ -103,7 +135,15 @@ export const useDesignStore = create<AppStore>((set, get) => ({
 
   setCity: async (city: string) => {
     if (!city) {
-      set({ selectedCity: "", climateData: null, simulationResult: null, optimizationResult: null, comparisonResult: null });
+      set({
+        selectedCity: "",
+        climateData: null,
+        simulationResult: null,
+        optimizationResult: null,
+        comparisonResult: null,
+        isSimulationStale: false,
+        lastSimulatedDesign: null,
+      });
       return;
     }
     set((s) => ({
@@ -111,6 +151,8 @@ export const useDesignStore = create<AppStore>((set, get) => ({
       simulationResult: null,
       optimizationResult: null,
       comparisonResult: null,
+      isSimulationStale: false,
+      lastSimulatedDesign: null,
       loading: { ...s.loading, climate: true },
       error: null,
     }));
@@ -134,45 +176,52 @@ export const useDesignStore = create<AppStore>((set, get) => ({
   },
 
   setPeople: (people: number) => {
-    set({ people });
+    const hasSim = get().simulationResult !== null;
+    set({ people, isSimulationStale: hasSim });
     get().autoSizeDesign();
   },
 
   setHomeType: (homeType: "Permanent" | "Temporary") => {
-    set({ homeType });
+    const hasSim = get().simulationResult !== null;
+    set({ homeType, isSimulationStale: hasSim });
     get().autoSizeDesign();
   },
 
   updateDesign: (patch: Partial<DesignState>) => {
-    set((s) => ({
-      design: { ...s.design, ...patch },
-    }));
+    const prev = get().design;
+    const next = { ...prev, ...patch };
+    const lastSim = get().lastSimulatedDesign;
+    let isStale = get().isSimulationStale;
+
+    if (get().simulationResult && lastSim) {
+      const keys = Object.keys(next) as (keyof DesignState)[];
+      const hasChanged = keys.some((k) => next[k] !== lastSim[k]);
+      if (hasChanged) isStale = true;
+    } else if (get().simulationResult) {
+      isStale = true;
+    }
+
+    set({ design: next, isSimulationStale: isStale });
   },
 
   autoSizeDesign: async () => {
-    const { people, homeType, design } = get();
+    const { people, homeType, simulationResult } = get();
     try {
       const geo = await api.autoSize(people, homeType);
+      const current = get();
       set({
         design: {
-          ...design,
+          ...current.design,
           length: geo.length_m,
           width: geo.width_m,
           height: geo.height_m,
         },
+        isSimulationStale: simulationResult !== null,
       });
-    } catch (e) {
-      // fallback local calculation
-      const floorArea = Math.max(12.0, people * 4.5);
-      const length = Math.round(Math.sqrt(floorArea * 1.3) * 10) / 10;
-      const width = Math.round((floorArea / length) * 10) / 10;
+    } catch (e: any) {
       set({
-        design: {
-          ...design,
-          length,
-          width,
-          height: homeType === "Temporary" ? 2.6 : 2.8,
-        },
+        error: e.message || "Auto-sizing failed. Please check the backend connection.",
+        isSimulationStale: simulationResult !== null,
       });
     }
   },
@@ -180,13 +229,37 @@ export const useDesignStore = create<AppStore>((set, get) => ({
   fetchInitialData: async () => {
     set((s) => ({ loading: { ...s.loading, init: true }, error: null }));
     try {
-      const citiesRes = await api.getCities();
+      // Parallel fetch of cities and backend engineering catalogs
+      const [citiesRes, matsRes, glazingRes, orientRes, modelsRes] =
+        await Promise.allSettled([
+          api.getCities(),
+          api.getMaterials(),
+          api.getGlazing(),
+          api.getOrientations(),
+          api.getShelterModels(),
+        ]);
+
+      const cities =
+        citiesRes.status === "fulfilled" ? citiesRes.value.cities : [];
+      const materials =
+        matsRes.status === "fulfilled" ? matsRes.value.materials : {};
+      const glazing =
+        glazingRes.status === "fulfilled" ? glazingRes.value.glazing : {};
+      const orientations =
+        orientRes.status === "fulfilled" ? orientRes.value.orientations : {};
+      const shelterModels =
+        modelsRes.status === "fulfilled" ? modelsRes.value.models : {};
+
       set({
-        cities: citiesRes.cities,
+        cities: cities.length > 0 ? cities : get().cities,
+        materialsCatalog: materials,
+        glazingCatalog: glazing,
+        orientationsCatalog: orientations,
+        shelterModelsCatalog: shelterModels,
         loading: { ...get().loading, init: false },
       });
 
-      // If user had a city selected, fetch its climate and simulate; otherwise wait for user to choose location
+      // If user had a city selected, fetch its climate
       const currentCity = get().selectedCity;
       if (currentCity) {
         const climate = await api.getClimate(currentCity);
@@ -194,14 +267,79 @@ export const useDesignStore = create<AppStore>((set, get) => ({
         await get().runSimulation();
       }
     } catch (e: any) {
-      // Graceful fallback to standard city metadata so UI remains interactive even before backend is ready
+      // Graceful fallback to standard city metadata so UI remains interactive
       set({
         cities: [
-          { id: "leh", display: "🏔️ Leh, Ladakh (Cold)", badge: "Cold", elevation: "3,524 m", winter_temp: "-18.5°C", summer_temp: "25.0°C", solar_ghi: "2,100 kWh/m²", hdd: 4850, source: "IMD Leh", type: "Alpine High Altitude", climate_type: "cold", climate_description: "Alpine Severe Cold" },
-          { id: "jaisalmer", display: "🏜️ Jaisalmer (Hot-Dry)", badge: "Hot-Dry", elevation: "225 m", winter_temp: "7.0°C", summer_temp: "46.0°C", solar_ghi: "2,250 kWh/m²", hdd: 850, source: "IMD Jaisalmer", type: "Desert Arid", climate_type: "hot_dry", climate_description: "Hot & Arid Desert" },
-          { id: "chennai", display: "🌊 Chennai (Humid)", badge: "Warm-Humid", elevation: "6 m", winter_temp: "20.0°C", summer_temp: "38.0°C", solar_ghi: "1,950 kWh/m²", hdd: 120, source: "IMD Chennai", type: "Coastal Tropical", climate_type: "hot_humid", climate_description: "Warm & Humid Coastal" },
-          { id: "delhi", display: "🏙️ Delhi (Composite)", badge: "Composite", elevation: "216 m", winter_temp: "5.0°C", summer_temp: "44.0°C", solar_ghi: "1,900 kWh/m²", hdd: 1200, source: "IMD Delhi", type: "Subtropical Composite", climate_type: "composite", climate_description: "Composite Extreme" },
-          { id: "bengaluru", display: "🌳 Bengaluru (Moderate)", badge: "Moderate", elevation: "920 m", winter_temp: "15.0°C", summer_temp: "34.0°C", solar_ghi: "1,850 kWh/m²", hdd: 450, source: "IMD Bengaluru", type: "Plateau Temperate", climate_type: "moderate", climate_description: "Temperate Moderate" },
+          {
+            id: "leh",
+            display: "🏔️ Leh, Ladakh (Cold)",
+            badge: "Cold",
+            elevation: "3,524 m",
+            winter_temp: "-18.5°C",
+            summer_temp: "25.0°C",
+            solar_ghi: "2,100 kWh/m²",
+            hdd: 4850,
+            source: "IMD Leh",
+            type: "Alpine High Altitude",
+            climate_type: "cold",
+            climate_description: "Alpine Severe Cold",
+          },
+          {
+            id: "jaisalmer",
+            display: "🏜️ Jaisalmer (Hot-Dry)",
+            badge: "Hot-Dry",
+            elevation: "225 m",
+            winter_temp: "7.0°C",
+            summer_temp: "46.0°C",
+            solar_ghi: "2,250 kWh/m²",
+            hdd: 850,
+            source: "IMD Jaisalmer",
+            type: "Desert Arid",
+            climate_type: "hot_dry",
+            climate_description: "Hot & Arid Desert",
+          },
+          {
+            id: "chennai",
+            display: "🌊 Chennai (Humid)",
+            badge: "Warm-Humid",
+            elevation: "6 m",
+            winter_temp: "20.0°C",
+            summer_temp: "38.0°C",
+            solar_ghi: "1,950 kWh/m²",
+            hdd: 120,
+            source: "IMD Chennai",
+            type: "Coastal Tropical",
+            climate_type: "hot_humid",
+            climate_description: "Warm & Humid Coastal",
+          },
+          {
+            id: "delhi",
+            display: "🏙️ Delhi (Composite)",
+            badge: "Composite",
+            elevation: "216 m",
+            winter_temp: "5.0°C",
+            summer_temp: "44.0°C",
+            solar_ghi: "1,900 kWh/m²",
+            hdd: 1200,
+            source: "IMD Delhi",
+            type: "Subtropical Composite",
+            climate_type: "composite",
+            climate_description: "Composite Extreme",
+          },
+          {
+            id: "bengaluru",
+            display: "🌳 Bengaluru (Moderate)",
+            badge: "Moderate",
+            elevation: "920 m",
+            winter_temp: "15.0°C",
+            summer_temp: "34.0°C",
+            solar_ghi: "1,850 kWh/m²",
+            hdd: 450,
+            source: "IMD Bengaluru",
+            type: "Plateau Temperate",
+            climate_type: "moderate",
+            climate_description: "Temperate Moderate",
+          },
         ],
         error: e.message || "Cannot connect to backend",
         loading: { ...get().loading, init: false },
@@ -234,6 +372,12 @@ export const useDesignStore = create<AppStore>((set, get) => ({
       });
       set((s) => ({
         simulationResult: result,
+        lastSimulatedDesign: {
+          ...design,
+          city: selectedCity,
+          occupants: people,
+        },
+        isSimulationStale: false,
         loading: { ...s.loading, simulation: false },
       }));
     } catch (e: any) {
@@ -304,19 +448,83 @@ export const useDesignStore = create<AppStore>((set, get) => ({
     const { optimizationResult } = get();
     if (!optimizationResult) return;
 
-    set((s) => ({
-      design: {
-        ...s.design,
-        wallMaterial: optimizationResult.optimal_wall_material,
-        insulationThicknessMm: Math.round(
-          optimizationResult.optimal_insulation_mm
-        ),
-        windowArea:
-          Math.round(optimizationResult.optimal_window_area_m2 * 10) / 10,
-        glazing: optimizationResult.optimal_glazing,
-        orientation: optimizationResult.optimal_orientation,
-      },
+    const newDesign: DesignState = {
+      ...get().design,
+      wallMaterial: optimizationResult.optimal_wall_material,
+      insulationThicknessMm: Math.round(
+        optimizationResult.optimal_insulation_mm
+      ),
+      windowArea:
+        Math.round(optimizationResult.optimal_window_area_m2 * 10) / 10,
+      glazing: optimizationResult.optimal_glazing,
+      orientation: optimizationResult.optimal_orientation,
+    };
+
+    set({
+      design: newDesign,
       simulationResult: optimizationResult.simulation_result,
-    }));
+      lastSimulatedDesign: {
+        ...newDesign,
+        city: get().selectedCity,
+        occupants: get().people,
+      },
+      isSimulationStale: false,
+    });
+  },
+
+  resetToNewDesign: async (params) => {
+    const city = params?.city ?? get().selectedCity ?? "leh";
+    const people = params?.people ?? 4;
+    const homeType = params?.homeType ?? "Permanent";
+    const archetype = params?.archetype ?? "recommended";
+
+    // Set location and typology
+    set({
+      selectedCity: city,
+      people,
+      homeType,
+      simulationResult: null,
+      optimizationResult: null,
+      comparisonResult: null,
+      isSimulationStale: false,
+      lastSimulatedDesign: null,
+      activeTab: "designer",
+    });
+
+    // Auto-size and fetch climate if needed
+    try {
+      const [climate, geo] = await Promise.all([
+        api.getClimate(city),
+        api.autoSize(people, homeType),
+      ]);
+      const isCold = climate.climate_type === "cold";
+      const modelKey =
+        archetype === "compact"
+          ? "compact_shelter"
+          : archetype === "solar"
+          ? "elongated_shelter"
+          : isCold
+          ? "rectangular_pitched"
+          : "rectangular_flat";
+      const catalogModel = get().shelterModelsCatalog[modelKey];
+      const modelDimensions = catalogModel?.default_dimensions;
+      set({
+        climateData: climate,
+        design: {
+          length: modelDimensions?.length ?? geo.length_m,
+          width: modelDimensions?.width ?? geo.width_m,
+          height: modelDimensions?.height ?? geo.height_m,
+          roofType: catalogModel?.roof_type ?? (isCold ? "pitched" : "flat"),
+          wallMaterial: isCold ? "brick" : "stone",
+          roofMaterial: "insulated_metal",
+          insulationThicknessMm: archetype === "standard" ? 60 : isCold ? 80 : 40,
+          windowArea: archetype === "solar" ? 4.5 : isCold ? 2.5 : 1.8,
+          glazing: isCold ? "double_low_e" : "double_clear",
+          orientation: "south",
+        },
+      });
+    } catch {
+      await get().autoSizeDesign();
+    }
   },
 }));

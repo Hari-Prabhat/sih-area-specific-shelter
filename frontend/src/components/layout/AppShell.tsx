@@ -10,6 +10,8 @@ interface AppShellProps {
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const {
     selectedCity,
+    activeTab,
+    setActiveTab,
     setCity,
     cities,
     people,
@@ -20,6 +22,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     runSimulation,
     runOptimization,
     loading,
+    isSimulationStale,
     error,
   } = useDesignStore();
 
@@ -35,9 +38,25 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       {/* Main Engineering Workstation Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Workstation Command Bar */}
-        <header className="h-16 bg-slate-900/90 border-b border-slate-800/80 px-6 flex items-center justify-between shrink-0 z-20 backdrop-blur">
+        <header className="min-h-16 bg-slate-900/90 border-b border-slate-800/80 px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 z-20 backdrop-blur">
           {/* Global Location & Mission Selector */}
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-3 md:gap-4 text-xs flex-wrap">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="lg:hidden bg-slate-950 border border-slate-700 text-sky-400 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+              aria-label="Navigate workspace"
+            >
+              <option value="overview">Overview</option>
+              <option value="new_design">New Design</option>
+              <option value="climate">Climate</option>
+              <option value="designer">Shelter Designer</option>
+              <option value="simulation">Simulation</option>
+              <option value="optimization">Optimization</option>
+              <option value="materials">Materials</option>
+              <option value="validation">Validation</option>
+              <option value="report">Reports</option>
+            </select>
             <div className="flex items-center gap-2">
               <span className="text-slate-400 font-mono flex items-center gap-1">
                 <MapPin className={`w-3.5 h-3.5 ${!selectedCity ? "text-amber-400 animate-bounce" : "text-sky-400"}`} />
@@ -117,7 +136,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </div>
 
           {/* Primary Quick-Trigger Simulation Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={() => runSimulation()}
               disabled={loading.simulation || !selectedCity}
@@ -153,9 +172,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </button>
           </div>
         )}
+        {isSimulationStale && !error && (
+          <div className="bg-amber-950/70 border-b border-amber-800/80 px-4 md:px-6 py-2 text-amber-300 text-xs flex items-center justify-between gap-3">
+            <span>
+              Design inputs changed since the last simulation. Re-run the simulation to refresh thermal results.
+            </span>
+            <button
+              onClick={() => runSimulation()}
+              disabled={loading.simulation || !selectedCity}
+              className="shrink-0 rounded-md border border-amber-700 bg-amber-900/60 px-2 py-1 font-semibold text-amber-200 disabled:opacity-50"
+            >
+              {loading.simulation ? "Updating…" : "Run simulation"}
+            </button>
+          </div>
+        )}
 
         {/* Main Content Workspace */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
           {children}
         </main>
       </div>

@@ -43,6 +43,13 @@ export interface Material {
   notes?: string;
 }
 
+export interface OrientationCatalogItem {
+  id?: string;
+  label?: string;
+  azimuth?: number;
+  solar_factor?: number;
+}
+
 export interface ShelterGeometry {
   floor_area_m2: number;
   volume_m3: number;
@@ -246,4 +253,34 @@ export interface ValidationBenchmark {
     mae_k: number;
     status: string;
   };
+}
+
+export interface GlazingCatalogItem {
+  name: string;
+  u_value: number;
+  shgc: number;
+  description: string;
+}
+
+export interface ShelterModelCatalogItem {
+  name: string;
+  description: string;
+  roof_type: string;
+  default_dimensions: {
+    length: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface MaterialRecommendation {
+  wall_material_id: string;
+  wall_material_name: string;
+  roof_material: string;
+  roof_type: string;
+  insulation_type: string;
+  glazing_type: string;
+  orientation_advice: string;
+  shading_advice: string;
+  permanence_rationale?: string;
 }

@@ -221,7 +221,7 @@ export const ReportPage: React.FC = () => {
           </h3>
           <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed font-sans">
             {rec?.explanation ||
-              "High envelope thermal resistance and optimized South fenestration maximize daylighting and passive winter thermal harvesting while keeping diurnal indoor temperature swings within the ASHRAE 55 habitability zone."}
+              "High envelope thermal resistance and optimized South fenestration maximize daylighting and passive winter thermal harvesting while keeping diurnal indoor temperature swings within the 18–24°C thermal habitability comfort band."}
           </div>
         </div>
       </div>

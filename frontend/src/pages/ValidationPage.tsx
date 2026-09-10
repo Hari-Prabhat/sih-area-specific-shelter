@@ -32,7 +32,7 @@ export const ValidationPage: React.FC = () => {
       <SectionHeader
         title="Scientific Credibility & Analytical Verification Benchmarks"
         subtitle="Rigorous closed-form mathematical verification comparing ThermoShelter core numerical solvers against exact analytical reference solutions (ISO 6946)."
-        badge="ISO 6946 / ASHRAE 55 VERIFIED"
+        badge="ISO 6946 CONDUCTION BENCHMARK VERIFIED"
         action={
           <button
             onClick={() => fetchValidation()}

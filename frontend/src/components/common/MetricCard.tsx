@@ -39,39 +39,41 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
   return (
     <div
-      className={`bg-slate-900/90 border ${borderColors[accentColor]} rounded-xl p-4 transition-all duration-200 shadow-lg hover:shadow-cyan-950/20`}
+      className={`bg-slate-900/90 border ${borderColors[accentColor]} rounded-xl p-4 transition-all duration-200 shadow-lg hover:shadow-cyan-950/20 h-full flex flex-col justify-between`}
     >
-      <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
-        <span className="font-medium tracking-wide uppercase">{label}</span>
-        {icon && <span className="text-slate-400 text-sm">{icon}</span>}
-      </div>
-
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold font-mono text-white tracking-tight">
-          {value}
-        </span>
-        {unit && <span className="text-xs text-slate-400 font-mono">{unit}</span>}
-      </div>
-
-      {(delta || subtext || badge) && (
-        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-          {delta ? (
-            <span
-              className={`px-1.5 py-0.5 rounded border text-[11px] font-mono ${deltaColors[deltaType]}`}
-            >
-              {delta}
-            </span>
-          ) : subtext ? (
-            <span className="text-slate-400 truncate">{subtext}</span>
-          ) : null}
-
-          {badge && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded-full border border-sky-800/50">
-              {badge}
-            </span>
-          )}
+      <div>
+        <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+          <span className="font-medium tracking-wide uppercase">{label}</span>
+          {icon && <span className="text-slate-400 text-sm">{icon}</span>}
         </div>
-      )}
+
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl font-bold font-mono text-white tracking-tight">
+            {value}
+          </span>
+          {unit && <span className="text-xs text-slate-400 font-mono">{unit}</span>}
+        </div>
+      </div>
+
+      <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs min-h-[28px]">
+        {delta ? (
+          <span
+            className={`px-1.5 py-0.5 rounded border text-[11px] font-mono ${deltaColors[deltaType]}`}
+          >
+            {delta}
+          </span>
+        ) : subtext ? (
+          <span className="text-slate-400 truncate text-[11px]">{subtext}</span>
+        ) : (
+          <span className="text-slate-600 text-[11px] font-mono">--</span>
+        )}
+
+        {badge && (
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded-full border border-sky-800/50">
+            {badge}
+          </span>
+        )}
+      </div>
     </div>
   );
 };

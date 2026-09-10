@@ -11,6 +11,9 @@ import {
   ArchetypeComparisonItem,
   SensitivityData,
   ValidationBenchmark,
+  GlazingCatalogItem,
+  OrientationCatalogItem,
+  ShelterModelCatalogItem,
 } from "../types";
 
 // When on Vite dev/preview (port 5173 or relative), use relative path to leverage Vite reverse proxy.
@@ -71,13 +74,13 @@ export const api = {
   getMaterial: (id: string) => request<Material>(`/api/materials/${id}`),
 
   getShelterModels: () =>
-    request<{ models: Record<string, any> }>("/api/shelter-models"),
+    request<{ models: Record<string, ShelterModelCatalogItem> }>("/api/shelter-models"),
 
   getGlazing: () =>
-    request<{ glazing: Record<string, any> }>("/api/glazing"),
+    request<{ glazing: Record<string, GlazingCatalogItem> }>("/api/glazing"),
 
   getOrientations: () =>
-    request<{ orientations: Record<string, number> }>("/api/orientations"),
+    request<{ orientations: Record<string, number | OrientationCatalogItem> }>("/api/orientations"),
 
   autoSize: (people: number, homeType: string) =>
     request<{

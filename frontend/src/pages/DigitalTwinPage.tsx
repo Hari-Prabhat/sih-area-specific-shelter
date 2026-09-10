@@ -10,8 +10,8 @@ export const DigitalTwinPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <SectionHeader
-        title="3D Digital Twin Architectural Viewer"
-        subtitle="1:1 scale parametric WebGL digital twin rendering actual shelter dimensions, pitched/flat roof form, and south-facing fenestration."
+        title="Interactive 3D Shelter Model"
+        subtitle="Parametric 3D WebGL model based on shelter dimensions, roof geometry and fenestration configuration."
         badge={`${design.length.toFixed(1)}m × ${design.width.toFixed(1)}m · ${selectedCity.toUpperCase()}`}
         action={
           <div className="flex items-center gap-2">

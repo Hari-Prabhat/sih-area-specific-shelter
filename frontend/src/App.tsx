@@ -2,6 +2,7 @@ import React from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { useDesignStore } from "./store/designStore";
 import { OverviewPage } from "./pages/OverviewPage";
+import { NewDesignPage } from "./pages/NewDesignPage";
 import { ClimatePage } from "./pages/ClimatePage";
 import { DesignStudioPage } from "./pages/DesignStudioPage";
 import { SimulationPage } from "./pages/SimulationPage";
@@ -21,6 +22,8 @@ export const App: React.FC = () => {
     switch (activeTab) {
       case "overview":
         return <OverviewPage />;
+      case "new_design":
+        return <NewDesignPage />;
       case "climate":
         return <ClimatePage />;
       case "designer":

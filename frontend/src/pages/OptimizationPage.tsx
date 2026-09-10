@@ -31,7 +31,7 @@ export const OptimizationPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <SectionHeader
-        title="Bayesian Multi-Objective Envelope Optimization"
+        title="Design Optimization"
         subtitle="Optuna Tree-structured Parzen Estimator (TPE) exploring parametric combinations of thermal insulation, window aperture area, orientation, and glazing specs."
         badge={`OPTUNA TPE · ${selectedCity.toUpperCase()}`}
         action={
@@ -51,7 +51,7 @@ export const OptimizationPage: React.FC = () => {
           <Award className="w-12 h-12 text-sky-400 mx-auto" />
           <h2 className="text-lg font-bold text-white">Ready for Optimization Search</h2>
           <p className="text-xs text-slate-400">
-            Click above to launch Bayesian multi-objective optimization across the design
+            Click above to launch Bayesian optimization across the design
             space for {selectedCity.toUpperCase()} ({homeType} shelter, {people} occupants).
           </p>
           <button
@@ -200,7 +200,7 @@ export const OptimizationPage: React.FC = () => {
                     <span>Top-Ranked Optimization Candidate Designs</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Multivariate candidate evaluation sorted by composite multi-objective score
+                    Multivariate candidate evaluation sorted by composite design score
                   </p>
                 </div>
               </div>

@@ -222,7 +222,7 @@ export const ComparisonPage: React.FC = () => {
               </h3>
             </div>
             <span className="px-2.5 py-1 bg-emerald-950/70 text-emerald-400 border border-emerald-800 rounded font-mono text-xs font-bold">
-              AI Optimized
+              Bayesian Optimized
             </span>
           </div>
 

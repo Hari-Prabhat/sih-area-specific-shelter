@@ -54,7 +54,7 @@ export const OverviewPage: React.FC = () => {
             </h1>
             <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
               Physics-driven 168-hour transient forward Euler envelope simulation and
-              multi-objective Bayesian optimization for high-altitude cold and multi-climatic regions.
+              Bayesian optimization for high-altitude cold and multi-climatic regions.
             </p>
           </div>
 
@@ -189,7 +189,7 @@ export const OverviewPage: React.FC = () => {
         />
       </div>
 
-      {/* Dual Split Hero: Interactive 3D Digital Twin & Real-Time Performance */}
+      {/* Dual Split Hero: Interactive 3D Shelter Model & Real-Time Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: 3D Shelter Visualizer Preview (7 cols) */}
         <div className="lg:col-span-7 flex flex-col eng-panel p-5">
@@ -197,7 +197,7 @@ export const OverviewPage: React.FC = () => {
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Compass className="w-4 h-4 text-sky-400" />
-                <span>3D Digital Twin Live Preview</span>
+                <span>Interactive 3D Shelter Model</span>
               </h2>
               <p className="text-xs text-slate-400">
                 Real geometry derived from current shelter design ({design.roofType} roof, {design.wallMaterial} wall)
@@ -343,8 +343,8 @@ export const OverviewPage: React.FC = () => {
               ) : (
                 <p className="text-xs text-slate-400 leading-relaxed">
                   {selectedCity
-                    ? `Run Bayesian Optimization to evaluate multi-objective parameter sweeps over insulation, fenestration, and orientation for ${selectedCity.toUpperCase()}.`
-                    : "Choose a deployment location to evaluate multi-objective parameter sweeps."}
+                    ? `Run Bayesian Optimization to evaluate design parameter sweeps over insulation, fenestration, and orientation for ${selectedCity.toUpperCase()}.`
+                    : "Choose a deployment location to evaluate design parameter sweeps."}
                 </p>
               )}
             </div>

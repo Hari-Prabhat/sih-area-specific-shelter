@@ -24,6 +24,9 @@ export const DesignStudioPage: React.FC = () => {
     runOptimization,
     simulationResult,
     loading,
+    materialsCatalog,
+    glazingCatalog,
+    orientationsCatalog,
   } = useDesignStore();
 
   const [activeControlTab, setActiveControlTab] = useState<
@@ -221,12 +224,22 @@ export const DesignStudioPage: React.FC = () => {
                   onChange={(e) => updateDesign({ wallMaterial: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs font-medium focus:outline-none focus:border-sky-400"
                 >
-                  <option value="brick">Fired Clay Brick (High Thermal Mass)</option>
-                  <option value="stone">Granite Stone Masonry (Very High Inertia)</option>
-                  <option value="concrete">Reinforced Concrete (Structural Dense)</option>
-                  <option value="mud">Mud / Adobe Brick (Vernacular Passive)</option>
-                  <option value="puf_insulation">PUF Sandwich Panel (Lightweight Prefab)</option>
-                  <option value="wood">Timber Pine Frame (Rapid Modular)</option>
+                  {Object.keys(materialsCatalog).length > 0 ? (
+                    Object.entries(materialsCatalog).map(([key, material]) => (
+                      <option key={key} value={key}>
+                        {material.name} · k={material.thermal_conductivity.toFixed(3)} W/mK
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="brick">Fired Clay Brick (High Thermal Mass)</option>
+                      <option value="stone">Granite Stone Masonry (Very High Inertia)</option>
+                      <option value="concrete">Reinforced Concrete (Structural Dense)</option>
+                      <option value="mud">Mud / Adobe Brick (Vernacular Passive)</option>
+                      <option value="puf_insulation">PUF Sandwich Panel (Lightweight Prefab)</option>
+                      <option value="wood">Timber Pine Frame (Rapid Modular)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -309,10 +322,20 @@ export const DesignStudioPage: React.FC = () => {
                   onChange={(e) => updateDesign({ glazing: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs font-medium focus:outline-none focus:border-sky-400"
                 >
-                  <option value="single_clear">Single Clear 6mm (U=5.80, SHGC=0.82)</option>
-                  <option value="double_clear">Double Clear Glazed 4-12-4 (U=2.80, SHGC=0.70)</option>
-                  <option value="double_low_e">Double Low-E Argon (U=1.80, SHGC=0.50)</option>
-                  <option value="triple_low_e">Triple Low-E Argon (U=1.00, SHGC=0.35)</option>
+                  {Object.keys(glazingCatalog).length > 0 ? (
+                    Object.entries(glazingCatalog).map(([key, item]) => (
+                      <option key={key} value={key}>
+                        {item.name} · U={item.u_value.toFixed(2)} W/m²K
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="single_clear">Single Clear 6mm (U=5.80, SHGC=0.82)</option>
+                      <option value="double_clear">Double Clear Glazed 4-12-4 (U=2.80, SHGC=0.70)</option>
+                      <option value="double_low_e">Double Low-E Argon (U=1.80, SHGC=0.50)</option>
+                      <option value="triple_low_e">Triple Low-E Argon (U=1.00, SHGC=0.35)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -324,10 +347,23 @@ export const DesignStudioPage: React.FC = () => {
                   onChange={(e) => updateDesign({ orientation: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-xs font-medium focus:outline-none focus:border-sky-400"
                 >
-                  <option value="south">South (Maximum Winter Passive Direct Gain)</option>
-                  <option value="north">North (Consistent Diffuse Daylight)</option>
-                  <option value="east">East (Morning Solar Preheating)</option>
-                  <option value="west">West (Late Afternoon Heat Gain)</option>
+                  {Object.keys(orientationsCatalog).length > 0 ? (
+                    Object.entries(orientationsCatalog).map(([key, factor]) => (
+                      <option key={key} value={key}>
+                        {key.charAt(0).toUpperCase() + key.slice(1)} · solar factor{" "}
+                        {typeof factor === "number"
+                          ? factor.toFixed(2)
+                          : factor.solar_factor?.toFixed(2) ?? "catalogued"}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="south">South (Maximum Winter Passive Direct Gain)</option>
+                      <option value="north">North (Consistent Diffuse Daylight)</option>
+                      <option value="east">East (Morning Solar Preheating)</option>
+                      <option value="west">West (Late Afternoon Heat Gain)</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>

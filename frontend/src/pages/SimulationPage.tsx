@@ -204,7 +204,7 @@ export const SimulationPage: React.FC = () => {
               <span>168-Hour Transient Thermodynamic Visualizations</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Interactive time-series curves with ASHRAE 55 thermal comfort envelope
+              Interactive time-series curves with the 18–24°C thermal habitability comfort band
             </p>
           </div>
 

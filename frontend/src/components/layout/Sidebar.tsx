@@ -2,6 +2,7 @@ import React from "react";
 import { useDesignStore } from "../../store/designStore";
 import {
   Home,
+  PlusCircle,
   CloudSun,
   Hammer,
   Activity,
@@ -27,13 +28,23 @@ interface NavGroup {
 }
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, selectedCity, simulationResult, design, loading } =
-    useDesignStore();
+  const {
+    activeTab,
+    setActiveTab,
+    selectedCity,
+    simulationResult,
+    design,
+    loading,
+    isSimulationStale,
+  } = useDesignStore();
 
   const navGroups: NavGroup[] = [
     {
       label: "PROJECT",
-      items: [{ id: "overview", label: "Overview", icon: <Home className="w-4 h-4" /> }],
+      items: [
+        { id: "overview", label: "Overview", icon: <Home className="w-4 h-4" /> },
+        { id: "new_design", label: "New Design", icon: <PlusCircle className="w-4 h-4" /> },
+      ],
     },
     {
       label: "DESIGN",
@@ -46,7 +57,7 @@ export const Sidebar: React.FC = () => {
       label: "ANALYZE",
       items: [
         { id: "simulation", label: "Simulation", icon: <Activity className="w-4 h-4" /> },
-        { id: "optimization", label: "Optimization", icon: <Cpu className="w-4 h-4" />, badge: "AI" },
+        { id: "optimization", label: "Optimization", icon: <Cpu className="w-4 h-4" />, badge: "Bayesian" },
         { id: "compare", label: "Compare", icon: <Scale className="w-4 h-4" /> },
         { id: "materials", label: "Materials", icon: <Layers className="w-4 h-4" /> },
         { id: "sensitivity", label: "Sensitivity", icon: <TrendingUp className="w-4 h-4" /> },
@@ -55,7 +66,7 @@ export const Sidebar: React.FC = () => {
     {
       label: "VISUALIZE",
       items: [
-        { id: "twin3d", label: "3D Digital Twin", icon: <Box className="w-4 h-4" /> },
+        { id: "twin3d", label: "3D Model", icon: <Box className="w-4 h-4" /> },
         { id: "floorplan", label: "Floorplan", icon: <SquareDashedBottom className="w-4 h-4" /> },
       ],
     },
@@ -68,13 +79,13 @@ export const Sidebar: React.FC = () => {
     {
       label: "DELIVER",
       items: [
-        { id: "report", label: "Engineering Report", icon: <FileText className="w-4 h-4" /> },
+        { id: "report", label: "Reports", icon: <FileText className="w-4 h-4" /> },
       ],
     },
   ];
 
   return (
-    <aside className="w-64 bg-slate-950 border-r border-slate-800/80 flex flex-col h-screen shrink-0 select-none">
+    <aside className="hidden lg:flex w-64 bg-slate-950 border-r border-slate-800/80 flex-col h-screen shrink-0 select-none">
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
         <div>
@@ -162,9 +173,15 @@ export const Sidebar: React.FC = () => {
               Computing...
             </span>
           ) : simulationResult ? (
-            <span className="text-emerald-400 font-mono text-[11px] font-semibold">
-              {simulationResult.comfort_percentage.toFixed(0)}% Comfort
-            </span>
+            isSimulationStale ? (
+              <span className="text-amber-400 font-mono text-[10px] font-semibold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60">
+                Out of date
+              </span>
+            ) : (
+              <span className="text-emerald-400 font-mono text-[11px] font-semibold">
+                {simulationResult.comfort_percentage.toFixed(0)}% Comfort
+              </span>
+            )
           ) : (
             <span className="text-slate-500 font-mono text-[11px]">
               {selectedCity ? "Ready to simulate" : "Awaiting location"}

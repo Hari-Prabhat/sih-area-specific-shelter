@@ -355,7 +355,7 @@ export const ShelterModel3D: React.FC<ShelterModel3DProps> = ({
         <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-lg p-2.5 text-xs text-slate-300 pointer-events-none space-y-1 z-10 shadow-lg">
           <div className="font-semibold text-sky-400 flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Digital Twin (1:1 Physics Geometry)
+            Parametric Geometry Model
           </div>
           <div>
             Dimensions: <span className="text-white font-mono">{length.toFixed(1)}m × {width.toFixed(1)}m × {height.toFixed(1)}m</span>
