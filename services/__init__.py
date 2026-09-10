@@ -153,6 +153,13 @@ __all__ = [
     "SHELTER_MODELS",
     "GLAZING_PROPERTIES",
     "ORIENTATION_FACTORS",
+    "ShelterRequirements",
+    "ShelterGeometry",
+    "MaterialAssembly",
+    "PassiveStrategy",
+    "ShelterDesign",
+    "build_shelter_design",
+    "build_leh_ladakh_design",
 ]
 
 from services.simulation_service import (
@@ -162,6 +169,15 @@ from services.simulation_service import (
     SHELTER_MODELS,
     GLAZING_PROPERTIES,
     ORIENTATION_FACTORS,
+)
+from services.shelter import (
+    ShelterRequirements,
+    ShelterGeometry,
+    MaterialAssembly,
+    PassiveStrategy,
+    ShelterDesign,
+    build_shelter_design,
+    build_leh_ladakh_design,
 )
 
 
