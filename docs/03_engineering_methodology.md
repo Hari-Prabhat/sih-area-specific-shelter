@@ -35,9 +35,7 @@ The geometry subsystem is implemented in `services/geometry.py`.
 
 For a rectangular shelter:
 
-$$
-A_{floor}=L\times W
-$$
+$A_{floor}=L\times W$
 
 Where:
 
@@ -49,9 +47,7 @@ Where:
 
 For the simplified rectangular volume:
 
-$$
-V=L\times W\times H
-$$
+$V=L\times W\times H$
 
 Where:
 
@@ -64,23 +60,13 @@ For pitched roofs, the repository includes a dedicated geometric calculation tha
 
 For four vertical walls:
 
-$$
-A_{wall,gross}=2(L+W)H
-$$
+$A_{wall,gross}=2(L+W)H$
 
 ### 2.4 Net Opaque Wall Area
 
 Openings are subtracted from the gross wall area:
 
-$$
-A_{wall,net}
-=
-A_{wall,gross}
--
-A_{window}
--
-A_{door}
-$$
+$A_{wall,net} = A_{wall,gross} - A_{window} - A_{door}$
 
 The implementation validates that openings do not exceed the gross wall area.
 
@@ -94,9 +80,7 @@ Thermal resistance is implemented in `services/thermal.py` and used by the simul
 
 For a material layer:
 
-$$
-R_i=\frac{L_i}{k_i}
-$$
+$R_i=\frac{L_i}{k_i}$
 
 Where:
 
@@ -108,15 +92,7 @@ Where:
 
 The total resistance is:
 
-$$
-R_{total}
-=
-R_{inside}
-+
-\sum_{i=1}^{n}\frac{L_i}{k_i}
-+
-R_{outside}
-$$
+$R_{total} = R_{inside} + \sum_{i=1}^{n}\frac{L_i}{k_i} + R_{outside}$
 
 The implementation uses default interior/exterior surface-film resistances defined in `services/formula_constants.py`.
 
@@ -126,15 +102,11 @@ The repository documentation associates the vertical-wall defaults with ISO 6946
 
 Overall thermal transmittance:
 
-$$
-U=\frac{1}{R_{total}}
-$$
+$U=\frac{1}{R_{total}}$
 
 Units:
 
-$$
-W/(m^2K)
-$$
+$W/(m^2K)$
 
 Lower U-value represents lower modeled conductive transmission per unit area for a given temperature difference.
 
@@ -144,11 +116,7 @@ Lower U-value represents lower modeled conductive transmission per unit area for
 
 The component conductive heat-flow model is:
 
-$$
-\dot Q_{cond}
-=
-U A (T_{in}-T_{out})
-$$
+$\dot Q_{cond} = U A (T_{in}-T_{out})$
 
 Where:
 
@@ -208,9 +176,7 @@ The climate service loads hourly direct and diffuse solar irradiance from the EP
 
 The simulation combines:
 
-$$
-I_{solar}=I_{direct}+I_{diffuse}
-$$
+$I_{solar}=I_{direct}+I_{diffuse}$
 
 The resulting hourly solar flux is used for the glazing solar-gain calculation.
 
@@ -222,11 +188,7 @@ The implementation also reports incident solar power associated with the modeled
 
 The solar module defines an absorbed opaque-surface model:
 
-$$
-\dot Q_{solar,opaque}
-=
-I_{solar} A \alpha F
-$$
+$\dot Q_{solar,opaque} = I_{solar} A \alpha F$
 
 Where:
 
@@ -245,14 +207,7 @@ The main transient simulation focuses on useful solar gain through glazing rathe
 
 The active glazing model is:
 
-$$
-\dot Q_{solar,glazing}
-=
-I_{solar}
-A_{window}
-SHGC
-F_{shading}
-$$
+$\dot Q_{solar,glazing} = I_{solar} A_{window} SHGC F_{shading}$
 
 Where:
 
@@ -295,11 +250,7 @@ The model therefore represents orientation as a simplified solar-exposure parame
 
 Airflow from Air Changes per Hour (ACH) is calculated as:
 
-$$
-\dot V
-=
-\frac{ACH\times V}{3600}
-$$
+$\dot V = \frac{ACH\times V}{3600}$
 
 Where:
 
@@ -310,12 +261,7 @@ Where:
 
 The sensible ventilation heat-transfer rate is:
 
-$$
-\dot Q_{vent}
-=
-\rho \dot V c_p
-(T_{in}-T_{out})
-$$
+$\dot Q_{vent} = \rho \dot V c_p (T_{in}-T_{out})$
 
 Where:
 
@@ -331,14 +277,7 @@ The current implementation treats ventilation as a **sensible heat exchange mech
 
 The simulation includes a simplified longwave radiation term:
 
-$$
-\dot Q_{rad}
-=
-\epsilon\sigma A
-\left(
-T_{in,K}^{4}-T_{out,K}^{4}
-\right)
-$$
+$\dot Q_{rad} = \epsilon\sigma A \left( T_{in,K}^{4}-T_{out,K}^{4} \right)$
 
 Where:
 
@@ -364,13 +303,7 @@ The simulation additionally applies an approximate **40 W base equipment/lightin
 
 Conceptually:
 
-$$
-Q_{internal}
-=
-N_{occupants}q_{person}
-+
-Q_{base}
-$$
+$Q_{internal} = N_{occupants}q_{person} + Q_{base}$
 
 Where:
 
@@ -386,9 +319,7 @@ The simulation represents thermal inertia through a lumped thermal capacity.
 
 The basic thermal-capacity relationship is:
 
-$$
-C=mc_p
-$$
+$C=mc_p$
 
 Where:
 
@@ -414,44 +345,13 @@ This is an intentionally simplified lumped representation rather than a detailed
 
 The core simulation concept is:
 
-$$
-Q_{net}
-=
-Q_{solar}
-+
-Q_{internal}
--
-(Q_{conductive+vent}
-+
-Q_{rad})
-$$
+$Q_{net} = Q_{solar} + Q_{internal} - (Q_{conductive+vent} + Q_{rad})$
 
 The conductive/ventilation term combines the precomputed heat-loss coefficients with the current indoor/outdoor temperature difference.
 
 Expanded conceptually:
 
-$$
-Q_{net}
-=
-Q_{solar}
-+
-Q_{internal}
--
-\left[
-(UA)_{walls}
-+
-(UA)_{roof}
-+
-(UA)_{floor}
-+
-(UA)_{windows}
-+
-(UA)_{vent}
-\right]
-(T_{in}-T_{out})
--
-Q_{rad}
-$$
+$$Q_{\text{net}} = Q_{\text{solar}} + Q_{\text{internal}} - \left[ (UA)_{\text{walls}} + (UA)_{\text{roof}} + (UA)_{\text{floor}} + (UA)_{\text{windows}} + (UA)_{\text{vent}} \right] (T_{\text{in}} - T_{\text{out}}) - Q_{\text{rad}}$$
 
 This balance is evaluated repeatedly within each hour.
 
@@ -461,13 +361,7 @@ This balance is evaluated repeatedly within each hour.
 
 The indoor temperature is updated using:
 
-$$
-T_{t+\Delta t}
-=
-T_t
-+
-\frac{Q_{net}\Delta t}{C}
-$$
+$T_{t+\Delta t} = T_t + \frac{Q_{net}\Delta t}{C}$
 
 Where:
 
@@ -478,9 +372,7 @@ Where:
 
 Since:
 
-$$
-1W=1J/s
-$$
+$1W=1J/s$
 
 the quantity $Q_{net}\Delta t$ represents thermal energy transferred during the timestep.
 
@@ -490,23 +382,15 @@ the quantity $Q_{net}\Delta t$ represents thermal energy transferred during the 
 
 The simulation uses explicit sub-hour integration:
 
-$$
-\Delta t
-=
-\frac{3600}{N_{substeps}}
-$$
+$\Delta t = \frac{3600}{N_{substeps}}$
 
 For the main simulation default:
 
-$$
-N_{substeps}=60
-$$
+$N_{substeps}=60$
 
 Therefore:
 
-$$
-\Delta t=60\ seconds
-$$
+$\Delta t=60\ seconds$
 
 The weather boundary conditions remain hourly, while the indoor thermal state is advanced at the smaller numerical timestep.
 
@@ -522,12 +406,7 @@ After optimization, the best candidate is re-simulated using the authoritative 1
 
 The current comfort model uses a simple temperature band:
 
-$$
-18^\circ C
-\leq T_{in}
-\leq
-24^\circ C
-$$
+$18^\circ C \leq T_{in} \leq 24^\circ C$
 
 The implementation classifies each timestep as:
 
@@ -539,54 +418,27 @@ The implementation classifies each timestep as:
 
 If the simulation timestep represented by each recorded temperature is $\Delta t_h$ hours:
 
-$$
-ComfortHours
-=
-N_{comfortable}
-\Delta t_h
-$$
+$ComfortHours = N_{comfortable} \Delta t_h$
 
 ### Comfort Percentage
 
 The application calculates:
 
-$$
-Comfort\%
-=
-\frac{ComfortHours}{SimulationHours}
-\times100
-$$
+$Comfort\% = \frac{ComfortHours}{SimulationHours} \times100$
 
 ### Discomfort Degree-Hours
 
 For temperatures below the comfort band:
 
-$$
-DH_{cold}
-=
-\sum (18-T_i)
-$$
+$DH_{cold} = \sum (18-T_i)$
 
 For temperatures above the band:
 
-$$
-DH_{hot}
-=
-\sum (T_i-24)
-$$
+$DH_{hot} = \sum (T_i-24)$
 
 Therefore:
 
-$$
-DH_{discomfort}
-=
-\sum
-\begin{cases}
-18-T_i, & T_i<18\\
-0, & 18\leq T_i\leq24\\
-T_i-24, & T_i>24
-\end{cases}
-$$
+$DH_{discomfort} = \sum \begin{cases} 18-T_i, & T_i<18\\ 0, & 18\leq T_i\leq24\\ T_i-24, & T_i>24 \end{cases}$
 
 The optimization objective uses this modeled discomfort degree-hour measure.
 
@@ -602,9 +454,7 @@ Hourly power quantities are converted to energy using time integration.
 
 Conceptually:
 
-$$
-E=\int P(t)\,dt
-$$
+$E=\int P(t)\,dt$
 
 For hourly discrete results, the implementation aggregates the hourly values and converts the resulting energy into kWh.
 
