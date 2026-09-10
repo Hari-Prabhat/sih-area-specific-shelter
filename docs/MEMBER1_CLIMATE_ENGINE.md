@@ -36,7 +36,7 @@ PassiveStrategy (Downstream Shared Contract)
   - *Materials* (wall assemblies, insulation thicknesses in mm, R/U-values) $\rightarrow$ Member 2
   - *Simulation* (transient heat flow, indoor temperature, comfort hours) $\rightarrow$ Member 3
   - *Optimization* (Pareto optimization, genetic search) $\rightarrow$ Member 3
-  - *Frontend / 3D / Reports* (React, Three.js, PDF generation) $\rightarrow$ Member 4
+  - *Frontend / 3D / Reports* (Streamlit, Plotly) $\rightarrow$ Member 4
 
 ---
 
