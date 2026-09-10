@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -8,3 +8,7 @@ htmlcov/
 .env
 .DS_Store
 Thumbs.db
+node_modules/
+dist/
+dist-ssr/
+*.local
