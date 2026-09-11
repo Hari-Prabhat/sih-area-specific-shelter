@@ -256,3 +256,95 @@ export async function runSimulationViaApi(
     throw error;
   }
 }
+
+/**
+ * Optimization Candidate structure from /api/optimization/run
+ */
+export interface CanonicalOptimizationCandidate {
+  rank: number;
+  label: string;
+  rationale: string;
+  overall_score: number;
+  sub_scores: {
+    comfort: number;
+    efficiency: number;
+    solar: number;
+  };
+  insulation_mm: number;
+  insulation_thickness_m: number;
+  window_area_m2: number;
+  wall_material: string;
+  wall_material_name: string;
+  glazing: string;
+  glazing_name: string;
+  orientation: string;
+  comfort_hours: number;
+  comfort_percentage: number;
+  discomfort_dh: number;
+  total_heat_loss_kwh: number;
+  solar_gain_kwh: number;
+  u_values: {
+    wall_u: number;
+    roof_u: number;
+    floor_u: number;
+    window_u: number;
+  };
+  heating_demand_kwh: number;
+  cooling_demand_kwh: number;
+  total_conditioning_demand_kwh: number;
+  effective_thermal_capacity_j_k: number;
+  canonical_design?: any;
+}
+
+/**
+ * Optimization Result structure from /api/optimization/run
+ */
+export interface CanonicalOptimizationResult {
+  city: string;
+  home_type: string;
+  insulation_thickness_m: number;
+  insulation_mm: number;
+  window_area_m2: number;
+  wall_material: string;
+  glazing: string;
+  glazing_name: string;
+  orientation: string;
+  discomfort_score: number;
+  simulation_result: any;
+  ranked_designs: CanonicalOptimizationCandidate[];
+  recommended_design?: CanonicalOptimizationCandidate;
+  n_trials: number;
+  explanation?: string;
+}
+
+/**
+ * Dispatches a multi-objective Bayesian design optimization request to FastAPI.
+ */
+export async function runOptimizationViaApi(payload: {
+  city?: string;
+  home_type?: string;
+  design?: any;
+  climate?: any;
+  n_trials?: number;
+  substeps?: number;
+  hours_to_simulate?: number;
+  weights?: { comfort: number; efficiency: number; solar: number };
+}): Promise<CanonicalOptimizationResult> {
+  const response = await fetch(`${API_BASE_URL}/api/optimization/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    const msg = errData.detail ? JSON.stringify(errData.detail) : `HTTP ${response.status}`;
+    throw new Error(`Optimization API error: ${msg}`);
+  }
+
+  return response.json();
+}
+

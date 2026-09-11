@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from backend.climate_routes import router as climate_router
 from backend.simulation_routes import router as simulation_router
+from backend.optimization_routes import router as optimization_router
 
 # =====================================================================
 # FASTAPI APPLICATION INITIALIZATION
@@ -107,6 +108,7 @@ def health_check() -> Dict[str, Any]:
             "member1_climate": "active",
             "member2_shelter_design": "active",
             "member3_simulation": "active",
+            "optimization": "active",
         }
     }
 
@@ -118,7 +120,8 @@ def root_redirect():
         "message": "Welcome to ThermoShelter AI API",
         "docs": "/docs",
         "health": "/api/health",
-        "simulation": "/api/simulation/run"
+        "simulation": "/api/simulation/run",
+        "optimization": "/api/optimization/run",
     }
 
 
@@ -128,6 +131,7 @@ def root_redirect():
 
 app.include_router(simulation_router)
 app.include_router(climate_router)
+app.include_router(optimization_router)
 
 
 if __name__ == "__main__":

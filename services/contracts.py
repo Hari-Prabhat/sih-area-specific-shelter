@@ -618,9 +618,42 @@ class OptimizationCandidate:
     cooling_demand_kwh: float = 0.0
     total_conditioning_demand_kwh: float = 0.0
     effective_thermal_capacity_j_k: float = 0.0
+    canonical_design: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    def to_shelter_design(self, base_design: Optional[Any] = None) -> ShelterDesign:
+        """Constructs a canonical ShelterDesign digital twin from this optimization candidate."""
+        if self.canonical_design:
+            return ShelterDesign.from_dict(self.canonical_design)
+        b_len = base_design.length if base_design and hasattr(base_design, "length") else 4.0
+        b_wid = base_design.width if base_design and hasattr(base_design, "width") else 3.0
+        b_hgt = base_design.height if base_design and hasattr(base_design, "height") else 2.8
+        b_occ = base_design.occupants if base_design and hasattr(base_design, "occupants") else 2
+        b_type = base_design.shelter_type if base_design and hasattr(base_design, "shelter_type") else "Permanent"
+        b_roof = base_design.roof_type if base_design and hasattr(base_design, "roof_type") else "flat"
+        b_pitch = base_design.pitch_angle_deg if base_design and hasattr(base_design, "pitch_angle_deg") else 0.0
+        b_ach = base_design.ach if base_design and hasattr(base_design, "ach") else DEFAULT_ACH
+
+        return ShelterDesign(
+            design_id=f"optimized_candidate_{self.rank}",
+            name=f"{self.label} ({self.wall_material_name}, {self.insulation_mm}mm)",
+            length=b_len,
+            width=b_wid,
+            height=b_hgt,
+            wall_material=self.wall_material,
+            insulation_thickness_m=self.insulation_thickness_m,
+            window_area=self.window_area_m2,
+            glazing=self.glazing,
+            orientation=self.orientation,
+            occupants=b_occ,
+            shelter_type=b_type,
+            roof_type=b_roof,
+            pitch_angle_deg=b_pitch,
+            ach=b_ach,
+            provenance=DataProvenance.OPTIMIZED,
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OptimizationCandidate":
@@ -648,6 +681,7 @@ class OptimizationCandidate:
             cooling_demand_kwh=float(data.get("cooling_demand_kwh", 0.0)),
             total_conditioning_demand_kwh=float(data.get("total_conditioning_demand_kwh", 0.0)),
             effective_thermal_capacity_j_k=float(data.get("effective_thermal_capacity_j_k", 0.0)),
+            canonical_design=data.get("canonical_design"),
         )
 
 
@@ -675,6 +709,7 @@ class OptimizationResult:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes OptimizationResult to dictionary."""
+        ranked = [c.to_dict() if isinstance(c, OptimizationCandidate) else c for c in self.ranked_designs]
         d = {
             "city": self.city,
             "home_type": self.home_type,
@@ -687,7 +722,8 @@ class OptimizationResult:
             "orientation": self.orientation,
             "discomfort_score": self.discomfort_score,
             "simulation_result": self.simulation_result,
-            "ranked_designs": [c.to_dict() if isinstance(c, OptimizationCandidate) else c for c in self.ranked_designs],
+            "ranked_designs": ranked,
+            "recommended_design": ranked[0] if ranked else None,
             "n_trials": self.n_trials,
             "explanation": self.explanation,
         }

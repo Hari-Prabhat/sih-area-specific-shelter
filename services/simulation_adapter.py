@@ -227,6 +227,88 @@ class OptimizationAdapter:
             }
             return adapt_to_optimization_input(payload)
 
+    @classmethod
+    def from_shelter_design(
+        cls,
+        design: Union[ShelterDesign, Dict[str, Any]],
+        city_or_climate: Union[str, ClimateProfile, Dict[str, Any]] = "leh",
+        home_type: Optional[str] = None,
+        n_trials: int = 40,
+        **kwargs: Any,
+    ) -> OptimizationInput:
+        """
+        Creates a validated OptimizationInput contract from a canonical ShelterDesign digital twin.
+        """
+        sd = adapt_to_shelter_design(design)
+
+        if isinstance(city_or_climate, ClimateProfile):
+            city_str = city_or_climate.city
+        elif isinstance(city_or_climate, dict):
+            city_str = str(city_or_climate.get("city", "leh"))
+        elif isinstance(city_or_climate, str):
+            city_str = city_or_climate.strip().lower()
+        else:
+            city_str = "leh"
+
+        ht = home_type
+        if not ht:
+            if hasattr(sd, "shelter_type") and sd.shelter_type:
+                ht = "Temporary" if str(sd.shelter_type).lower().startswith("temp") else "Permanent"
+            elif hasattr(sd, "requirements") and sd.requirements.permanence:
+                ht = "Temporary" if str(sd.requirements.permanence).lower().startswith("temp") else "Permanent"
+            else:
+                ht = "Permanent"
+
+        glaze_raw = kwargs.get("glazing")
+        if not glaze_raw:
+            if hasattr(sd, "glazing") and hasattr(sd.glazing, "id"):
+                glaze_raw = sd.glazing.id
+            elif hasattr(sd, "glazing") and isinstance(sd.glazing, str):
+                glaze_raw = sd.glazing
+            else:
+                glaze_raw = "double_clear"
+
+        orient_raw = kwargs.get("orientation")
+        if not orient_raw:
+            orient_raw = str(sd.orientation)
+
+        payload = {
+            "city": city_str,
+            "home_type": ht,
+            "length": sd.length,
+            "width": sd.width,
+            "height": sd.height,
+            "wall_material": kwargs.get("wall_material", sd.wall_material),
+            "glazing": glaze_raw,
+            "orientation": orient_raw,
+            "occupants": kwargs.get("occupants", sd.occupants),
+            "min_insulation_m": kwargs.get("min_insulation_m", 0.0),
+            "max_insulation_m": kwargs.get("max_insulation_m", 0.20),
+            "min_window_area": kwargs.get("min_window_area", 0.5),
+            "max_window_area": kwargs.get("max_window_area", None),
+            "allowed_wall_materials": kwargs.get("allowed_wall_materials"),
+            "allowed_glazings": kwargs.get("allowed_glazings"),
+            "allowed_orientations": kwargs.get("allowed_orientations"),
+            "n_trials": n_trials,
+            "substeps": kwargs.get("substeps", 15),
+            "hours_to_simulate": kwargs.get("hours_to_simulate", 168),
+            "weights": kwargs.get("weights"),
+        }
+
+        return adapt_to_optimization_input(payload)
+
+    @classmethod
+    def candidate_to_shelter_design(
+        cls,
+        candidate: OptimizationCandidate,
+        base_design: Optional[Union[ShelterDesign, Dict[str, Any]]] = None,
+    ) -> ShelterDesign:
+        """
+        Converts an OptimizationCandidate into a fully validated canonical ShelterDesign.
+        Preserves base geometry dimensions and requirements while applying optimized parameters.
+        """
+        return candidate.to_shelter_design(base_design=base_design)
+
     @staticmethod
     def run_optimization_from_input(opt_input: OptimizationInput) -> OptimizationResult:
         """
@@ -234,6 +316,25 @@ class OptimizationAdapter:
         """
         from services.optimize import optimize_shelter
         return optimize_shelter(opt_input)
+
+    @classmethod
+    def run_optimization_for_shelter(
+        cls,
+        design: Union[ShelterDesign, Dict[str, Any]],
+        city_or_climate: Union[str, ClimateProfile, Dict[str, Any]] = "leh",
+        n_trials: int = 40,
+        **kwargs: Any,
+    ) -> OptimizationResult:
+        """
+        Executes end-to-end optimization starting from canonical ShelterDesign digital twin.
+        """
+        opt_in = cls.from_shelter_design(
+            design=design,
+            city_or_climate=city_or_climate,
+            n_trials=n_trials,
+            **kwargs,
+        )
+        return cls.run_optimization_from_input(opt_in)
 
     @classmethod
     def run_from_specs(
@@ -259,4 +360,5 @@ class OptimizationAdapter:
             **kwargs,
         )
         return cls.run_optimization_from_input(opt_in)
+
 
