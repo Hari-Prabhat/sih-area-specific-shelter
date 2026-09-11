@@ -1,5 +1,5 @@
 import { Thermometer, Sun, Wind, Droplets, Mountain, MapPin } from 'lucide-react';
-import { ClimateData } from '../utils/thermalEngine';
+import { ClimateData } from '../types';
 import { climatePresets } from '../data/climatePresets';
 
 interface ClimateInputProps {

@@ -2,7 +2,7 @@ import { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Float, Html, RoundedBox, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { ShelterDesign } from '../utils/thermalEngine';
+import { ShelterDesign } from '../types';
 
 /* ─── colour palette for materials ─── */
 const MATERIAL_COLORS: Record<string, { wall: string; accent: string }> = {

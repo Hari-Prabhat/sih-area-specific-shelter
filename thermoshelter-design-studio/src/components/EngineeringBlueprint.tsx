@@ -12,7 +12,7 @@
 
 import React, { useState } from 'react';
 import { Compass, Layers, Maximize2, Ruler, Eye } from 'lucide-react';
-import { ShelterDesign } from '../utils/thermalEngine';
+import { ShelterDesign } from '../types';
 
 interface BlueprintProps {
   design: ShelterDesign;

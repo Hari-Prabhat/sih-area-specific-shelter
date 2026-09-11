@@ -1,4 +1,4 @@
-import { MaterialProperties } from '../utils/thermalEngine';
+import { MaterialProperties } from '../types';
 
 export const materials: MaterialProperties[] = [
   { name: "Mud/Adobe", thermalConductivity: 0.55, density: 1700, specificHeat: 920, emissivity: 0.91, solarAbsorptance: 0.65, cost: 200, category: "Traditional" },

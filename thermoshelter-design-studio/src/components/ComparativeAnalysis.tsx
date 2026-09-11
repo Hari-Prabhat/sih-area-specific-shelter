@@ -18,6 +18,7 @@ import {
   ArrowDownRight,
   RotateCcw,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   BarChart,
@@ -34,7 +35,7 @@ import {
   PolarRadiusAxis,
   Radar,
 } from 'recharts';
-import { ClimateData, ShelterDesign, SimulationResult, runSimulation } from '../utils/thermalEngine';
+import { ClimateData, ShelterDesign, SimulationResult } from '../types';
 import {
   runSimulationViaApi,
   CanonicalOptimizationResult,
@@ -92,6 +93,7 @@ export default function ComparativeAnalysis({
   const [comparisons, setComparisons] = useState<ComparisonEntry[]>([]);
   const [newMaterial, setNewMaterial] = useState(materials[0].name);
   const [isLoading, setIsLoading] = useState(false);
+  const [sweepError, setSweepError] = useState<string | null>(null);
 
   // Set initial selected candidate when optimization result arrives
   const candidates: CanonicalOptimizationCandidate[] = optimizationResult?.ranked_designs || [];
@@ -159,23 +161,25 @@ export default function ComparativeAnalysis({
     setPreviewCandidateDesign(previewDesign);
   };
 
-  // Add manual material comparison
+  // Add manual material comparison via FastAPI backend only
   const addComparison = async () => {
     const material = materials.find((m) => m.name === newMaterial);
     if (!material) return;
     const insulation = getMaterialByName(shelterDesign.insulationType);
     setIsLoading(true);
+    setSweepError(null);
     try {
       const result = await runSimulationViaApi(climateData, shelterDesign, material, insulation);
       setComparisons((prev) => [...prev, { id: Date.now().toString(), label: newMaterial, result }]);
-    } catch {
-      const result = runSimulation(climateData, shelterDesign, material, insulation);
-      setComparisons((prev) => [...prev, { id: Date.now().toString(), label: newMaterial, result }]);
+    } catch (err: any) {
+      console.error('Material comparison simulation failed:', err);
+      setSweepError('Simulation service unavailable. Start the FastAPI backend and try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Quick compare across 6 materials via FastAPI backend only
   const quickCompare = async () => {
     const quickMaterials = [
       'Mud/Adobe',
@@ -187,6 +191,7 @@ export default function ComparativeAnalysis({
     ];
     const insulation = getMaterialByName(shelterDesign.insulationType);
     setIsLoading(true);
+    setSweepError(null);
     try {
       const entries = await Promise.all(
         quickMaterials.map(async (matName, i) => {
@@ -195,13 +200,21 @@ export default function ComparativeAnalysis({
           try {
             const result = await runSimulationViaApi(climateData, shelterDesign, material, insulation);
             return { id: `quick-${i}`, label: matName, result };
-          } catch {
-            const result = runSimulation(climateData, shelterDesign, material, insulation);
-            return { id: `quick-${i}`, label: matName, result };
+          } catch (err) {
+            console.error(`Simulation failed for ${matName}:`, err);
+            return null;
           }
         })
       );
-      setComparisons(entries.filter(Boolean) as ComparisonEntry[]);
+      const successfulEntries = entries.filter(Boolean) as ComparisonEntry[];
+      if (successfulEntries.length === 0) {
+        setSweepError('Simulation service unavailable. Start the FastAPI backend and try again.');
+      } else {
+        setComparisons(successfulEntries);
+      }
+    } catch (err: any) {
+      console.error('Quick compare failed:', err);
+      setSweepError('Simulation service unavailable. Start the FastAPI backend and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -811,6 +824,22 @@ export default function ComparativeAnalysis({
       {/* Manual Material Sweep Mode */}
       {activeMode === 'sweep' && (
         <div className="space-y-6">
+          {sweepError && (
+            <div className="p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm text-red-300">Simulation Error</h4>
+                <p className="text-xs text-red-200 mt-0.5">{sweepError}</p>
+              </div>
+              <button
+                onClick={() => setSweepError(null)}
+                className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
             <h3 className="text-sm font-semibold text-slate-300 mb-4">Add Material Variant to Compare</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

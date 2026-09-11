@@ -29,7 +29,7 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts';
-import { SimulationResult, ClimateData, ShelterDesign } from '../utils/thermalEngine';
+import { SimulationResult, ClimateData, ShelterDesign } from '../types';
 import { CanonicalSimulationResult } from '../services/api';
 import ShelterModel3D from './ShelterModel3D';
 

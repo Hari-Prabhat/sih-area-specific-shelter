@@ -6,7 +6,7 @@
  * ISO 6946 multi-layer conduction models, and numerical forward Euler simulations.
  */
 
-import { ClimateData, ShelterDesign, MaterialProperties, SimulationResult as UiSimulationResult } from '../utils/thermalEngine';
+import { ClimateData, ShelterDesign, MaterialProperties, SimulationResult as UiSimulationResult } from '../types';
 
 const API_BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) || '';
 

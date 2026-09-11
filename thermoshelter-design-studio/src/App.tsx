@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Shield, Sun, Thermometer, Wind, Mountain, Settings, BarChart3, Layers, ChevronRight, Sparkles, Ruler } from 'lucide-react';
+import { Shield, Sun, Thermometer, Wind, Mountain, Settings, BarChart3, Layers, ChevronRight, Sparkles, Ruler, AlertCircle } from 'lucide-react';
 import ClimateInput from './components/ClimateInput';
 import ShelterDesigner from './components/ShelterDesigner';
 import SimulationResults from './components/SimulationResults';
 import ComparativeAnalysis from './components/ComparativeAnalysis';
 import DesignStudio from './components/DesignStudio';
 import EngineeringBlueprint from './components/EngineeringBlueprint';
-import { ClimateData, ShelterDesign, SimulationResult, runSimulation } from './utils/thermalEngine';
+import { ClimateData, ShelterDesign, SimulationResult } from './types';
 import { runSimulationViaApi, runOptimizationViaApi, CanonicalOptimizationResult, CanonicalOptimizationCandidate } from './services/api';
 import { getMaterialByName } from './data/materials';
 import { climatePresets } from './data/climatePresets';
@@ -34,6 +34,7 @@ function App() {
   const [selectedMaterial, setSelectedMaterial] = useState('Rammed Earth (Stabilized)');
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
 
   // Optimization state
   const [optimizationResult, setOptimizationResult] = useState<CanonicalOptimizationResult | null>(null);
@@ -45,16 +46,18 @@ function App() {
     const insulation = getMaterialByName(shelterDesign.insulationType);
     if (material) {
       setIsSimulating(true);
+      setSimulationError(null);
       try {
         // Authoritative Python thermal simulation via FastAPI endpoint
         const result = await runSimulationViaApi(climateData, shelterDesign, material, insulation);
         setSimulationResult(result);
         setActiveTab('results');
-      } catch (err) {
-        console.warn('Backend API simulation unavailable, falling back to client demo engine:', err);
-        const fallbackResult = runSimulation(climateData, shelterDesign, material, insulation);
-        setSimulationResult(fallbackResult);
-        setActiveTab('results');
+      } catch (err: any) {
+        console.error('Backend thermal simulation failed:', err);
+        setSimulationError(
+          'Simulation service unavailable. Start the FastAPI backend and try again.'
+        );
+        // Do NOT produce substitute simulation results or execute local physics.
       } finally {
         setIsSimulating(false);
       }
@@ -225,6 +228,38 @@ function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {simulationError && (
+          <div className="mb-6 p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <h4 className="font-semibold text-sm text-red-300">Simulation Error</h4>
+              <p className="text-xs text-red-200 mt-0.5">{simulationError}</p>
+            </div>
+            <button
+              onClick={() => setSimulationError(null)}
+              className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {optimizationError && (
+          <div className="mb-6 p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <h4 className="font-semibold text-sm text-red-300">Optimization Error</h4>
+              <p className="text-xs text-red-200 mt-0.5">{optimizationError}</p>
+            </div>
+            <button
+              onClick={() => setOptimizationError(null)}
+              className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {activeTab === 'studio' && <DesignStudio />}
         {activeTab === 'dashboard' && <DashboardTab onNavigate={setActiveTab} climateData={climateData} />}
         {activeTab === 'climate' && <ClimateInput climateData={climateData} setClimateData={setClimateData} />}

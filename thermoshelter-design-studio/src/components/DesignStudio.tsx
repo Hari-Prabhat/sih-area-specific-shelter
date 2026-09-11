@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MapPin, Users, Target, Zap, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Sparkles, Building2, Mountain } from 'lucide-react';
-import { ClimateData, ShelterDesign } from '../utils/thermalEngine';
+import { ClimateData, ShelterDesign } from '../types';
 import { climatePresets } from '../data/climatePresets';
 import { materials } from '../data/materials';
 import ShelterModel3D from './ShelterModel3D';

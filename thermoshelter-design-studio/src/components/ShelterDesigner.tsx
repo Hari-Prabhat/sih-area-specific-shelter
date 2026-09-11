@@ -1,5 +1,5 @@
 import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles } from 'lucide-react';
-import { ShelterDesign } from '../utils/thermalEngine';
+import { ShelterDesign } from '../types';
 import { materials } from '../data/materials';
 import ShelterModel3D from './ShelterModel3D';
 
