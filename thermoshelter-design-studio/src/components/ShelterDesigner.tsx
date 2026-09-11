@@ -1,4 +1,4 @@
-import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2 } from 'lucide-react';
+import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles } from 'lucide-react';
 import { ShelterDesign } from '../utils/thermalEngine';
 import { materials } from '../data/materials';
 import ShelterModel3D from './ShelterModel3D';
@@ -10,6 +10,9 @@ interface ShelterDesignerProps {
   setSelectedMaterial: (material: string) => void;
   onRunSimulation: () => void;
   isSimulating?: boolean;
+  onRunOptimization?: () => void;
+  isOptimizing?: boolean;
+  onNavigateToCompare?: () => void;
 }
 
 export default function ShelterDesigner({
@@ -19,6 +22,9 @@ export default function ShelterDesigner({
   setSelectedMaterial,
   onRunSimulation,
   isSimulating = false,
+  onRunOptimization,
+  isOptimizing = false,
+  onNavigateToCompare,
 }: ShelterDesignerProps) {
   const updateField = (field: keyof ShelterDesign, value: any) => {
     setShelterDesign({ ...shelterDesign, [field]: value });
@@ -331,8 +337,8 @@ export default function ShelterDesigner({
       {/* Live 3D Preview */}
       <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
 
-      {/* Bottom Run Button */}
-      <div className="flex justify-center pt-2">
+      {/* Bottom Action Buttons */}
+      <div className="flex flex-wrap justify-center gap-4 pt-2">
         <button
           onClick={onRunSimulation}
           disabled={isSimulating}
@@ -350,6 +356,26 @@ export default function ShelterDesigner({
             </>
           )}
         </button>
+
+        {onRunOptimization && (
+          <button
+            onClick={onNavigateToCompare || onRunOptimization}
+            disabled={isOptimizing}
+            className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl flex items-center gap-3 shadow-lg shadow-indigo-500/20 text-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {isOptimizing ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Optimizing...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>Optimize Design</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import ComparativeAnalysis from './components/ComparativeAnalysis';
 import DesignStudio from './components/DesignStudio';
 import EngineeringBlueprint from './components/EngineeringBlueprint';
 import { ClimateData, ShelterDesign, SimulationResult, runSimulation } from './utils/thermalEngine';
-import { runSimulationViaApi } from './services/api';
+import { runSimulationViaApi, runOptimizationViaApi, CanonicalOptimizationResult, CanonicalOptimizationCandidate } from './services/api';
 import { getMaterialByName } from './data/materials';
 import { climatePresets } from './data/climatePresets';
 
@@ -35,6 +35,11 @@ function App() {
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  // Optimization state
+  const [optimizationResult, setOptimizationResult] = useState<CanonicalOptimizationResult | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizationError, setOptimizationError] = useState<string | null>(null);
+
   const handleRunSimulation = async () => {
     const material = getMaterialByName(selectedMaterial);
     const insulation = getMaterialByName(shelterDesign.insulationType);
@@ -54,6 +59,112 @@ function App() {
         setIsSimulating(false);
       }
     }
+  };
+
+  /**
+   * Run Bayesian optimization via POST /api/optimization/run.
+   * Dispatches to the Python TPE optimizer and updates state with ranked candidates.
+   */
+  const handleRunOptimization = async (
+    weights?: { comfort: number; efficiency: number; solar: number },
+    nTrials?: number,
+    homeType?: string
+  ) => {
+    setIsOptimizing(true);
+    setOptimizationError(null);
+    try {
+      const cityName = climateData.location.split(',')[0].toLowerCase().trim();
+
+      // Map wall material to canonical key
+      const matName = selectedMaterial.toLowerCase();
+      let wallMat = 'brick';
+      if (matName.includes('mud') || matName.includes('adobe')) wallMat = 'mud';
+      else if (matName.includes('earth')) wallMat = 'mud';
+      else if (matName.includes('stone')) wallMat = 'stone';
+      else if (matName.includes('timber') || matName.includes('wood')) wallMat = 'timber';
+      else if (matName.includes('concrete') || matName.includes('aac')) wallMat = 'concrete_block';
+      else if (matName.includes('puf') || matName.includes('panel')) wallMat = 'puf_insulation';
+
+      let glazingKey = 'double_clear';
+      if (shelterDesign.windowGlazing === 'single') glazingKey = 'single_clear';
+      else if (shelterDesign.windowGlazing === 'triple') glazingKey = 'triple_low_e';
+
+      const insulation = getMaterialByName(shelterDesign.insulationType);
+      const insThick = insulation && insulation.name !== 'None' ? 0.05 : 0.0;
+
+      const result = await runOptimizationViaApi({
+        city: cityName,
+        home_type: homeType || 'Permanent',
+        design: {
+          length: shelterDesign.length,
+          width: shelterDesign.width,
+          height: shelterDesign.height,
+          wall_material: wallMat,
+          wall_thickness_m: shelterDesign.wallThickness,
+          insulation_thickness_m: insThick,
+          insulation_conductivity: insulation ? insulation.thermalConductivity : 0.025,
+          window_area: shelterDesign.windowArea,
+          glazing: glazingKey,
+          orientation: shelterDesign.orientation,
+          roof_type: 'flat',
+          pitch_angle_deg: shelterDesign.roofAngle || 0.0,
+          ach: 0.5,
+          occupants: 2,
+        },
+        n_trials: nTrials || 20,
+        substeps: 15,
+        hours_to_simulate: 168,
+        weights: weights || { comfort: 0.5, efficiency: 0.3, solar: 0.2 },
+      });
+
+      setOptimizationResult(result);
+    } catch (err: any) {
+      console.error('Optimization API error:', err);
+      setOptimizationError(err.message || 'Optimization failed');
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  /**
+   * Apply an optimization candidate's parameters to the authoritative ShelterDesign state.
+   * After applying, the user should re-run simulation to see updated results.
+   */
+  const handleApplyCandidate = (candidate: CanonicalOptimizationCandidate) => {
+    // Map candidate wall_material_name to selectedMaterial
+    setSelectedMaterial(candidate.wall_material_name);
+
+    // Map candidate glazing to ShelterDesign windowGlazing
+    let glazing: 'single' | 'double' | 'triple' = 'double';
+    if (candidate.glazing.includes('triple')) glazing = 'triple';
+    else if (candidate.glazing.includes('single')) glazing = 'single';
+
+    // Map candidate orientation string to degrees
+    let orientation = 180;
+    const orientLower = candidate.orientation.toLowerCase();
+    if (orientLower === 'north' || orientLower.includes('north')) orientation = 0;
+    else if (orientLower === 'east' || orientLower.includes('east')) orientation = 90;
+    else if (orientLower === 'south' || orientLower.includes('south')) orientation = 180;
+    else if (orientLower === 'west' || orientLower.includes('west')) orientation = 270;
+
+    // Determine insulation type from thickness
+    let insulationType = shelterDesign.insulationType;
+    if (candidate.insulation_thickness_m <= 0) {
+      insulationType = 'None';
+    } else if (insulationType === 'None') {
+      insulationType = 'EPS'; // Default to EPS if we had none but candidate needs insulation
+    }
+
+    setShelterDesign({
+      ...shelterDesign,
+      windowArea: candidate.window_area_m2,
+      windowGlazing: glazing,
+      orientation,
+      insulationType,
+    });
+
+    // Clear stale simulation result so user knows to re-run
+    setSimulationResult(null);
   };
 
 
@@ -125,6 +236,9 @@ function App() {
             setSelectedMaterial={setSelectedMaterial}
             onRunSimulation={handleRunSimulation}
             isSimulating={isSimulating}
+            onRunOptimization={() => handleRunOptimization()}
+            isOptimizing={isOptimizing}
+            onNavigateToCompare={() => setActiveTab('compare')}
           />
         )}
         {activeTab === 'blueprint' && (
@@ -154,7 +268,19 @@ function App() {
             </button>
           </div>
         )}
-        {activeTab === 'compare' && <ComparativeAnalysis climateData={climateData} shelterDesign={shelterDesign} />}
+        {activeTab === 'compare' && (
+          <ComparativeAnalysis
+            climateData={climateData}
+            shelterDesign={shelterDesign}
+            selectedMaterial={selectedMaterial}
+            baselineResult={simulationResult}
+            optimizationResult={optimizationResult}
+            isOptimizing={isOptimizing}
+            onRunOptimization={handleRunOptimization}
+            onApplyCandidate={handleApplyCandidate}
+            onNavigateToDesign={() => setActiveTab('design')}
+          />
+        )}
       </main>
 
       <footer className="bg-slate-900/80 border-t border-slate-700/30 py-4 mt-8">
