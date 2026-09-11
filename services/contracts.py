@@ -845,6 +845,136 @@ def adapt_to_climate_profile(raw_data: Union[ClimateProfile, Dict[str, Any]]) ->
         raise TypeError(f"Cannot adapt object of type {type(raw_data)} to ClimateProfile")
 
 
+def adapt_backend_climate_profile(backend_profile: Any) -> ClimateProfile:
+    """
+    Maps the backend.climate.schemas.ClimateProfile (Pydantic v2 structured model
+    with Location, ClimateMetrics, SolarData, WindData, HumidityData, DesignExtremes,
+    DataQuality) into the canonical services.contracts.ClimateProfile.
+
+    This adapter bridges Member 1's rich structured climate data to the flat
+    hourly-timeseries format consumed by Member 3's thermal simulation engine.
+
+    IMPORTANT: The backend ClimateProfile contains annual/statistical climate data
+    (mean temperatures, design extremes), NOT hourly timeseries. When hourly data
+    is unavailable, this adapter synthesizes a deterministic diurnal profile from
+    the statistical metrics. The resulting data_provenance is set to ESTIMATED
+    to clearly distinguish it from measured or historical hourly data.
+
+    Data preservation:
+      - location: place_name, latitude, longitude, elevation
+      - climate: classification, temperature extremes
+      - solar: GHI, DNI, DHI (annual means used as peak for synthesis)
+      - wind: average_speed
+      - humidity: average_relative_humidity
+      - data_quality: confidence, provenance, sources
+    """
+    if hasattr(backend_profile, "model_dump"):
+        bp = backend_profile
+    else:
+        raise TypeError(
+            f"Expected a Pydantic backend ClimateProfile, got {type(backend_profile)}"
+        )
+
+    loc = bp.location
+    clim = bp.climate
+    solar = bp.solar
+    wind = bp.wind
+    hum = bp.humidity
+    extremes = bp.design_extremes
+    quality = bp.data_quality
+
+    # Determine provenance mapping
+    prov_map = {
+        "MEASURED": DataProvenance.MEASURED,
+        "HISTORICAL": DataProvenance.HISTORICAL,
+        "ESTIMATED": DataProvenance.ESTIMATED,
+        "SIMULATED": DataProvenance.SIMULATED,
+        "OPTIMIZED": DataProvenance.OPTIMIZED,
+    }
+    raw_prov = str(quality.provenance.value) if hasattr(quality.provenance, "value") else str(quality.provenance)
+    canonical_prov = prov_map.get(raw_prov.upper(), DataProvenance.ESTIMATED)
+
+    # Confidence mapping
+    conf_map = {"HIGH": 0.95, "MEDIUM": 0.70, "LOW": 0.40}
+    raw_conf = str(quality.confidence.value) if hasattr(quality.confidence, "value") else str(quality.confidence)
+    canonical_conf = conf_map.get(raw_conf.upper(), 0.70)
+
+    # Climate zone mapping
+    zone_map = {
+        "EXTREME COLD": "cold",
+        "COLD": "cold",
+        "HOT DRY": "hot_dry",
+        "HOT HUMID": "hot_humid",
+        "TEMPERATE": "temperate",
+        "VARIABLE": "composite",
+    }
+    raw_zone = str(clim.classification.value) if hasattr(clim.classification, "value") else str(clim.classification)
+    canonical_zone = zone_map.get(raw_zone.upper(), "composite")
+
+    # Synthesize 168-hour deterministic diurnal profile from statistical data
+    # This is clearly labeled as ESTIMATED — not measured hourly data
+    hours = 168
+    mean_temp = float(clim.annual_mean_temperature)
+    t_min = float(clim.minimum_temperature)
+    t_max = float(clim.maximum_temperature)
+    diurnal_range = float(clim.diurnal_range_mean) if clim.diurnal_range_mean else (t_max - t_min) * 0.5
+    half_swing = diurnal_range / 2.0
+
+    # Peak solar from GHI or DNI annual mean (scale to peak instantaneous)
+    peak_dni = float(solar.DNI) if solar.DNI else float(solar.GHI) * 0.75
+    peak_dhi = float(solar.DHI) if solar.DHI else float(solar.GHI) * 0.25
+
+    t_series: List[float] = []
+    dni_series: List[float] = []
+    dhi_series: List[float] = []
+    ws_series: List[float] = []
+    rh_series: List[float] = []
+
+    avg_wind = float(wind.average_speed)
+    avg_rh = float(hum.average_relative_humidity)
+
+    for h in range(hours):
+        hour_of_day = h % 24
+        t = mean_temp + half_swing * math.sin((hour_of_day - 8) * math.pi / 12.0)
+        t_series.append(round(t, 2))
+
+        if 7 <= hour_of_day <= 17:
+            solar_frac = math.sin((hour_of_day - 7) * math.pi / 10.0)
+            dni_series.append(round(max(0.0, peak_dni * solar_frac), 1))
+            dhi_series.append(round(max(0.0, peak_dhi * solar_frac), 1))
+        else:
+            dni_series.append(0.0)
+            dhi_series.append(0.0)
+
+        ws_series.append(round(avg_wind, 1))
+        rh_series.append(round(avg_rh, 1))
+
+    # Determine data source string
+    sources = quality.sources if quality.sources else []
+    data_source = ", ".join(sources) if sources else "backend_climate_service"
+
+    # When synthesizing from annual stats, provenance is ESTIMATED
+    # regardless of the backend's original provenance
+    synthesis_prov = DataProvenance.ESTIMATED
+
+    return ClimateProfile(
+        city=loc.place_name.split(",")[0].strip().lower(),
+        latitude=float(loc.latitude),
+        longitude=float(loc.longitude),
+        hourly_temperature=t_series,
+        hourly_direct_solar=dni_series,
+        hourly_diffuse_solar=dhi_series,
+        hourly_wind_speed=ws_series,
+        hourly_humidity=rh_series,
+        climate_zone=canonical_zone,
+        elevation_m=float(loc.elevation) if loc.elevation is not None else None,
+        timezone_offset_hours=5.5,  # Default IST; backend uses IANA timezone string
+        data_source=data_source,
+        data_provenance=synthesis_prov,
+        data_confidence=canonical_conf,
+    )
+
+
 def adapt_to_shelter_design(raw_data: Union[ShelterDesign, Dict[str, Any]]) -> ShelterDesign:
     """
     Adapter converting raw dictionary or design config into validated canonical ShelterDesign.
