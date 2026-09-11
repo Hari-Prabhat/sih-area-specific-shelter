@@ -81,7 +81,7 @@ export default function SimulationResults({
     }));
   })();
 
-  // Component heat loss distribution (6 components for canonical, 5 for fallback)
+  // Component heat loss distribution (7 components for canonical, 5 for fallback)
   const heatLossData = (() => {
     if (canonical && canonical.component_heat_loss_kwh) {
       const c = canonical.component_heat_loss_kwh;
@@ -90,6 +90,7 @@ export default function SimulationResults({
         { name: 'Roof', value: Math.round(c.roof_loss_kwh), color: '#ef4444' },
         { name: 'Floor', value: Math.round(c.floor_loss_kwh), color: '#3b82f6' },
         { name: 'Windows', value: Math.round(c.window_loss_kwh), color: '#06b6d4' },
+        { name: 'Doors', value: Math.round(c.door_loss_kwh || 0), color: '#10b981' },
         { name: 'Ventilation', value: Math.round(c.ventilation_loss_kwh), color: '#8b5cf6' },
         { name: 'Radiation', value: Math.round(c.radiation_loss_kwh), color: '#ec4899' },
       ].filter((item) => item.value > 0);
@@ -103,13 +104,12 @@ export default function SimulationResults({
     ];
   })();
 
-  const monthlyData = result.monthlyTemperatures.map((temp, month) => {
+  const monthlyData = (result.monthlyTemperatures || []).map((temp, month) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return {
-      month: months[month],
+      month: months[month] || `M${month + 1}`,
       inside: temp,
-      ambient:
-        Math.round((climateData.avgAmbientTemp + [-8, -5, -1, 4, 8, 12, 14, 13, 9, 4, -2, -6][month]) * 10) / 10,
+      ambient: climateData.avgAmbientTemp,
     };
   });
 
@@ -193,7 +193,7 @@ export default function SimulationResults({
               ISO 6946 Envelope Thermal Transmittance (U-Values)
             </h3>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
             <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
               <span className="text-[10px] text-slate-400 block uppercase">Solid Wall U</span>
               <span className="text-sm font-mono font-bold text-amber-400 block mt-1">
@@ -221,6 +221,13 @@ export default function SimulationResults({
                 {canonical.u_values.window_u.toFixed(2)} W/m²·K
               </span>
               <span className="text-[9px] text-slate-500">Glazing Assembly</span>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+              <span className="text-[10px] text-slate-400 block uppercase">Door U</span>
+              <span className="text-sm font-mono font-bold text-emerald-400 block mt-1">
+                {(canonical.u_values.door_u ?? 1.80).toFixed(2)} W/m²·K
+              </span>
+              <span className="text-[9px] text-slate-500">Insulated Core</span>
             </div>
           </div>
         </div>
@@ -268,7 +275,8 @@ export default function SimulationResults({
               <Tooltip
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
               />
-              <ReferenceLine y={18} stroke="#22c55e" strokeDasharray="3 3" label={{ value: '18°C Comfort', fill: '#22c55e', fontSize: 10 }} />
+              <ReferenceLine y={18} stroke="#22c55e" strokeDasharray="3 3" label={{ value: '18°C Comfort Min', fill: '#22c55e', fontSize: 10 }} />
+              <ReferenceLine y={24} stroke="#10b981" strokeDasharray="3 3" label={{ value: '24°C Comfort Max', fill: '#10b981', fontSize: 10 }} />
               <Area type="monotone" dataKey="inside" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.25} name="Indoor Temp (°C)" />
               <Area type="monotone" dataKey="ambient" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} name="Ambient Temp (°C)" />
             </AreaChart>
@@ -390,18 +398,27 @@ export default function SimulationResults({
       {/* Row 4: Monthly Projection */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
         <h3 className="text-sm font-semibold text-slate-300 mb-4">Annual Diurnal Monthly Projection</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={monthlyData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
-            <YAxis stroke="#64748b" fontSize={10} unit="°C" />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-            />
-            <Bar dataKey="inside" fill="#f59e0b" name="Inside" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="ambient" fill="#3b82f6" name="Ambient" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        {monthlyData && monthlyData.length >= 12 ? (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
+              <YAxis stroke="#64748b" fontSize={10} unit="°C" />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+              />
+              <Bar dataKey="inside" fill="#f59e0b" name="Inside" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="ambient" fill="#3b82f6" name="Ambient" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="py-8 text-center text-slate-400 text-sm border border-dashed border-slate-700/60 rounded-lg">
+            <p className="font-medium text-slate-300 mb-1">Annual Monthly Projection Unavailable</p>
+            <p className="text-xs text-slate-500 font-mono">
+              Simulation executed for 168-hour (7-day) transient horizon. Annual diurnal projection requires a full 8760-hour annual simulation.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Recommendations */}

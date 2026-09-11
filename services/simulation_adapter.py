@@ -65,6 +65,8 @@ class SimulationAdapter:
             heat_per_person=p["heat_per_person"],
             roof_type=p["roof_type"],
             pitch_angle_deg=p["pitch_angle_deg"],
+            door_area_m2=p.get("door_area_m2", 2.0),
+            door_u_value=p.get("door_u_value", 1.80),
         )
 
     @classmethod
@@ -143,6 +145,7 @@ class SimulationAdapter:
             insulation_thickness_m=d.insulation_thickness_m,
             insulation_conductivity=d.insulation_conductivity,
             window_area=d.window_area,
+            door_area=d.door_area,
             glazing=glaze_str,
             orientation=d.orientation,
             roof_type=d.roof_type,

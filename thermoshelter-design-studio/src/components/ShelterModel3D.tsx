@@ -313,23 +313,95 @@ function RectangularShelter({ design, wallColor, accentColor }: {
     return geo;
   }, [isPitched, height, ridgeHeight, halfSpan, wallThickness, ridgeRise]);
 
-  /* Parametric Pitched Roof Geometry (Solid, continuous gable roof with eaves overhang) */
+  /* Parametric Pitched Roof Geometry (Watertight solid prism with continuous ridge and eave overhangs) */
   const pitchedRoofGeometry = useMemo(() => {
     if (!isPitched || ridgeRise <= 0.001) return null;
 
-    const halfL = length / 2 + overhang;
-    const eaveZ = halfSpan + overhang;
-    const slopeHyp = Math.sqrt(Math.pow(eaveZ, 2) + Math.pow(ridgeRise, 2));
+    const xMin = -(length / 2 + overhang);
+    const xMax = length / 2 + overhang;
+    const tv = roofThick / Math.max(0.2, Math.cos(roofRad));
 
-    // Two monolithic sloping slabs meeting tightly at ridge (Z=0, Y=ridgeHeight)
-    // We compute roof plane positions and rotations exactly:
-    // Left slope (+Z side): eave at +eaveZ, ridge at Z=0
-    // Angle of slope = roofRad
-    return {
-      slopeLength: slopeHyp,
-      roofLength: halfL * 2,
-    };
-  }, [isPitched, length, halfSpan, ridgeRise, overhang]);
+    const zSouthEave = halfSpan + overhang;
+    const zNorthEave = -(halfSpan + overhang);
+    const ySouthEaveBot = height - Math.tan(roofRad) * overhang;
+    const ySouthEaveTop = ySouthEaveBot + tv;
+    const yNorthEaveBot = ySouthEaveBot;
+    const yNorthEaveTop = ySouthEaveTop;
+    const yRidgeBot = ridgeHeight;
+    const yRidgeTop = ridgeHeight + tv;
+
+    // Cross-section polygon in Z-Y plane:
+    // P0: South eave bottom, P1: South eave top, P2: Ridge top
+    // P3: North eave top, P4: North eave bottom, P5: Ridge bottom
+    const poly = [
+      [zSouthEave, ySouthEaveBot],
+      [zSouthEave, ySouthEaveTop],
+      [0, yRidgeTop],
+      [zNorthEave, yNorthEaveTop],
+      [zNorthEave, yNorthEaveBot],
+      [0, yRidgeBot],
+    ];
+
+    const verts: number[] = [];
+
+    // 1. Longitudinal faces (6 quads extruded along X from xMin to xMax)
+    for (let i = 0; i < 6; i++) {
+      const pa = poly[i];
+      const pb = poly[(i + 1) % 6];
+
+      // Quad vertices:
+      // v0: (xMin, pa.y, pa.z)
+      // v1: (xMax, pa.y, pa.z)
+      // v2: (xMax, pb.y, pb.z)
+      // v3: (xMin, pb.y, pb.z)
+      verts.push(xMin, pa[1], pa[0]);
+      verts.push(xMax, pa[1], pa[0]);
+      verts.push(xMax, pb[1], pb[0]);
+
+      verts.push(xMin, pa[1], pa[0]);
+      verts.push(xMax, pb[1], pb[0]);
+      verts.push(xMin, pb[1], pb[0]);
+    }
+
+    // 2. East gable end cap (+X face at xMax, outward normal +X)
+    verts.push(xMax, poly[0][1], poly[0][0]);
+    verts.push(xMax, poly[5][1], poly[5][0]);
+    verts.push(xMax, poly[2][1], poly[2][0]);
+
+    verts.push(xMax, poly[0][1], poly[0][0]);
+    verts.push(xMax, poly[2][1], poly[2][0]);
+    verts.push(xMax, poly[1][1], poly[1][0]);
+
+    verts.push(xMax, poly[5][1], poly[5][0]);
+    verts.push(xMax, poly[4][1], poly[4][0]);
+    verts.push(xMax, poly[3][1], poly[3][0]);
+
+    verts.push(xMax, poly[5][1], poly[5][0]);
+    verts.push(xMax, poly[3][1], poly[3][0]);
+    verts.push(xMax, poly[2][1], poly[2][0]);
+
+    // 3. West gable end cap (-X face at xMin, outward normal -X)
+    verts.push(xMin, poly[0][1], poly[0][0]);
+    verts.push(xMin, poly[2][1], poly[2][0]);
+    verts.push(xMin, poly[5][1], poly[5][0]);
+
+    verts.push(xMin, poly[0][1], poly[0][0]);
+    verts.push(xMin, poly[1][1], poly[1][0]);
+    verts.push(xMin, poly[2][1], poly[2][0]);
+
+    verts.push(xMin, poly[5][1], poly[5][0]);
+    verts.push(xMin, poly[3][1], poly[3][0]);
+    verts.push(xMin, poly[4][1], poly[4][0]);
+
+    verts.push(xMin, poly[5][1], poly[5][0]);
+    verts.push(xMin, poly[2][1], poly[2][0]);
+    verts.push(xMin, poly[3][1], poly[3][0]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, [isPitched, length, halfSpan, height, ridgeHeight, ridgeRise, roofRad, overhang, roofThick]);
 
   return (
     <group>
@@ -368,53 +440,23 @@ function RectangularShelter({ design, wallColor, accentColor }: {
       )}
 
       {/* ── 3. ARCHITECTURAL ROOF SYSTEM ── */}
-      {isPitched ? (
+      {isPitched && pitchedRoofGeometry ? (
         <group>
-          {/* Front Sloping Roof Plane (+Z pitch down from ridge) */}
-          <mesh
-            position={[
-              0,
-              height + ridgeRise / 2,
-              (halfSpan + overhang) / 2 - overhang * 0.5,
-            ]}
-            rotation={[roofRad, 0, 0]}
-            castShadow
-            receiveShadow
-          >
-            <boxGeometry
-              args={[
-                length + overhang * 2,
-                (halfSpan + overhang) / Math.cos(roofRad),
-                roofThick,
-              ]}
-            />
-            <meshStandardMaterial color={accentColor} roughness={0.5} />
-          </mesh>
-
-          {/* Rear Sloping Roof Plane (-Z pitch down from ridge) */}
-          <mesh
-            position={[
-              0,
-              height + ridgeRise / 2,
-              -((halfSpan + overhang) / 2 - overhang * 0.5),
-            ]}
-            rotation={[-roofRad, 0, 0]}
-            castShadow
-            receiveShadow
-          >
-            <boxGeometry
-              args={[
-                length + overhang * 2,
-                (halfSpan + overhang) / Math.cos(roofRad),
-                roofThick,
-              ]}
-            />
+          {/* Monolithic parametric pitched roof solid with eaves overhang */}
+          <mesh geometry={pitchedRoofGeometry} castShadow receiveShadow>
             <meshStandardMaterial color={accentColor} roughness={0.5} />
           </mesh>
 
           {/* Weatherproof Ridge Cap Beam */}
-          <mesh position={[0, ridgeHeight + roofThick * 0.35, 0]} castShadow>
-            <boxGeometry args={[length + overhang * 2 + 0.05, roofThick * 0.8, 0.18]} />
+          <mesh
+            position={[
+              0,
+              ridgeHeight + (roofThick / Math.max(0.2, Math.cos(roofRad))) + 0.02,
+              0,
+            ]}
+            castShadow
+          >
+            <boxGeometry args={[length + overhang * 2 + 0.05, 0.05, 0.18]} />
             <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
           </mesh>
         </group>

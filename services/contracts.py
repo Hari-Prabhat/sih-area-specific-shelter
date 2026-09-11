@@ -264,6 +264,8 @@ class SimulationEnvelopeParameters:
     heat_per_person: float = DEFAULT_OCCUPANT_HEAT_GAIN
     roof_type: str = "flat"
     pitch_angle_deg: float = 0.0
+    door_area_m2: float = 2.0
+    door_u_value: float = 1.80
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -394,6 +396,8 @@ class SimulationResult:
     hourly_heating_demand: Optional[List[float]] = None
     hourly_cooling_demand: Optional[List[float]] = None
     hourly_net_load: Optional[List[float]] = None
+    door_heat_flow: Optional[List[float]] = None
+    hourly_door_loss: Optional[List[float]] = None
     heating_demand_kwh: float = 0.0
     cooling_demand_kwh: float = 0.0
     total_conditioning_demand_kwh: float = 0.0
@@ -423,6 +427,7 @@ class SimulationResult:
         d["hourly_wall_loss"] = self.wall_heat_flow
         d["hourly_roof_loss"] = self.roof_heat_flow
         d["hourly_window_loss"] = self.window_heat_flow
+        d["hourly_door_loss"] = self.door_heat_flow
         d["hourly_vent_loss"] = self.ventilation_heat_flow
         return d
 
@@ -435,6 +440,7 @@ class SimulationResult:
         wall_loss = data.get("wall_heat_flow", data.get("hourly_wall_loss", []))
         roof_loss = data.get("roof_heat_flow", data.get("hourly_roof_loss", []))
         win_loss = data.get("window_heat_flow", data.get("hourly_window_loss", []))
+        door_loss = data.get("door_heat_flow", data.get("hourly_door_loss", []))
         vent_loss = data.get("ventilation_heat_flow", data.get("hourly_vent_loss", []))
         th_storage = data.get("thermal_storage_flow", data.get("hourly_thermal_storage"))
         q_heat = data.get("hourly_heating_demand")
@@ -453,6 +459,8 @@ class SimulationResult:
             roof_heat_flow=[float(x) for x in roof_loss],
             floor_heat_flow=[float(x) for x in data.get("floor_heat_flow", [])],
             window_heat_flow=[float(x) for x in win_loss],
+            door_heat_flow=[float(x) for x in door_loss] if door_loss else None,
+            hourly_door_loss=[float(x) for x in door_loss] if door_loss else None,
             ventilation_heat_flow=[float(x) for x in vent_loss],
             radiation_heat_flow=[float(x) for x in data.get("radiation_heat_flow", [])],
             net_heat_flow=[float(x) for x in data.get("net_heat_flow", [])],

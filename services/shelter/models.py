@@ -923,6 +923,22 @@ class ShelterDesign:
                     )
                 )
 
+            door_area_val = float(kwargs.get("door_area", 2.0))
+            if door_area_val > 0.0:
+                openings_synth.append(
+                    OpeningDefinition(
+                        id="door_primary",
+                        name="Access Door",
+                        opening_type="door",
+                        width_m=0.9,
+                        height_m=round(door_area_val / 0.9, 2),
+                        area_m2=door_area_val,
+                        facade="south" if ori_deg == 180.0 else "facade",
+                        orientation_deg=ori_deg,
+                        shading_factor=1.0,
+                    )
+                )
+
             geom = ShelterGeometry(
                 geometry_type="rectangular",
                 length_m=length,
@@ -1058,6 +1074,7 @@ class ShelterDesign:
                 "insulation_conductivity": insulation_conductivity,
                 "roof_insulation_m": roof_insulation_m,
                 "roof_conductivity": roof_conductivity,
+                "door_area": door_area_val,
                 "shelter_type": shelter_type,
             }
 
@@ -1158,6 +1175,16 @@ class ShelterDesign:
         if "window_area" in self.metadata:
             return float(self.metadata["window_area"])
         return 0.0
+
+    @property
+    def door_area(self) -> float:
+        if self.openings:
+            d_area = sum(o.area_m2 for o in self.openings if o.opening_type == "door")
+            if d_area > 0.0:
+                return round(d_area, 4)
+        if "door_area" in self.metadata:
+            return float(self.metadata["door_area"])
+        return 2.0
 
     @property
     def shgc(self) -> float:
@@ -1330,6 +1357,8 @@ class ShelterDesign:
             "window_u_value": self.glazing.u_value,
             "window_shgc": self.glazing.shgc,
             "window_area_m2": self.window_area,
+            "door_area_m2": self.door_area,
+            "door_u_value": 1.80,
             "gross_wall_area_m2": gross_wall,
             "roof_area_m2": roof_area,
             "floor_area_m2": floor_area,

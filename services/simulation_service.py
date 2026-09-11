@@ -9,6 +9,7 @@ Architecture:
 app.py / optimize.py -> simulation_service.py -> thermal.py -> formulas.py
 """
 
+import math
 import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -189,6 +190,8 @@ def run_simulation(
     insulation_thickness_m: float = 0.0,
     insulation_conductivity: float = 0.025,
     window_area: float = 2.0,
+    door_area: float = 2.0,
+    door_u_value: float = 1.80,
     glazing: str = "double_clear",
     orientation: Union[str, float] = "south",
     roof_type: str = "flat",
@@ -214,12 +217,12 @@ def run_simulation(
     Authoritative physical simulation runner for shelter thermal response.
 
     Features:
-      - Multi-layer ISO 6946 U-values for walls, roof, and fenestration.
+      - Multi-layer ISO 6946 U-values for walls, roof, fenestration, and doors.
       - Support for glazing types (single_clear, double_clear, double_low_e, triple_low_e).
       - Support for multiple shelter models (rectangular flat/pitched, compact, elongated, custom).
-      - Orientation solar harvesting factors (south, north, east, west).
+      - Continuous physical orientation solar harvesting factors across [0, 360] degrees.
       - Sub-hour explicit forward Euler numerical integration (dt = 3600 / substeps).
-      - Hourly component heat flow balance tracking (solar, internal, walls, roof, floor, glass, vent, radiation).
+      - Hourly component heat flow balance tracking (solar, internal, walls, roof, floor, glass, doors, vent, radiation).
       - Cumulative energy metrics (kWh) and thermal comfort statistics.
     """
     # 1. Fetch Weather Data (from input arrays if provided, else from climate service cache)
@@ -260,7 +263,8 @@ def run_simulation(
         gross_wall_area = f.calculate_wall_area(length, width, height)
 
     window_area_clamped = min(window_area, gross_wall_area * 0.85)
-    solid_wall_area = f.calculate_net_wall_area(gross_wall_area, window_area_clamped, 0.0)
+    door_area_clamped = max(0.0, min(door_area, gross_wall_area * 0.15))
+    solid_wall_area = f.calculate_net_wall_area(gross_wall_area, window_area_clamped, door_area_clamped)
 
 
     # 3. Envelope U-values via ISO 6946 multi-layer formulation
@@ -295,11 +299,23 @@ def run_simulation(
         u_glass = float(1.0 / r_glass_film)
         effective_shgc = 0.80 if shgc is None else float(shgc)
 
-    # Resolve orientation factor
+    # Resolve orientation factor with continuous physical solar azimuth model
     if isinstance(orientation, str):
-        orient_factor = ORIENTATION_FACTORS.get(orientation.lower(), 1.0)
+        orient_clean = orientation.strip().lower()
+        if orient_clean in ORIENTATION_FACTORS:
+            orient_factor = ORIENTATION_FACTORS[orient_clean]
+        else:
+            try:
+                deg = float(orient_clean)
+                theta_rad = math.radians(deg % 360.0)
+                factor = 0.45 + 0.55 * ((1.0 - math.cos(theta_rad)) / 2.0) - 0.025 * math.sin(theta_rad)
+                orient_factor = float(max(0.0, min(1.0, factor)))
+            except ValueError:
+                orient_factor = 1.0
     elif isinstance(orientation, (int, float)):
-        orient_factor = float(max(0.0, min(1.0, orientation)))
+        theta_rad = math.radians(float(orientation) % 360.0)
+        factor = 0.45 + 0.55 * ((1.0 - math.cos(theta_rad)) / 2.0) - 0.025 * math.sin(theta_rad)
+        orient_factor = float(max(0.0, min(1.0, factor)))
     else:
         orient_factor = 1.0
 
@@ -340,8 +356,9 @@ def run_simulation(
     ua_roof = float(u_roof * roof_area)
     ua_floor = float(u_floor * floor_area)
     ua_windows = float(u_glass * window_area_clamped)
+    ua_doors = float(door_u_value * door_area_clamped)
     ua_vent = float((ach * volume * AIR_DENSITY_DEFAULT * AIR_SPECIFIC_HEAT) / SECONDS_PER_HOUR)
-    ua_cond_vent = ua_walls + ua_roof + ua_floor + ua_windows + ua_vent
+    ua_cond_vent = ua_walls + ua_roof + ua_floor + ua_windows + ua_doors + ua_vent
     rad_coeff = float(5.670374419e-8 * 0.90 * roof_area)
 
     # 5. Simulation Time-stepping
@@ -358,6 +375,7 @@ def run_simulation(
     hourly_q_roof: List[float] = []
     hourly_q_floor: List[float] = []
     hourly_q_windows: List[float] = []
+    hourly_q_doors: List[float] = []
     hourly_q_vent: List[float] = []
     hourly_q_rad: List[float] = []
     hourly_q_net: List[float] = []
@@ -389,6 +407,7 @@ def run_simulation(
         hour_q_roof = 0.0
         hour_q_floor = 0.0
         hour_q_windows = 0.0
+        hour_q_doors = 0.0
         hour_q_vent = 0.0
         hour_q_rad = 0.0
         hour_q_net = 0.0
@@ -406,6 +425,7 @@ def run_simulation(
             hour_q_roof += ua_roof * delta_t
             hour_q_floor += ua_floor * delta_t
             hour_q_windows += ua_windows * delta_t
+            hour_q_doors += ua_doors * delta_t
             hour_q_vent += ua_vent * delta_t
             hour_q_rad += q_rad
             hour_q_net += q_net
@@ -424,6 +444,7 @@ def run_simulation(
         hourly_q_roof.append(round(float(hour_q_roof / substeps), 2))
         hourly_q_floor.append(round(float(hour_q_floor / substeps), 2))
         hourly_q_windows.append(round(float(hour_q_windows / substeps), 2))
+        hourly_q_doors.append(round(float(hour_q_doors / substeps), 2))
         hourly_q_vent.append(round(float(hour_q_vent / substeps), 2))
         hourly_q_rad.append(round(float(hour_q_rad / substeps), 2))
         hourly_q_net.append(round(float(hour_q_net / substeps), 2))
@@ -475,13 +496,14 @@ def run_simulation(
     total_window_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_windows), 2)
     total_vent_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_vent), 2)
     total_rad_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_rad), 2)
+    total_door_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_doors), 2)
     total_heating_kwh = round(sum(hourly_q_heat) / 1000.0, 2)
     total_cooling_kwh = round(sum(hourly_q_cool) / 1000.0, 2)
     total_conditioning_kwh = round(total_heating_kwh + total_cooling_kwh, 2)
 
     total_component_loss_kwh = round(
         total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh +
-        total_window_loss_kwh + total_vent_loss_kwh + total_rad_loss_kwh, 2
+        total_window_loss_kwh + total_door_loss_kwh + total_vent_loss_kwh + total_rad_loss_kwh, 2
     )
 
     component_heat_loss = {
@@ -489,6 +511,7 @@ def run_simulation(
         "roof_loss_kwh": total_roof_loss_kwh,
         "floor_loss_kwh": total_floor_loss_kwh,
         "window_loss_kwh": total_window_loss_kwh,
+        "door_loss_kwh": total_door_loss_kwh,
         "ventilation_loss_kwh": total_vent_loss_kwh,
         "radiation_loss_kwh": total_rad_loss_kwh,
     }
@@ -501,10 +524,11 @@ def run_simulation(
         "roof_loss_kwh": total_roof_loss_kwh,
         "floor_loss_kwh": total_floor_loss_kwh,
         "window_loss_kwh": total_window_loss_kwh,
+        "door_loss_kwh": total_door_loss_kwh,
         "vent_loss_kwh": total_vent_loss_kwh,
         "radiation_loss_kwh": total_rad_loss_kwh,
         "total_heat_loss_kwh": total_component_loss_kwh,
-        "total_envelope_loss_kwh": round(total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh + total_window_loss_kwh, 2),
+        "total_envelope_loss_kwh": round(total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh + total_window_loss_kwh + total_door_loss_kwh, 2),
         "heating_demand_kwh": total_heating_kwh,
         "cooling_demand_kwh": total_cooling_kwh,
         "total_conditioning_demand_kwh": total_conditioning_kwh,
@@ -529,6 +553,8 @@ def run_simulation(
         "floor_heat_flow": hourly_q_floor,
         "window_heat_flow": hourly_q_windows,
         "hourly_window_loss": hourly_q_windows,
+        "door_heat_flow": hourly_q_doors,
+        "hourly_door_loss": hourly_q_doors,
         "ventilation_heat_flow": hourly_q_vent,
         "hourly_vent_loss": hourly_q_vent,
         "radiation_heat_flow": hourly_q_rad,
@@ -561,6 +587,7 @@ def run_simulation(
             "floor_u": u_floor,
             "glass_u": round(u_glass, 4),
             "window_u": round(u_glass, 4),
+            "door_u": round(door_u_value, 4),
             "wall_r_total": wall_u_data["R_total"],
             "roof_r_total": roof_u_data["R_total"],
             "floor_r_total": floor_u_data["R_total"],
@@ -571,6 +598,7 @@ def run_simulation(
             "solid_wall_area_m2": round(solid_wall_area, 2),
             "roof_area_m2": round(roof_area, 2),
             "window_area_m2": round(window_area_clamped, 2),
+            "door_area_m2": round(door_area_clamped, 2),
             "roof_type": effective_roof_type,
             "shelter_model": shelter_model or ("rectangular_pitched" if effective_roof_type == "pitched" else "rectangular_flat"),
         },
@@ -578,6 +606,7 @@ def run_simulation(
             "wall_material": wall_material if isinstance(wall_material, str) else "custom",
             "insulation_thickness_m": insulation_thickness_m,
             "window_area_m2": window_area_clamped,
+            "door_area_m2": round(door_area_clamped, 2),
             "glazing": glazing,
             "orientation": orientation,
             "roof_type": effective_roof_type,

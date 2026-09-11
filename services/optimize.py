@@ -452,9 +452,9 @@ def run_optimization(
         heat_loss = c_sim["total_heat_loss_kwh"]
         solar_gain = c_sim.get("integrated_solar_energy_kwh", 0.0)
 
-        comfort_score = max(0.0, min(100.0, 100.0 - (discomfort_dh / 15.0)))
-        efficiency_score = max(0.0, min(100.0, 100.0 - (heat_loss / 10.0)))
-        solar_score = min(100.0, solar_gain * 2.0)
+        comfort_score = round(max(0.0, min(100.0, 100.0 - (discomfort_dh / 15.0))), 1)
+        efficiency_score = round(max(0.0, min(100.0, 100.0 - (heat_loss / 10.0))), 1)
+        solar_score = round(min(100.0, solar_gain * 2.0), 1)
 
         w_c = weights.get("comfort", 0.50) if weights else 0.50
         w_e = weights.get("efficiency", 0.35) if weights else 0.35
@@ -475,9 +475,9 @@ def run_optimization(
             "rationale": rationale,
             "overall_score": overall_score,
             "sub_scores": {
-                "comfort": round(comfort_score, 1),
-                "efficiency": round(efficiency_score, 1),
-                "solar": round(solar_score, 1),
+                "comfort": comfort_score,
+                "efficiency": efficiency_score,
+                "solar": solar_score,
             },
             "insulation_mm": round(c_ins * 1000.0, 1),
             "insulation_thickness_m": c_ins,

@@ -156,9 +156,10 @@ def test_instantaneous_heat_balance_reconciliation():
         q_win = res["window_heat_flow"][h]
         q_vent = res["ventilation_heat_flow"][h]
         q_rad = res["radiation_heat_flow"][h]
+        q_door = res.get("door_heat_flow", [0.0] * 48)[h]
         q_net = res["net_heat_flow"][h]
 
-        calculated_net = q_sol + q_int - (q_wall + q_roof + q_floor + q_win + q_vent + q_rad)
+        calculated_net = q_sol + q_int - (q_wall + q_roof + q_floor + q_win + q_door + q_vent + q_rad)
         assert q_net == pytest.approx(calculated_net, abs=0.05)
 
 

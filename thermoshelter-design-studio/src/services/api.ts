@@ -41,6 +41,7 @@ export interface CanonicalSimulationResult {
     roof_loss_kwh: number;
     floor_loss_kwh: number;
     window_loss_kwh: number;
+    door_loss_kwh?: number;
     ventilation_loss_kwh: number;
     radiation_loss_kwh: number;
   };
@@ -60,6 +61,7 @@ export interface CanonicalSimulationResult {
     roof_loss_kwh: number;
     floor_loss_kwh: number;
     window_loss_kwh: number;
+    door_loss_kwh?: number;
     vent_loss_kwh: number;
     total_heat_loss_kwh: number;
     heating_demand_kwh: number;
@@ -70,6 +72,7 @@ export interface CanonicalSimulationResult {
     roof_u: number;
     floor_u: number;
     window_u: number;
+    door_u?: number;
   };
   geometry: {
     floor_area_m2: number;
@@ -77,6 +80,7 @@ export interface CanonicalSimulationResult {
     solid_wall_area_m2: number;
     roof_area_m2: number;
     window_area_m2: number;
+    door_area_m2?: number;
     roof_type: string;
   };
 }
@@ -194,10 +198,9 @@ export function adaptCanonicalToUiResult(
     recommendations.push('Design is well-balanced for the targeted climatic conditions.');
   }
 
-  // Monthly diurnal baseline extrapolation from hourly temperatures
-  const monthlyTemperatures = [-8, -5, -1, 4, 8, 12, 14, 13, 9, 4, -2, -6].map(offset => {
-    return Math.round((avgIn + offset) * 10) / 10;
-  });
+  // Monthly diurnal projection is unavailable for standard 168-hour simulation horizons.
+  // Avoid synthetic offset extrapolation to prevent misleading engineering evaluations.
+  const monthlyTemperatures: number[] = [];
 
   return {
     avgInsideTemp: avgIn,
@@ -209,7 +212,7 @@ export function adaptCanonicalToUiResult(
     heatLossThroughRoof: Math.round(canon.component_heat_loss_kwh.roof_loss_kwh),
     heatLossThroughFloor: Math.round(canon.component_heat_loss_kwh.floor_loss_kwh),
     heatLossThroughWindows: Math.round(canon.component_heat_loss_kwh.window_loss_kwh),
-    heatLossThroughDoors: 0,
+    heatLossThroughDoors: Math.round(canon.component_heat_loss_kwh.door_loss_kwh || 0),
     totalHeatLoss: Math.round(canon.total_heat_loss_kwh),
     netHeatBalance: Math.round((canon.energy_totals_kwh.solar_gain_kwh - canon.total_heat_loss_kwh) * 10) / 10,
     thermalComfortIndex: Math.round(canon.comfort_percentage),

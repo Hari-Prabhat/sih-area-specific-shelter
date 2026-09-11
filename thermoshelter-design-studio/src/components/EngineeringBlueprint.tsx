@@ -167,16 +167,16 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                       {/* Orientation Compass Box */}
                       <g transform="translate(-320, -160)">
                         <circle cx="30" cy="30" r="28" fill="#0b192c" stroke="#00f2fe" strokeWidth="1.5" />
-                        <g transform={`rotate(${-(orientation)}, 30, 30)`}>
+                        <g transform={`rotate(${orientation - 180}, 30, 30)`}>
                           {/* North pointer */}
-                          <polygon points="30,8 35,30 25,30" fill="#ef4444" />
-                          <polygon points="30,52 35,30 25,30" fill="#64748b" />
+                          <polygon points="30,9 34,30 26,30" fill="#ef4444" />
+                          <polygon points="30,51 34,30 26,30" fill="#64748b" />
+                          <text x="30" y="7" fill="#ef4444" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                            N
+                          </text>
                         </g>
-                        <text x="30" y="5" fill="#ef4444" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
-                          N
-                        </text>
-                        <text x="30" y="70" fill="#94a3b8" fontSize="9" textAnchor="middle" fontFamily="monospace">
-                          {orientation}° ORIENTATION
+                        <text x="30" y="68" fill="#94a3b8" fontSize="8" textAnchor="middle" fontFamily="monospace">
+                          {orientation}° AZIMUTH
                         </text>
                       </g>
 
