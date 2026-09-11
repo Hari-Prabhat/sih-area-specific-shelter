@@ -572,7 +572,7 @@ export default function ComparativeAnalysis({
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-semibold text-white flex items-center gap-2">
                     <Award className="w-4 h-4 text-indigo-400" />
-                    Top Pareto Candidates Ranked by Optuna
+                    Top Optimization Candidates Ranked by Optuna
                   </h3>
                   <span className="text-xs text-slate-400">
                     Evaluated over {optimizationResult.n_trials} trials via 168-hour forward Euler model
