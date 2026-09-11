@@ -6,3 +6,6 @@ optuna
 pvlib
 pytest
 pydantic>=2.0.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+httpx>=0.25.0
