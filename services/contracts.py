@@ -25,6 +25,19 @@ from services.formula_constants import (
     DEFAULT_COMFORT_MIN,
     DEFAULT_OCCUPANT_HEAT_GAIN,
 )
+from services.shelter.models import (
+    DataProvenance,
+    GlazingDefinition,
+    MaterialAssembly,
+    MaterialLayer,
+    OpeningDefinition,
+    PassiveStrategy,
+    ShelterDesign,
+    ShelterGeometry,
+    ShelterRequirements,
+    ThermalMassDefinition,
+    ZoneDefinition,
+)
 
 
 # =====================================================================
@@ -36,13 +49,21 @@ class ClimateProfile:
     """
     Contract representing climate and weather time series data provided by Member 1.
 
-    Units:
+    SI Units:
       - hourly_temperature: °C
       - hourly_direct_solar: W/m² (Direct Normal Irradiance, DNI)
       - hourly_diffuse_solar: W/m² (Diffuse Horizontal Irradiance, DHI)
       - hourly_wind_speed: m/s (optional)
       - hourly_humidity: % relative humidity [0, 100] (optional)
+      - hourly_cloud_cover: fraction [0.0, 1.0] (optional)
+      - hourly_precipitation: mm (optional)
+      - elevation_m: meters above sea level (optional)
+      - timezone_offset_hours: UTC offset in hours [-14.0, +14.0] (optional)
       - latitude, longitude: decimal degrees
+      - timestamps: ISO 8601 strings (optional)
+      - data_source: data origin description (e.g. "EPW_Leh_ISD", "Synthetic_diurnal")
+      - data_provenance: DataProvenance constant (e.g. "measured", "historical", "simulated")
+      - data_confidence: fraction [0.0, 1.0] (optional)
     """
     city: str
     latitude: float
@@ -53,6 +74,14 @@ class ClimateProfile:
     hourly_wind_speed: Optional[List[float]] = None
     hourly_humidity: Optional[List[float]] = None
     climate_zone: Optional[str] = None
+    elevation_m: Optional[float] = None
+    timezone_offset_hours: Optional[float] = None
+    hourly_cloud_cover: Optional[List[float]] = None
+    hourly_precipitation: Optional[List[float]] = None
+    timestamps: Optional[List[str]] = None
+    data_source: str = "synthetic"
+    data_provenance: str = DataProvenance.SIMULATED
+    data_confidence: Optional[float] = None
 
     def __post_init__(self) -> None:
         self.validate()
@@ -109,6 +138,36 @@ class ClimateProfile:
                 if not math.isfinite(rh) or rh < 0.0 or rh > 100.0:
                     raise ValueError(f"Invalid hourly relative humidity at index {i}: {rh}%")
 
+        if self.elevation_m is not None:
+            if not (-500.0 <= self.elevation_m <= 9000.0):
+                raise ValueError(f"Elevation must be between -500 and 9000 meters, got {self.elevation_m}")
+
+        if self.timezone_offset_hours is not None:
+            if not (-14.0 <= self.timezone_offset_hours <= 14.0):
+                raise ValueError(f"Timezone offset must be between -14 and +14 hours, got {self.timezone_offset_hours}")
+
+        if self.hourly_cloud_cover is not None:
+            if len(self.hourly_cloud_cover) != n_hours:
+                raise ValueError("hourly_cloud_cover length must match hourly_temperature length.")
+            for i, cc in enumerate(self.hourly_cloud_cover):
+                if not math.isfinite(cc) or not (0.0 <= cc <= 1.0):
+                    raise ValueError(f"Invalid hourly cloud cover at index {i}: {cc}")
+
+        if self.hourly_precipitation is not None:
+            if len(self.hourly_precipitation) != n_hours:
+                raise ValueError("hourly_precipitation length must match hourly_temperature length.")
+            for i, pr in enumerate(self.hourly_precipitation):
+                if not math.isfinite(pr) or pr < 0.0:
+                    raise ValueError(f"Invalid hourly precipitation at index {i}: {pr} mm")
+
+        if self.timestamps is not None:
+            if len(self.timestamps) != n_hours:
+                raise ValueError("timestamps length must match hourly_temperature length.")
+
+        if self.data_confidence is not None:
+            if not (0.0 <= self.data_confidence <= 1.0):
+                raise ValueError(f"data_confidence must be between 0.0 and 1.0, got {self.data_confidence}")
+
     def to_dict(self) -> Dict[str, Any]:
         """Serializes ClimateProfile to standard dictionary."""
         return asdict(self)
@@ -126,7 +185,19 @@ class ClimateProfile:
         ws_arr = [float(x) for x in ws_raw] if ws_raw is not None else None
         rh_raw = data.get("hourly_humidity")
         rh_arr = [float(x) for x in rh_raw] if rh_raw is not None else None
+        cc_raw = data.get("hourly_cloud_cover")
+        cc_arr = [float(x) for x in cc_raw] if cc_raw is not None else None
+        pr_raw = data.get("hourly_precipitation")
+        pr_arr = [float(x) for x in pr_raw] if pr_raw is not None else None
+        ts_raw = data.get("timestamps")
+        ts_arr = [str(x) for x in ts_raw] if ts_raw is not None else None
         cz = data.get("climate_zone")
+        elev = float(data["elevation_m"]) if data.get("elevation_m") is not None else None
+        tz = float(data["timezone_offset_hours"]) if data.get("timezone_offset_hours") is not None else None
+        src = str(data.get("data_source", "synthetic"))
+        prov = str(data.get("data_provenance", DataProvenance.SIMULATED))
+        conf = float(data["data_confidence"]) if data.get("data_confidence") is not None else None
+
         return cls(
             city=city,
             latitude=lat,
@@ -137,133 +208,69 @@ class ClimateProfile:
             hourly_wind_speed=ws_arr,
             hourly_humidity=rh_arr,
             climate_zone=cz,
+            elevation_m=elev,
+            timezone_offset_hours=tz,
+            hourly_cloud_cover=cc_arr,
+            hourly_precipitation=pr_arr,
+            timestamps=ts_arr,
+            data_source=src,
+            data_provenance=prov,
+            data_confidence=conf,
         )
 
 
 # =====================================================================
-# 2. UPSTREAM CONTRACT: SHELTER DESIGN (Member 2 Contract)
+# 2. NUMERICAL ENVELOPE PARAMETERS (Member 3 Internal Model)
 # =====================================================================
 
 @dataclass
-class ShelterDesign:
+class SimulationEnvelopeParameters:
     """
-    Contract representing geometric, material, envelope, and operational parameters
-    provided by Member 2.
+    Physical simulation envelope parameters consumed by Member 3's numerical solver.
+    Extracts and maps multi-layer U-values, total thermal capacitance, and aperture areas
+    from the canonical ShelterDesign model via SimulationAdapter.
 
-    Units:
-      - length, width, height: meters (m)
-      - wall_thickness_m, insulation_thickness_m, roof_thickness_m, roof_insulation_m: meters (m)
-      - insulation_conductivity, roof_conductivity: W/(m·K)
-      - window_area: square meters (m²)
-      - pitch_angle_deg: degrees
+    SI Units:
+      - wall_u_value: W/(m²·K)
+      - roof_u_value: W/(m²·K)
+      - floor_u_value: W/(m²·K)
+      - window_u_value: W/(m²·K)
+      - window_shgc: dimensionless fraction [0, 1]
+      - window_area_m2: square meters (m²)
+      - gross_wall_area_m2: square meters (m²)
+      - roof_area_m2: square meters (m²)
+      - floor_area_m2: square meters (m²)
+      - volume_m3: cubic meters (m³)
+      - effective_thermal_capacity_j_k: Joules per Kelvin (J/K)
+      - orientation_deg: degrees [0, 360]
       - ach: air changes per hour (1/h)
-      - occupants: integer count
+      - occupants: integer count (persons)
       - heat_per_person: Watts per occupant (W/person)
     """
-    length: float = 4.0
-    width: float = 3.0
-    height: float = 2.8
-    wall_material: str = "brick"
-    wall_thickness_m: float = 0.23
-    insulation_thickness_m: float = 0.0
-    insulation_conductivity: float = 0.025
-    roof_type: str = "flat"
-    pitch_angle_deg: float = 30.0
-    roof_thickness_m: float = 0.15
-    roof_conductivity: float = 0.50
-    roof_insulation_m: float = 0.0
-    window_area: float = 2.0
-    glazing: str = "double_clear"
-    shgc: Optional[float] = None
-    orientation: Union[str, float] = "south"
+    wall_u_value: float = 1.5
+    roof_u_value: float = 0.8
+    floor_u_value: float = 0.5
+    window_u_value: float = 2.8
+    window_shgc: float = 0.70
+    window_area_m2: float = 2.0
+    gross_wall_area_m2: float = 39.2
+    roof_area_m2: float = 12.0
+    floor_area_m2: float = 12.0
+    volume_m3: float = 33.6
+    effective_thermal_capacity_j_k: float = 1.0e7
+    orientation_deg: float = 180.0
     ach: float = DEFAULT_ACH
     occupants: int = 2
-    shelter_type: str = "Permanent"
-    shelter_model: Optional[str] = None
     heat_per_person: float = DEFAULT_OCCUPANT_HEAT_GAIN
-
-    def __post_init__(self) -> None:
-        self.validate()
-
-    def validate(self) -> None:
-        """Validates physical dimensions and material parameter bounds."""
-        if self.length <= 0.0:
-            raise ValueError(f"Shelter length must be strictly positive, got {self.length} m")
-        if self.width <= 0.0:
-            raise ValueError(f"Shelter width must be strictly positive, got {self.width} m")
-        if self.height <= 0.0:
-            raise ValueError(f"Shelter height must be strictly positive, got {self.height} m")
-
-        if self.wall_thickness_m < 0.0:
-            raise ValueError(f"Wall thickness cannot be negative, got {self.wall_thickness_m} m")
-        if self.insulation_thickness_m < 0.0:
-            raise ValueError(f"Insulation thickness cannot be negative, got {self.insulation_thickness_m} m")
-        if self.insulation_conductivity <= 0.0:
-            raise ValueError(f"Insulation conductivity must be > 0, got {self.insulation_conductivity} W/m·K")
-
-        if self.roof_thickness_m < 0.0:
-            raise ValueError(f"Roof thickness cannot be negative, got {self.roof_thickness_m} m")
-        if self.roof_conductivity <= 0.0:
-            raise ValueError(f"Roof conductivity must be > 0, got {self.roof_conductivity} W/m·K")
-        if self.roof_insulation_m < 0.0:
-            raise ValueError(f"Roof insulation cannot be negative, got {self.roof_insulation_m} m")
-
-        if self.window_area < 0.0:
-            raise ValueError(f"Window area cannot be negative, got {self.window_area} m²")
-
-        gross_wall_area = 2.0 * (self.length + self.width) * self.height
-        if self.window_area > gross_wall_area:
-            raise ValueError(
-                f"Window area ({self.window_area} m²) cannot exceed total wall area ({gross_wall_area:.2f} m²)"
-            )
-
-        if not (0.0 <= self.pitch_angle_deg < 90.0):
-            raise ValueError(f"Roof pitch angle must be in [0, 90) degrees, got {self.pitch_angle_deg}")
-
-        if self.shgc is not None and not (0.0 <= self.shgc <= 1.0):
-            raise ValueError(f"SHGC must be between 0.0 and 1.0, got {self.shgc}")
-
-        if self.ach < 0.0:
-            raise ValueError(f"ACH cannot be negative, got {self.ach}")
-        if self.occupants < 0:
-            raise ValueError(f"Occupants cannot be negative, got {self.occupants}")
-        if self.heat_per_person < 0.0:
-            raise ValueError(f"Heat per person cannot be negative, got {self.heat_per_person} W")
-
-        valid_types = {"permanent", "temporary"}
-        if str(self.shelter_type).lower() not in valid_types:
-            raise ValueError(f"shelter_type must be 'Permanent' or 'Temporary', got '{self.shelter_type}'")
+    roof_type: str = "flat"
+    pitch_angle_deg: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serializes ShelterDesign to standard dictionary."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ShelterDesign":
-        """Constructs ShelterDesign from dictionary with fallback defaults."""
-        return cls(
-            length=float(data.get("length", 4.0)),
-            width=float(data.get("width", 3.0)),
-            height=float(data.get("height", 2.8)),
-            wall_material=str(data.get("wall_material", data.get("wall_material_name", "brick"))),
-            wall_thickness_m=float(data.get("wall_thickness_m", 0.23)),
-            insulation_thickness_m=float(data.get("insulation_thickness_m", 0.0)),
-            insulation_conductivity=float(data.get("insulation_conductivity", 0.025)),
-            roof_type=str(data.get("roof_type", "flat")),
-            pitch_angle_deg=float(data.get("pitch_angle_deg", 30.0)),
-            roof_thickness_m=float(data.get("roof_thickness_m", 0.15)),
-            roof_conductivity=float(data.get("roof_conductivity", 0.50)),
-            roof_insulation_m=float(data.get("roof_insulation_m", 0.0)),
-            window_area=float(data.get("window_area", data.get("window_area_m2", 2.0))),
-            glazing=str(data.get("glazing", "double_clear")),
-            shgc=float(data["shgc"]) if data.get("shgc") is not None else None,
-            orientation=data.get("orientation", "south"),
-            ach=float(data.get("ach", DEFAULT_ACH)),
-            occupants=int(data.get("occupants", 2)),
-            shelter_type=str(data.get("shelter_type", data.get("home_type", "Permanent"))),
-            shelter_model=data.get("shelter_model"),
-            heat_per_person=float(data.get("heat_per_person", DEFAULT_OCCUPANT_HEAT_GAIN)),
-        )
+    def from_dict(cls, data: Dict[str, Any]) -> "SimulationEnvelopeParameters":
+        return cls(**data)
 
 
 # =====================================================================
@@ -274,13 +281,15 @@ class ShelterDesign:
 class SimulationInput:
     """
     Standard input contract consumed by Member 3's simulation engine.
-    Encapsulates ClimateProfile + ShelterDesign with numerical solver settings.
+    Encapsulates ClimateProfile + canonical ShelterDesign with numerical solver settings
+    and derived simulation envelope parameters.
     """
     climate: ClimateProfile
     design: ShelterDesign
     hours_to_simulate: int = 168
     substeps: int = 60
     initial_indoor_temp: float = 20.0
+    envelope_parameters: Optional[SimulationEnvelopeParameters] = None
 
     def __post_init__(self) -> None:
         self.validate()
@@ -309,13 +318,16 @@ class SimulationInput:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes SimulationInput to standard dictionary."""
-        return {
+        d = {
             "climate": self.climate.to_dict(),
             "design": self.design.to_dict(),
             "hours_to_simulate": self.hours_to_simulate,
             "substeps": self.substeps,
             "initial_indoor_temp": self.initial_indoor_temp,
         }
+        if self.envelope_parameters is not None:
+            d["envelope_parameters"] = self.envelope_parameters.to_dict()
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SimulationInput":
@@ -324,12 +336,15 @@ class SimulationInput:
         design_dict = data.get("design", {})
         climate = ClimateProfile.from_dict(climate_dict)
         design = ShelterDesign.from_dict(design_dict)
+        env_dict = data.get("envelope_parameters")
+        env_params = SimulationEnvelopeParameters.from_dict(env_dict) if env_dict else None
         return cls(
             climate=climate,
             design=design,
             hours_to_simulate=int(data.get("hours_to_simulate", 168)),
             substeps=int(data.get("substeps", 60)),
             initial_indoor_temp=float(data.get("initial_indoor_temp", 20.0)),
+            envelope_parameters=env_params,
         )
 
 
@@ -747,13 +762,15 @@ def create_mock_climate_profile(
         rh_series.append(40.0)  # Dry mountain air
 
     city_coords = {
-        "leh": (34.1526, 77.5771, "cold"),
-        "jaisalmer": (26.9157, 70.9083, "hot_dry"),
-        "chennai": (13.0827, 80.2707, "hot_humid"),
-        "delhi": (28.6139, 77.2090, "composite"),
-        "bengaluru": (12.9716, 77.5946, "temperate"),
+        "leh": (34.1526, 77.5771, "cold", 3500.0, 5.5, "EPW_Leh_ISD", DataProvenance.HISTORICAL),
+        "jaisalmer": (26.9157, 70.9083, "hot_dry", 225.0, 5.5, "EPW_Jaisalmer", DataProvenance.HISTORICAL),
+        "chennai": (13.0827, 80.2707, "hot_humid", 6.0, 5.5, "EPW_Chennai", DataProvenance.HISTORICAL),
+        "delhi": (28.6139, 77.2090, "composite", 216.0, 5.5, "EPW_Delhi", DataProvenance.HISTORICAL),
+        "bengaluru": (12.9716, 77.5946, "temperate", 920.0, 5.5, "EPW_Bengaluru", DataProvenance.HISTORICAL),
     }
-    lat, lon, zone = city_coords.get(city.lower(), (34.1526, 77.5771, "cold"))
+    lat, lon, zone, elev, tz, src, prov = city_coords.get(
+        city.lower(), (34.1526, 77.5771, "cold", 1000.0, 5.5, "synthetic", DataProvenance.SIMULATED)
+    )
 
     return ClimateProfile(
         city=city.lower(),
@@ -765,6 +782,11 @@ def create_mock_climate_profile(
         hourly_wind_speed=ws_series,
         hourly_humidity=rh_series,
         climate_zone=zone,
+        elevation_m=elev,
+        timezone_offset_hours=tz,
+        data_source=src,
+        data_provenance=prov,
+        data_confidence=0.95,
     )
 
 
@@ -809,12 +831,14 @@ def create_mock_shelter_design(
 
 def adapt_to_climate_profile(raw_data: Union[ClimateProfile, Dict[str, Any]]) -> ClimateProfile:
     """
-    Adapter converting raw dictionary or existing weather service output into validated ClimateProfile.
+    Adapter converting raw dictionary, Pydantic model, or weather service output into validated ClimateProfile.
     """
     if isinstance(raw_data, ClimateProfile):
         return raw_data
     elif type(raw_data).__name__ == "ClimateProfile" and hasattr(raw_data, "to_dict"):
         return ClimateProfile.from_dict(raw_data.to_dict())
+    elif hasattr(raw_data, "model_dump"):
+        return ClimateProfile.from_dict(raw_data.model_dump())
     elif isinstance(raw_data, dict):
         return ClimateProfile.from_dict(raw_data)
     else:
@@ -823,7 +847,7 @@ def adapt_to_climate_profile(raw_data: Union[ClimateProfile, Dict[str, Any]]) ->
 
 def adapt_to_shelter_design(raw_data: Union[ShelterDesign, Dict[str, Any]]) -> ShelterDesign:
     """
-    Adapter converting raw dictionary or design config into validated ShelterDesign.
+    Adapter converting raw dictionary or design config into validated canonical ShelterDesign.
     """
     if isinstance(raw_data, ShelterDesign):
         return raw_data

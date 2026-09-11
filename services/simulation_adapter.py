@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Union
 from services.contracts import (
     ClimateProfile,
     ShelterDesign,
+    SimulationEnvelopeParameters,
     SimulationInput,
     SimulationResult,
     OptimizationInput,
@@ -40,8 +41,35 @@ class SimulationAdapter:
     to Member 3's simulation execution pipeline.
     """
 
-    @staticmethod
+    @classmethod
+    def extract_envelope_parameters(cls, design: ShelterDesign) -> SimulationEnvelopeParameters:
+        """
+        Extracts lumped multi-layer thermal envelope parameters from canonical ShelterDesign.
+        """
+        p = design.to_simulation_parameters()
+        return SimulationEnvelopeParameters(
+            wall_u_value=p["wall_u_value"],
+            roof_u_value=p["roof_u_value"],
+            floor_u_value=p["floor_u_value"],
+            window_u_value=p["window_u_value"],
+            window_shgc=p["window_shgc"],
+            window_area_m2=p["window_area_m2"],
+            gross_wall_area_m2=p["gross_wall_area_m2"],
+            roof_area_m2=p["roof_area_m2"],
+            floor_area_m2=p["floor_area_m2"],
+            volume_m3=p["volume_m3"],
+            effective_thermal_capacity_j_k=p["effective_thermal_capacity_j_k"],
+            orientation_deg=p["orientation_deg"],
+            ach=p["ach"],
+            occupants=p["occupants"],
+            heat_per_person=p["heat_per_person"],
+            roof_type=p["roof_type"],
+            pitch_angle_deg=p["pitch_angle_deg"],
+        )
+
+    @classmethod
     def to_simulation_input(
+        cls,
         climate: Union[ClimateProfile, Dict[str, Any]],
         design: Union[ShelterDesign, Dict[str, Any]],
         hours_to_simulate: int = 168,
@@ -63,6 +91,7 @@ class SimulationAdapter:
         """
         cp = adapt_to_climate_profile(climate)
         sd = adapt_to_shelter_design(design)
+        env_params = cls.extract_envelope_parameters(sd)
 
         return SimulationInput(
             climate=cp,
@@ -70,6 +99,7 @@ class SimulationAdapter:
             hours_to_simulate=hours_to_simulate,
             substeps=substeps,
             initial_indoor_temp=initial_indoor_temp,
+            envelope_parameters=env_params,
         )
 
     @staticmethod
@@ -90,6 +120,18 @@ class SimulationAdapter:
         c = sim_input.climate
         d = sim_input.design
 
+        glaze_val = d.glazing.id if hasattr(d.glazing, "id") else str(d.glazing)
+        if "low_e" in glaze_val.lower() and "argon" in glaze_val.lower():
+            glaze_str = "double_low_e"
+        elif "double_clear" in glaze_val.lower():
+            glaze_str = "double_clear"
+        elif "single" in glaze_val.lower():
+            glaze_str = "single_clear"
+        elif "triple" in glaze_val.lower():
+            glaze_str = "triple_low_e"
+        else:
+            glaze_str = glaze_val
+
         # Execute using the authoritative simulation service
         raw_res = run_simulation(
             city=c.city,
@@ -101,7 +143,7 @@ class SimulationAdapter:
             insulation_thickness_m=d.insulation_thickness_m,
             insulation_conductivity=d.insulation_conductivity,
             window_area=d.window_area,
-            glazing=d.glazing,
+            glazing=glaze_str,
             orientation=d.orientation,
             roof_type=d.roof_type,
             pitch_angle_deg=d.pitch_angle_deg,
