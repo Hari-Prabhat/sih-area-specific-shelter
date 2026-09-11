@@ -1,0 +1,93 @@
+{
+  "version": "1.0.0",
+  "location": {
+    "place_name": "Jaisalmer, Rajasthan",
+    "latitude": 26.9157,
+    "longitude": 70.9083,
+    "elevation": 225.0,
+    "timezone": "Asia/Kolkata",
+    "country": "India",
+    "region": "Rajasthan",
+    "source": "IMD Jaisalmer Climatological Tables & MNRE Solar Map"
+  },
+  "climate": {
+    "classification": "HOT DRY",
+    "annual_mean_temperature": 27.2,
+    "minimum_temperature": 2.5,
+    "maximum_temperature": 49.2,
+    "diurnal_range_mean": 15.4,
+    "monthly_temperatures": [15.2, 18.6, 24.8, 30.9, 35.1, 36.2, 33.8, 31.6, 31.0, 28.1, 22.0, 16.8],
+    "temperature_profile": {
+      "winter_mean": 16.9,
+      "spring_mean": 27.8,
+      "summer_mean": 35.0,
+      "autumn_mean": 27.0
+    }
+  },
+  "solar": {
+    "GHI": 256.8,
+    "DNI": 340.0,
+    "DHI": 72.0,
+    "annual_solar_ghi_kwh_m2": 2250.0,
+    "peak_sun_hours_day": 6.16,
+    "unit": "W/m²",
+    "temporal_resolution": "annual_mean_flux",
+    "source": "MNRE Solar Resource Map & NREL NSRDB",
+    "provenance": "HISTORICAL"
+  },
+  "wind": {
+    "average_speed": 4.2,
+    "prevailing_direction": "SW",
+    "seasonal_profile": {
+      "winter": 2.8,
+      "spring": 4.1,
+      "summer": 6.2,
+      "autumn": 3.7
+    },
+    "source": "IMD Climatological Tables",
+    "provenance": "HISTORICAL"
+  },
+  "humidity": {
+    "average_relative_humidity": 28.5,
+    "min_relative_humidity": 14.0,
+    "max_relative_humidity": 55.0,
+    "seasonal_profile": {
+      "winter": 28.0,
+      "spring": 20.0,
+      "summer": 24.0,
+      "autumn": 42.0
+    },
+    "source": "IMD Climatological Tables",
+    "provenance": "HISTORICAL"
+  },
+  "design_extremes": {
+    "cold_extreme": 7.0,
+    "hot_extreme": 46.0,
+    "heating_degree_days_18c": 220.0,
+    "cooling_degree_days_18c": 3400.0,
+    "relevant_design_values": {
+      "ashrae_cooling_004": 47.1,
+      "summer_peak_noon_ghi": 1020.0
+    }
+  },
+  "data_quality": {
+    "confidence": "HIGH",
+    "provenance": "HISTORICAL",
+    "sources": [
+      "IMD Jaisalmer Climatological Normals",
+      "MNRE Solar Resource Map",
+      "Bureau of Energy Efficiency (BEE) ECBC"
+    ],
+    "notes": "Verified Thar Desert hot-arid benchmark. Extreme summer daytime temperatures exceeding 45°C, intense direct solar radiation, very low relative humidity."
+  },
+  "current_weather": {
+    "temperature": 38.5,
+    "relative_humidity": 22.0,
+    "wind_speed": 4.8,
+    "wind_direction": 220.0,
+    "solar_irradiance": 820.0,
+    "timestamp": "2026-05-15T13:00:00+05:30",
+    "is_observed": false,
+    "source": "Local Fallback Benchmark"
+  }
+}

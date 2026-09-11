@@ -1,0 +1,819 @@
+[
+  {
+    "id": "mud_brick",
+    "name": "Mud Brick (Adobe / Sun-Dried Earth Brick)",
+    "category": "wall",
+    "density": {
+      "typical_value": 1600.0,
+      "min_value": 1400.0,
+      "max_value": 1850.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.6,
+      "min_value": 0.45,
+      "max_value": 0.85,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1000.0,
+      "min_value": 880.0,
+      "max_value": 1150.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.85,
+      "max_value": 0.93,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.7,
+      "min_value": 0.6,
+      "max_value": 0.8,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 50.0,
+      "min_value": 30.0,
+      "max_value": 75.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 3792 / ASHRAE Fundamentals / TERI Ladakh Vernacular Architecture Studies",
+    "notes": "Traditional indigenous construction material widely used in Ladakh (Leh/Kargil). Excellent thermal mass providing high thermal inertia, dampening extreme diurnal temperature fluctuations."
+  },
+  {
+    "id": "rammed_earth",
+    "name": "Rammed Earth (Stabilized / Unstabilized)",
+    "category": "wall",
+    "density": {
+      "typical_value": 2000.0,
+      "min_value": 1800.0,
+      "max_value": 2200.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 1.05,
+      "min_value": 0.8,
+      "max_value": 1.3,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1050.0,
+      "min_value": 950.0,
+      "max_value": 1200.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.85,
+      "max_value": 0.94,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.72,
+      "min_value": 0.65,
+      "max_value": 0.82,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 65.0,
+      "min_value": 45.0,
+      "max_value": 90.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "CIBSE Guide A (Environmental Design) & CRATerre Earth Architecture Datasets",
+    "notes": "Monolithic compacted earth walls providing high thermal capacitance, structural durability, and low embodied carbon."
+  },
+  {
+    "id": "stone_granite",
+    "name": "Granite Stone Masonry",
+    "category": "wall",
+    "density": {
+      "typical_value": 2600.0,
+      "min_value": 2400.0,
+      "max_value": 2800.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 2.8,
+      "min_value": 2.1,
+      "max_value": 3.5,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 820.0,
+      "min_value": 780.0,
+      "max_value": 900.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.86,
+      "max_value": 0.94,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.65,
+      "min_value": 0.55,
+      "max_value": 0.75,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 90.0,
+      "min_value": 70.0,
+      "max_value": 130.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "ASHRAE Handbook - Fundamentals (Chapter 26) & NBC 2016 Part 8",
+    "notes": "Abundant local stone in high Himalayas. High density and high thermal conductivity; requires pairing with insulation on exterior or interior."
+  },
+  {
+    "id": "stone_sandstone",
+    "name": "Sandstone Masonry Block",
+    "category": "wall",
+    "density": {
+      "typical_value": 2200.0,
+      "min_value": 2000.0,
+      "max_value": 2400.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 1.8,
+      "min_value": 1.3,
+      "max_value": 2.3,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 920.0,
+      "min_value": 850.0,
+      "max_value": 1000.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.85,
+      "max_value": 0.93,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.68,
+      "min_value": 0.58,
+      "max_value": 0.78,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 80.0,
+      "min_value": 60.0,
+      "max_value": 110.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 3792 / NBC 2016",
+    "notes": "Sedimentary building stone widely used in northern/western Indian architecture."
+  },
+  {
+    "id": "concrete_standard",
+    "name": "Standard Reinforced / Plain Concrete",
+    "category": "thermal_mass",
+    "density": {
+      "typical_value": 2300.0,
+      "min_value": 2200.0,
+      "max_value": 2450.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 1.4,
+      "min_value": 1.1,
+      "max_value": 1.75,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 880.0,
+      "min_value": 800.0,
+      "max_value": 1000.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.93,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.65,
+      "min_value": 0.6,
+      "max_value": 0.72,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 110.0,
+      "min_value": 90.0,
+      "max_value": 150.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 456 / IS 3792 / EN ISO 10456",
+    "notes": "Standard structural concrete used in slabs, foundations, and footings. High thermal storage capacity."
+  },
+  {
+    "id": "autoclaved_aerated_concrete",
+    "name": "Autoclaved Aerated Concrete (AAC) Block",
+    "category": "wall",
+    "density": {
+      "typical_value": 550.0,
+      "min_value": 450.0,
+      "max_value": 650.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.16,
+      "min_value": 0.12,
+      "max_value": 0.2,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1000.0,
+      "min_value": 900.0,
+      "max_value": 1100.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.86,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.45,
+      "min_value": 0.35,
+      "max_value": 0.55,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 70.0,
+      "min_value": 55.0,
+      "max_value": 95.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 2185 (Part 3) / EN 771-4",
+    "notes": "Lightweight precast masonry unit offering good self-insulating properties with low density."
+  },
+  {
+    "id": "fired_clay_brick",
+    "name": "Fired Clay Brick Masonry",
+    "category": "wall",
+    "density": {
+      "typical_value": 1800.0,
+      "min_value": 1600.0,
+      "max_value": 2000.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.81,
+      "min_value": 0.68,
+      "max_value": 0.95,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 880.0,
+      "min_value": 800.0,
+      "max_value": 960.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.93,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.7,
+      "min_value": 0.62,
+      "max_value": 0.78,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 85.0,
+      "min_value": 65.0,
+      "max_value": 115.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 1077 / IS 3792 / ASHRAE Fundamentals",
+    "notes": "Standard conventional kiln-fired red clay brick."
+  },
+  {
+    "id": "wood_timber_pine",
+    "name": "Softwood Timber (Himalayan Pine / Cedar / Deodar)",
+    "category": "roof",
+    "density": {
+      "typical_value": 500.0,
+      "min_value": 420.0,
+      "max_value": 600.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.13,
+      "min_value": 0.11,
+      "max_value": 0.16,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1600.0,
+      "min_value": 1400.0,
+      "max_value": 1850.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.85,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.6,
+      "min_value": 0.5,
+      "max_value": 0.7,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 350.0,
+      "min_value": 280.0,
+      "max_value": 500.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 3792 / EN ISO 10456 / Wood Handbook (USDA FPL)",
+    "notes": "Structural framing, rafters, purlins, and roof underlayment in Himalayan cold-climate shelters."
+  },
+  {
+    "id": "straw_bale",
+    "name": "Compressed Straw Bale (Wheat / Barley)",
+    "category": "insulation",
+    "density": {
+      "typical_value": 110.0,
+      "min_value": 90.0,
+      "max_value": 140.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.06,
+      "min_value": 0.05,
+      "max_value": 0.075,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1800.0,
+      "min_value": 1600.0,
+      "max_value": 2000.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.85,
+      "max_value": 0.93,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.6,
+      "min_value": 0.5,
+      "max_value": 0.7,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 18.0,
+      "min_value": 12.0,
+      "max_value": 28.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "FASBA Straw Bale Construction Norms & ISO 10456",
+    "notes": "Ultra-low embodied carbon bio-insulation. Ideal for thick external insulation wraps in rural cold valleys."
+  },
+  {
+    "id": "eps_insulation",
+    "name": "Expanded Polystyrene (EPS) Board",
+    "category": "insulation",
+    "density": {
+      "typical_value": 25.0,
+      "min_value": 15.0,
+      "max_value": 35.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.036,
+      "min_value": 0.032,
+      "max_value": 0.04,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1450.0,
+      "min_value": 1300.0,
+      "max_value": 1550.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.3,
+      "min_value": 0.2,
+      "max_value": 0.4,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 60.0,
+      "min_value": 45.0,
+      "max_value": 85.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "ASTM C578 / IS 4671 / ASHRAE Handbook",
+    "notes": "Cost-effective, rigid cellular thermal insulation widely used in external wall insulation systems (EIFS) and prefab panels."
+  },
+  {
+    "id": "xps_insulation",
+    "name": "Extruded Polystyrene (XPS) Board",
+    "category": "insulation",
+    "density": {
+      "typical_value": 35.0,
+      "min_value": 28.0,
+      "max_value": 45.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.029,
+      "min_value": 0.027,
+      "max_value": 0.034,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1500.0,
+      "min_value": 1400.0,
+      "max_value": 1600.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.35,
+      "min_value": 0.25,
+      "max_value": 0.45,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 120.0,
+      "min_value": 95.0,
+      "max_value": 160.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "ASTM C578 / EN 13164 / ISO 10456",
+    "notes": "Closed-cell foam with high moisture resistance and high compressive strength. Recommended for sub-slab ground floor insulation."
+  },
+  {
+    "id": "mineral_wool",
+    "name": "Rock Mineral Wool Batt / Board",
+    "category": "insulation",
+    "density": {
+      "typical_value": 60.0,
+      "min_value": 40.0,
+      "max_value": 100.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.038,
+      "min_value": 0.034,
+      "max_value": 0.044,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1030.0,
+      "min_value": 900.0,
+      "max_value": 1150.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.5,
+      "min_value": 0.4,
+      "max_value": 0.6,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 85.0,
+      "min_value": 65.0,
+      "max_value": 115.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 8183 / EN 13162 / ASHRAE Handbook",
+    "notes": "Non-combustible stone wool offering superior fire resistance and acoustic absorption."
+  },
+  {
+    "id": "glass_wool",
+    "name": "Glass Wool (Fiberglass) Batt Blanket",
+    "category": "insulation",
+    "density": {
+      "typical_value": 24.0,
+      "min_value": 16.0,
+      "max_value": 48.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.04,
+      "min_value": 0.035,
+      "max_value": 0.048,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 840.0,
+      "min_value": 750.0,
+      "max_value": 950.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.4,
+      "min_value": 0.3,
+      "max_value": 0.5,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 55.0,
+      "min_value": 40.0,
+      "max_value": 75.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 8183 / ASTM C167",
+    "notes": "Lightweight fiberglass thermal insulation blanket for cavities and ceiling attics."
+  },
+  {
+    "id": "polyurethane_foam",
+    "name": "Rigid Polyurethane / Polyisocyanurate (PIR) Board",
+    "category": "insulation",
+    "density": {
+      "typical_value": 32.0,
+      "min_value": 28.0,
+      "max_value": 40.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.024,
+      "min_value": 0.022,
+      "max_value": 0.028,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1400.0,
+      "min_value": 1300.0,
+      "max_value": 1500.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.88,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.35,
+      "min_value": 0.25,
+      "max_value": 0.45,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 140.0,
+      "min_value": 110.0,
+      "max_value": 180.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "EN 13165 / ASTM C591",
+    "notes": "High-performance foam insulation with lowest thermal conductivity among organic foams."
+  },
+  {
+    "id": "composite_insulation_aerogel",
+    "name": "Silica Aerogel Composite Blanket",
+    "category": "insulation",
+    "density": {
+      "typical_value": 150.0,
+      "min_value": 120.0,
+      "max_value": 180.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.015,
+      "min_value": 0.013,
+      "max_value": 0.018,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1000.0,
+      "min_value": 900.0,
+      "max_value": 1100.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.88,
+      "min_value": 0.84,
+      "max_value": 0.92,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.35,
+      "min_value": 0.25,
+      "max_value": 0.45,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 650.0,
+      "min_value": 480.0,
+      "max_value": 900.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "NIST Thermal Properties Database & Aspen Aerogels Lab Test Specs",
+    "notes": "Ultra-thin composite insulation for extreme space-constrained modular shelters."
+  },
+  {
+    "id": "trombe_wall_mass",
+    "name": "Trombe Wall Heavy Storage Core (High-Density Stone/Concrete)",
+    "category": "thermal_mass",
+    "density": {
+      "typical_value": 2400.0,
+      "min_value": 2300.0,
+      "max_value": 2550.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 1.75,
+      "min_value": 1.5,
+      "max_value": 2.05,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1000.0,
+      "min_value": 900.0,
+      "max_value": 1100.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.92,
+      "min_value": 0.88,
+      "max_value": 0.95,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.95,
+      "min_value": 0.9,
+      "max_value": 0.98,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 140.0,
+      "min_value": 110.0,
+      "max_value": 190.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "Passive Solar Design Handbook (DOE/CE-0063) & SECMOL Ladakh Field Tests",
+    "notes": "South-facing solar thermal storage wall with selective high-absorptivity finish. Releases stored solar heat over night."
+  },
+  {
+    "id": "corrugated_galvanized_iron_cgi",
+    "name": "Corrugated Galvanized Iron (CGI) Sheet",
+    "category": "roof",
+    "density": {
+      "typical_value": 7850.0,
+      "min_value": 7800.0,
+      "max_value": 7900.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 50.0,
+      "min_value": 45.0,
+      "max_value": 55.0,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 480.0,
+      "min_value": 450.0,
+      "max_value": 520.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.28,
+      "min_value": 0.2,
+      "max_value": 0.4,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.65,
+      "min_value": 0.55,
+      "max_value": 0.8,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 85.0,
+      "min_value": 65.0,
+      "max_value": 115.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 277 / ASHRAE Handbook",
+    "notes": "Common rapid-roofing sheet for emergency shelters. High thermal conductivity; requires thick insulation underneath."
+  },
+  {
+    "id": "plywood_sheathing",
+    "name": "Plywood / OSB Structural Sheathing",
+    "category": "floor",
+    "density": {
+      "typical_value": 600.0,
+      "min_value": 500.0,
+      "max_value": 700.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 0.13,
+      "min_value": 0.11,
+      "max_value": 0.15,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1700.0,
+      "min_value": 1500.0,
+      "max_value": 1900.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.86,
+      "max_value": 0.93,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.6,
+      "min_value": 0.5,
+      "max_value": 0.7,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 220.0,
+      "min_value": 170.0,
+      "max_value": 290.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 303 / EN ISO 10456",
+    "notes": "Lightweight floor and inner lining material for prefabricated modular emergency shelters."
+  },
+  {
+    "id": "soil_gravel_floor_bed",
+    "name": "Compacted Soil & Gravel Sub-Floor Bed",
+    "category": "floor",
+    "density": {
+      "typical_value": 1750.0,
+      "min_value": 1550.0,
+      "max_value": 1950.0,
+      "unit": "kg/m\u00b3"
+    },
+    "thermal_conductivity": {
+      "typical_value": 1.2,
+      "min_value": 0.9,
+      "max_value": 1.55,
+      "unit": "W/m\u00b7K"
+    },
+    "specific_heat": {
+      "typical_value": 1100.0,
+      "min_value": 920.0,
+      "max_value": 1300.0,
+      "unit": "J/kg\u00b7K"
+    },
+    "emissivity": {
+      "typical_value": 0.9,
+      "min_value": 0.85,
+      "max_value": 0.94,
+      "unit": "dimensionless"
+    },
+    "solar_absorptivity": {
+      "typical_value": 0.75,
+      "min_value": 0.68,
+      "max_value": 0.82,
+      "unit": "dimensionless"
+    },
+    "cost_estimate": {
+      "typical_value": 20.0,
+      "min_value": 10.0,
+      "max_value": 35.0,
+      "unit": "USD/m\u00b3"
+    },
+    "source": "IS 3792 / CIBSE Guide A",
+    "notes": "Direct ground contact thermal mass layer under insulated perimeter foundations."
+  }
+]

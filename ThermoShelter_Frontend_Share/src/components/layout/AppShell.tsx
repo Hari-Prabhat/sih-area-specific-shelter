@@ -2,7 +2,6 @@ import React, { useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { useDesignStore } from "../../store/designStore";
 import { Play, Sparkles, AlertCircle, MapPin } from "lucide-react";
-import { LanguageSelector } from "../common/LanguageSelector";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -134,10 +133,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 Permanent (Masonry)
               </button>
             </div>
-
-            <div className="hidden md:block h-4 w-px bg-slate-800" />
-
-            <LanguageSelector />
           </div>
 
           {/* Primary Quick-Trigger Simulation Action Buttons */}

@@ -14,7 +14,6 @@ import { DigitalTwinPage } from "./pages/DigitalTwinPage";
 import { FloorplanPage } from "./pages/FloorplanPage";
 import { ValidationPage } from "./pages/ValidationPage";
 import { ReportPage } from "./pages/ReportPage";
-import { I18nProvider } from "./i18n/I18nProvider";
 
 export const App: React.FC = () => {
   const { activeTab } = useDesignStore();
@@ -52,11 +51,7 @@ export const App: React.FC = () => {
     }
   };
 
-  return (
-    <I18nProvider>
-      <AppShell>{renderActivePage()}</AppShell>
-    </I18nProvider>
-  );
+  return <AppShell>{renderActivePage()}</AppShell>;
 };
 
 export default App;

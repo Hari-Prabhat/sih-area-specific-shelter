@@ -1,8 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useDesignStore } from "../store/designStore";
 import { SectionHeader } from "../components/common/SectionHeader";
 import { MetricCard } from "../components/common/MetricCard";
-import { WeatherCard } from "../components/common/WeatherCard";
 import {
   Thermometer,
   Sun,
@@ -29,25 +28,6 @@ export const ClimatePage: React.FC = () => {
   const temps = climateData?.hourly_temperature || [];
   const solar = climateData?.hourly_direct_solar || [];
   const humidity = climateData?.hourly_humidity || [];
-
-  const weatherDefaults = useMemo(() => {
-    if (climateData && typeof climateData.latitude === "number" && typeof climateData.longitude === "number") {
-      const selected = cities.find((c) => c.id === selectedCity);
-      const name = selected
-        ? selected.display.replace(/^[^\w\s\u4e00-\u9fff\u0900-\u097f\u0c00-\u0c7f]+\s*/, "").replace(/\s*\(.*\)\s*$/, "")
-        : undefined;
-      return {
-        lat: climateData.latitude,
-        lon: climateData.longitude,
-        name,
-        fallback: "Leh",
-      };
-    }
-    if (cities.length > 0 && cities[0]) {
-      return { lat: undefined, lon: undefined, name: undefined, fallback: cities[0].display.split("(")[0].trim() };
-    }
-    return { lat: undefined, lon: undefined, name: undefined, fallback: "Delhi" };
-  }, [climateData, cities, selectedCity]);
 
   // Build chart dataset
   const chartData = [];
@@ -132,43 +112,32 @@ export const ClimatePage: React.FC = () => {
         }
       />
 
-      {/* Live Weather & Location Search */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1">
-          <WeatherCard
-            defaultLatitude={weatherDefaults.lat}
-            defaultLongitude={weatherDefaults.lon}
-            defaultLocationName={weatherDefaults.name}
-            fallbackCity={weatherDefaults.fallback}
-          />
+      {/* If no location chosen yet */}
+      {!selectedCity && (
+        <div className="eng-panel p-8 text-center border-2 border-amber-400/60 bg-amber-950/10 space-y-3">
+          <MapPin className="w-10 h-10 text-amber-400 mx-auto animate-bounce" />
+          <h3 className="text-base font-bold text-white">Please Choose a Deployment Location</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">
+            Select a location from the dropdown in the top bar or above to load authentic hourly EPW weather curves, solar flux, and engineering guidelines.
+          </p>
+          <div className="flex justify-center gap-2 pt-2">
+            {cities.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCity(c.id)}
+                className="px-3 py-1.5 bg-slate-900 border border-slate-700 hover:border-sky-400 text-slate-200 text-xs font-mono rounded-lg transition-all cursor-pointer"
+              >
+                {c.display.split("(")[0].trim()}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="lg:col-span-2">
-          {/* If no location chosen yet */}
-          {!selectedCity && (
-            <div className="eng-panel p-8 text-center border-2 border-amber-400/60 bg-amber-950/10 space-y-3 h-full flex flex-col justify-center">
-              <MapPin className="w-10 h-10 text-amber-400 mx-auto animate-bounce" />
-              <h3 className="text-base font-bold text-white">Please Choose a Deployment Location</h3>
-              <p className="text-xs text-slate-300 max-w-md mx-auto">
-                Select a location from the dropdown in the top bar or above to load authentic hourly EPW weather curves, solar flux, and engineering guidelines.
-              </p>
-              <div className="flex justify-center gap-2 pt-2 flex-wrap">
-                {cities.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setCity(c.id)}
-                    className="px-3 py-1.5 bg-slate-900 border border-slate-700 hover:border-sky-400 text-slate-200 text-xs font-mono rounded-lg transition-all cursor-pointer"
-                  >
-                    {c.display.split("(")[0].trim()}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+      )}
 
-          {selectedCity && (
-            <>
-              {/* Hero Environmental Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 h-full">
+      {selectedCity && (
+        <>
+          {/* Hero Environmental Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <MetricCard
               label="Design Elevation"
               value={meta.elevation || "3,524 m"}
@@ -319,8 +288,6 @@ export const ClimatePage: React.FC = () => {
           </div>
         </>
       )}
-        </div>
-      </div>
     </div>
   );
 };
