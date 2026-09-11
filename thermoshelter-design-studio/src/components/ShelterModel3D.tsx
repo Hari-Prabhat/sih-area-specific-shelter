@@ -135,10 +135,18 @@ function DimensionLabel({ start, end, label, offset = 0.5 }: {
 function RectangularShelter({ design, wallColor, accentColor }: {
   design: ShelterDesign; wallColor: string; accentColor: string;
 }) {
-  const { length, width, height, roofAngle, wallThickness } = design;
+  const { length, width, height, roofAngle, wallThickness, windowArea, insulationType, thermalMassEnabled } = design;
   const roofRad = (roofAngle * Math.PI) / 180;
   const roofPeak = Math.tan(roofRad) * (width / 2);
   const roofHyp = (width / 2) / Math.cos(roofRad);
+
+  // Dynamic window sizing from windowArea
+  const numFrontWindows = 2;
+  const singleWinArea = Math.max(0.2, (windowArea || 3) / numFrontWindows);
+  const winW = Math.max(0.6, Math.min(2.4, Math.round(Math.sqrt(singleWinArea * 1.2) * 100) / 100));
+  const winH = Math.max(0.6, Math.min(2.0, Math.round((singleWinArea / winW) * 100) / 100));
+
+  const hasInsulation = Boolean(insulationType && insulationType !== 'None');
 
   return (
     <group>
@@ -164,6 +172,14 @@ function RectangularShelter({ design, wallColor, accentColor }: {
         <meshStandardMaterial color={wallColor} roughness={0.8} />
       </mesh>
 
+      {/* ── insulation envelope visual layer (yellow outline layer) ── */}
+      {hasInsulation && (
+        <mesh position={[0, height / 2, 0]}>
+          <boxGeometry args={[length + 0.12, height + 0.05, width + 0.12]} />
+          <meshStandardMaterial color="#eab308" transparent opacity={0.15} wireframe />
+        </mesh>
+      )}
+
       {/* ── pitched roof ── */}
       <mesh position={[0, height + roofPeak / 2, width / 4]}
         rotation={[roofRad, 0, 0]} castShadow>
@@ -187,15 +203,23 @@ function RectangularShelter({ design, wallColor, accentColor }: {
         <meshStandardMaterial color="#4a4a48" roughness={0.9} />
       </mesh>
 
-      {/* ── windows on front wall ── */}
-      <WindowPanel position={[-length / 4, height / 2, width / 2 + 0.16]}
-        rotation={[0, 0, 0]} width={1.2} height={1.0} />
-      <WindowPanel position={[length / 4, height / 2, width / 2 + 0.16]}
-        rotation={[0, 0, 0]} width={1.2} height={1.0} />
+      {/* ── sensible thermal mass core slab ── */}
+      {thermalMassEnabled && (
+        <mesh position={[0, 0.11, 0]} receiveShadow>
+          <boxGeometry args={[length * 0.8, 0.04, width * 0.8]} />
+          <meshStandardMaterial color="#3b82f6" roughness={0.5} opacity={0.8} transparent />
+        </mesh>
+      )}
 
-      {/* ── windows on back wall ── */}
+      {/* ── dynamic windows on front wall ── */}
+      <WindowPanel position={[-length / 4, height / 2, width / 2 + 0.16]}
+        rotation={[0, 0, 0]} width={winW} height={winH} />
+      <WindowPanel position={[length / 4, height / 2, width / 2 + 0.16]}
+        rotation={[0, 0, 0]} width={winW} height={winH} />
+
+      {/* ── window on back wall ── */}
       <WindowPanel position={[0, height / 2, -(width / 2 + 0.16)]}
-        rotation={[0, Math.PI, 0]} width={1.2} height={1.0} />
+        rotation={[0, Math.PI, 0]} width={winW * 0.8} height={winH * 0.8} />
 
       {/* ── door on front ── */}
       <Door position={[0, 1.05, width / 2 + 0.06]} rotation={[0, 0, 0]} />

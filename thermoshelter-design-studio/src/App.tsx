@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Shield, Sun, Thermometer, Wind, Mountain, Settings, BarChart3, Layers, ChevronRight, Sparkles } from 'lucide-react';
+import { Shield, Sun, Thermometer, Wind, Mountain, Settings, BarChart3, Layers, ChevronRight, Sparkles, Ruler } from 'lucide-react';
 import ClimateInput from './components/ClimateInput';
 import ShelterDesigner from './components/ShelterDesigner';
 import SimulationResults from './components/SimulationResults';
 import ComparativeAnalysis from './components/ComparativeAnalysis';
 import DesignStudio from './components/DesignStudio';
+import EngineeringBlueprint from './components/EngineeringBlueprint';
 import { ClimateData, ShelterDesign, SimulationResult, runSimulation } from './utils/thermalEngine';
 import { runSimulationViaApi } from './services/api';
 import { getMaterialByName } from './data/materials';
 import { climatePresets } from './data/climatePresets';
 
-type TabType = 'studio' | 'dashboard' | 'climate' | 'design' | 'results' | 'compare';
+type TabType = 'studio' | 'dashboard' | 'climate' | 'design' | 'blueprint' | 'results' | 'compare';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('studio');
@@ -61,6 +62,7 @@ function App() {
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: Shield },
     { id: 'climate' as TabType, label: 'Climate Data', icon: Thermometer },
     { id: 'design' as TabType, label: 'Shelter Design', icon: Settings },
+    { id: 'blueprint' as TabType, label: 'Blueprint', icon: Ruler },
     { id: 'results' as TabType, label: 'Results', icon: BarChart3 },
     { id: 'compare' as TabType, label: 'Compare', icon: Layers },
   ];
@@ -122,6 +124,14 @@ function App() {
             selectedMaterial={selectedMaterial}
             setSelectedMaterial={setSelectedMaterial}
             onRunSimulation={handleRunSimulation}
+            isSimulating={isSimulating}
+          />
+        )}
+        {activeTab === 'blueprint' && (
+          <EngineeringBlueprint
+            design={shelterDesign}
+            materialName={selectedMaterial}
+            locationName={climateData.location}
           />
         )}
         {activeTab === 'results' && simulationResult && (
