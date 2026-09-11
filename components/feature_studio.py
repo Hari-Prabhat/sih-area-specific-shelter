@@ -45,9 +45,6 @@ from services.climate_service import get_climate_data
 from services.visual3d import build_3d_shelter
 
 
-from i18n import t, get_current_language
-
-
 def render_shelter_designer_studio(
     req: Dict[str, Any],
     is_dark: bool = True,
@@ -67,7 +64,7 @@ def render_shelter_designer_studio(
 
     # Auto-run if not yet computed for these exact inputs
     if cache_key not in st.session_state:
-        with st.spinner(t("sim_computing_spinner", city=city.upper(), home_type=home_type)):
+        with st.spinner(f"Computing climate-optimized envelope for {city.upper()} ({home_type} Shelter)..."):
             rec = get_recommendation(
                 city=city,
                 people=people,
@@ -78,7 +75,7 @@ def render_shelter_designer_studio(
             )
             sim_res = rec.get("simulation_result")
             if not sim_res or "error" in sim_res:
-                st.error(t("sim_failed_error"))
+                st.error("Simulation failed. Please check weather and material availability.")
                 return
 
             st.session_state[cache_key] = {
@@ -91,13 +88,7 @@ def render_shelter_designer_studio(
     sim_res = data["sim_res"]
 
     st.success(
-        t(
-            "sim_active_success",
-            city=city.upper(),
-            climate_name=rec["climate_name"],
-            discomfort=sim_res["discomfort_degree_hours"],
-            comfort=sim_res["comfort_percentage"],
-        )
+        f"✅ Optimized Design Active for **{city.upper()}** ({rec['climate_name']}) — Discomfort: **{sim_res['discomfort_degree_hours']:.1f} °C·h** | Comfort: **{sim_res['comfort_percentage']:.1f}%**"
     )
 
     # 1, 2, 3: Dashboard Sections
@@ -138,27 +129,32 @@ def render_material_comparison_studio(
     Studio 3: Multi-Material Envelope Comparison Studio.
     Compares all candidate structural materials under strictly identical geometry & boundary conditions.
     """
-    cur_lang = get_current_language()
-    st.subheader(t("mat_studio_title"))
-    st.caption(t("mat_studio_caption"))
+    st.subheader("🧱 Multi-Material Envelope Comparison Studio")
+    st.caption("Compare structural materials under strictly identical climate, geometry, and occupancy.")
 
     m_c1, m_c2, m_c3, m_c4 = st.columns(4)
     with m_c1:
         mat_city = st.selectbox(
-            t("mat_climate_zone"),
+            "Climate Zone",
             ["leh", "jaisalmer", "chennai", "delhi", "bengaluru"],
             index=["leh", "jaisalmer", "chennai", "delhi", "bengaluru"].index(req["city"])
             if req["city"] in ["leh", "jaisalmer", "chennai", "delhi", "bengaluru"]
             else 0,
-            format_func=lambda x, _l=cur_lang: t(f"city_short_{x}", lang=_l),
+            format_func=lambda x: {
+                "leh": "🏔️ Leh (Cold)",
+                "jaisalmer": "🏜️ Jaisalmer (Hot-Dry)",
+                "chennai": "🌊 Chennai (Humid)",
+                "delhi": "🏙️ Delhi (Composite)",
+                "bengaluru": "🌳 Bengaluru (Moderate)",
+            }[x],
             key="m_city_sel",
         )
     with m_c2:
-        m_ins_mm = st.slider(t("mat_added_ins"), 0, 200, 50, 10, key="m_ins_val")
+        m_ins_mm = st.slider("Added Insulation (mm)", 0, 200, 50, 10, key="m_ins_val")
     with m_c3:
-        m_win = st.slider(t("mat_window_aperture"), 1.0, 8.0, 2.5, 0.5, key="m_win_val")
+        m_win = st.slider("Window Aperture (m²)", 1.0, 8.0, 2.5, 0.5, key="m_win_val")
     with m_c4:
-        m_occ = st.slider(t("mat_occupants"), 1, 8, req["people"], key="m_occ_val")
+        m_occ = st.slider("Occupants", 1, 8, req["people"], key="m_occ_val")
 
     all_mat = load_all_materials()
     candidate_materials = [
@@ -207,7 +203,7 @@ def render_material_comparison_studio(
     me_data = st.session_state[cache_key]
 
     # Multi-Material Thermal Curves
-    st.markdown(f"### {t('mat_curves_title')}")
+    st.markdown("### 📈 Multi-Material Thermal Curves")
     fig_mat = go.Figure()
     fig_mat.add_hrect(
         y0=18.0,
@@ -215,7 +211,7 @@ def render_material_comparison_studio(
         fillcolor="rgba(34, 197, 94, 0.16)",
         layer="below",
         line=dict(color="#22c55e", width=1.5, dash="dash"),
-        annotation_text=t("mat_comfort_band"),
+        annotation_text="🌿 Comfort Band (18–24 °C)",
         annotation_position="top left",
     )
     if me_data:
@@ -224,7 +220,7 @@ def render_material_comparison_studio(
                 x=list(range(168)),
                 y=me_data[0]["outdoor_temps"],
                 mode="lines",
-                name=t("mat_outdoor_ambient"),
+                name="Outdoor Ambient",
                 line=dict(color="#94a3b8", width=1.8, dash="dot"),
                 hovertemplate="Outdoor: <b>%{y:.2f} °C</b><extra></extra>",
             )
@@ -244,15 +240,15 @@ def render_material_comparison_studio(
         )
 
     fig_mat.update_xaxes(
-        title=t("mat_chart_time"),
+        title="Time (Simulation Hours)",
         tickmode="array",
         tickvals=[0, 24, 48, 72, 96, 120, 144, 168],
         ticktext=["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7", "End"],
     )
-    fig_mat.update_yaxes(title=t("mat_chart_temp"))
+    fig_mat.update_yaxes(title="Indoor Temperature (°C)")
     apply_chart_theme(
         fig_mat,
-        title_text=t("mat_chart_main_title", city=mat_city.upper()),
+        title_text=f"📈 Indoor Temperature Progression Across Envelope Materials ({mat_city.upper()})",
         height=440,
         is_dark=is_dark,
     )
@@ -260,19 +256,19 @@ def render_material_comparison_studio(
     st.plotly_chart(fig_mat, use_container_width=True)
 
     # Comparative Summary Table
-    st.markdown(f"### {t('mat_table_title')}")
+    st.markdown("### 📋 Material Performance Comparison Table")
     m_table_rows = []
     for r in me_data:
         m_table_rows.append({
-            t("col_wall_material"): r["name"],
-            t("col_k_value"): r["conductivity"],
-            t("col_density"): r["density"],
-            t("col_wall_u"): f"{r['wall_u']:.3f}",
-            t("col_avg_temp"): f"{r['avg_t']:.1f}",
-            t("col_min_temp"): f"{r['min_t']:.1f}",
-            t("col_comfort_hours"): f"{r['comfort_hrs']:.0f} h ({r['comfort_pct']:.1f}%)",
-            t("col_discomfort_dh"): f"{r['discomfort_dh']:.1f}",
-            t("col_weekly_loss"): f"{r['total_loss_kwh']:.1f}",
+            "Material": r["name"],
+            "k (W/m·K)": r["conductivity"],
+            "Density (kg/m³)": r["density"],
+            "Wall U-Value (W/m²K)": f"{r['wall_u']:.3f}",
+            "Avg Temp (°C)": f"{r['avg_t']:.1f}",
+            "Min Temp (°C)": f"{r['min_t']:.1f}",
+            "Comfort Hours": f"{r['comfort_hrs']:.0f} h ({r['comfort_pct']:.1f}%)",
+            "Discomfort (°C·h)": f"{r['discomfort_dh']:.1f}",
+            "Weekly Loss (kWh)": f"{r['total_loss_kwh']:.1f}",
         })
     st.dataframe(pd.DataFrame(m_table_rows), use_container_width=True)
 
@@ -285,52 +281,57 @@ def render_multiple_shelter_models_studio(
     Studio 4: Multiple Shelter Archetype Models.
     Evaluates how building form and roof geometry impact thermal performance under identical floor area.
     """
-    cur_lang = get_current_language()
-    st.subheader(t("arch_studio_title"))
-    st.caption(t("arch_studio_caption"))
+    st.subheader("🏛️ Multiple Shelter Archetype Models")
+    st.caption("Simulate and benchmark distinct shelter geometric forms and roof systems under identical floor area.")
 
     sm_col1, sm_col2, sm_col3 = st.columns(3)
     with sm_col1:
         arch_city = st.selectbox(
-            t("mat_climate_zone"),
+            "Climate Zone",
             ["leh", "jaisalmer", "chennai", "delhi", "bengaluru"],
             index=["leh", "jaisalmer", "chennai", "delhi", "bengaluru"].index(req["city"])
             if req["city"] in ["leh", "jaisalmer", "chennai", "delhi", "bengaluru"]
             else 0,
-            format_func=lambda x, _l=cur_lang: t(f"city_short_{x}", lang=_l),
+            format_func=lambda x: {
+                "leh": "🏔️ Leh (Cold)",
+                "jaisalmer": "🏜️ Jaisalmer (Hot-Dry)",
+                "chennai": "🌊 Chennai (Humid)",
+                "delhi": "🏙️ Delhi (Composite)",
+                "bengaluru": "🌳 Bengaluru (Moderate)",
+            }[x],
             key="arch_c_sel",
         )
     with sm_col2:
         model_choice = st.selectbox(
-            t("arch_model_label"),
+            "Shelter Archetype Model",
             list(SHELTER_MODELS.keys()),
             format_func=lambda k: SHELTER_MODELS[k]["name"],
             key="arch_m_choice",
         )
     with sm_col3:
-        arch_occ = st.slider(t("mat_occupants"), 1, 8, req["people"], key="arch_occ_val")
+        arch_occ = st.slider("Occupants", 1, 8, req["people"], key="arch_occ_val")
 
     sel_spec = SHELTER_MODELS[model_choice]
-    st.info(f"**{t('arch_profile_label')}:** {sel_spec['description']}")
+    st.info(f"**Model Profile:** {sel_spec['description']}")
 
     # Dimension Controls based on selected model
     if model_choice == "custom_dimensions":
         cd1, cd2, cd3, cd4 = st.columns(4)
-        with cd1: arch_l = st.slider(t("arch_len_label"), 2.5, 10.0, 4.0, 0.1, key="cd_l")
-        with cd2: arch_w = st.slider(t("arch_width_label"), 2.5, 10.0, 3.0, 0.1, key="cd_w")
-        with cd3: arch_h = st.slider(t("arch_height_label"), 2.2, 4.0, 2.8, 0.1, key="cd_h")
-        with cd4: arch_rf = st.selectbox(t("arch_roof_label"), ["flat", "pitched"], format_func=lambda r, _l=cur_lang: t(f"arch_roof_{r}", default=r, lang=_l), key="cd_rf")
+        with cd1: arch_l = st.slider("Length (m)", 2.5, 10.0, 4.0, 0.1, key="cd_l")
+        with cd2: arch_w = st.slider("Width (m)", 2.5, 10.0, 3.0, 0.1, key="cd_w")
+        with cd3: arch_h = st.slider("Height (m)", 2.2, 4.0, 2.8, 0.1, key="cd_h")
+        with cd4: arch_rf = st.selectbox("Roof Type", ["flat", "pitched"], key="cd_rf")
     else:
         def_dims = sel_spec["default_dimensions"]
         arch_l = def_dims["length"]
         arch_w = def_dims["width"]
         arch_h = def_dims["height"]
         arch_rf = sel_spec["roof_type"]
-        st.caption(t("arch_geometry_label", length=arch_l, width=arch_w, height=arch_h, roof=t(f"arch_roof_{arch_rf}", default=arch_rf.title(), lang=cur_lang)))
+        st.caption(f"📐 Geometry: **{arch_l:.2f} m × {arch_w:.2f} m × {arch_h:.2f} m** | Roof: **{arch_rf.title()}**")
 
     cache_key = f"arch_{arch_city}_{model_choice}_{arch_l}_{arch_w}_{arch_h}_{arch_rf}_{arch_occ}"
     if cache_key not in st.session_state:
-        with st.spinner(t("arch_sim_spinner", name=sel_spec['name'], city=arch_city.upper())):
+        with st.spinner(f"Simulating {sel_spec['name']} in {arch_city.upper()}…"):
             sim_arch = run_simulation(
                 city=arch_city,
                 length=arch_l,
@@ -389,7 +390,7 @@ def render_multiple_shelter_models_studio(
     cur_sim = arch_data["cur_sim"]
 
     # 3D Model & Floor Plan
-    st.markdown(f"### {t('arch_3d_title')}")
+    st.markdown("### 🏗️ 3D Model & Floor Plan")
     a_g1, a_g2 = st.columns(2)
     ct = CLIMATE_MAPPING.get(arch_city, "composite")
 
@@ -418,18 +419,18 @@ def render_multiple_shelter_models_studio(
     render_simulation_dashboard(arch_city, cur_sim, f"— {sel_spec['name']}", is_dark=is_dark)
 
     # Cross-Archetype Comparative Matrix
-    st.markdown(f"### {t('arch_matrix_title')}")
+    st.markdown("### 📊 Cross-Archetype Comparative Matrix (Identical Floor Area)")
     arch_matrix_rows = []
     for m in arch_data["comp_models"]:
         arch_matrix_rows.append({
-            t("col_arch_model"): m["name"],
-            t("col_roof_profile"): m["roof"],
-            t("col_aspect_ratio"): m["aspect"],
-            t("col_envelope_area"): f"{m['envelope_area']:.1f}",
-            t("col_enclosed_volume"): f"{m['volume']:.1f}",
-            t("col_comfort_percentage"): f"{m['comfort_pct']:.1f} %",
-            t("col_discomfort_score"): f"{m['discomfort_dh']:.1f}",
-            t("col_total_heat_loss"): f"{m['heat_loss_kwh']:.1f}",
+            "Archetype Model": m["name"],
+            "Roof Profile": m["roof"],
+            "Aspect Ratio (L:W)": m["aspect"],
+            "Total Envelope Area (m²)": f"{m['envelope_area']:.1f}",
+            "Enclosed Volume (m³)": f"{m['volume']:.1f}",
+            "Comfort Percentage": f"{m['comfort_pct']:.1f} %",
+            "Discomfort Score (°C·h)": f"{m['discomfort_dh']:.1f}",
+            "Total Heat Loss (kWh)": f"{m['heat_loss_kwh']:.1f}",
         })
     st.dataframe(pd.DataFrame(arch_matrix_rows), use_container_width=True)
 
@@ -442,32 +443,36 @@ def render_sensitivity_analysis_studio(
     Studio 5: Sensitivity Analysis Studio.
     Demonstrates how changing design variables affects comfort percentage and heat loss.
     """
-    cur_lang = get_current_language()
-    st.subheader(t("sens_studio_title"))
-    st.caption(t("sens_studio_caption"))
+    st.subheader("📈 Parametric Sensitivity Analysis Studio")
+    st.caption("Investigate the thermodynamic sensitivity of comfort percentage and envelope heat losses across design parameters.")
 
     s_col1, s_col2 = st.columns(2)
     with s_col1:
         param_choice = st.selectbox(
-            t("sens_param_label"),
+            "Select Parameter to Sweep",
             ["Insulation Thickness (mm)", "Window Aperture Area (m²)", "Glazing Type"],
-            format_func=lambda p, _l=cur_lang: t("sens_param_ins", lang=_l) if "Insulation" in p else (t("sens_param_win", lang=_l) if "Window" in p else t("sens_param_glazing", lang=_l)),
             key="sens_param_choice",
         )
     with s_col2:
         sens_city = st.selectbox(
-            t("mat_climate_zone"),
+            "Climate Zone",
             ["leh", "jaisalmer", "chennai", "delhi", "bengaluru"],
             index=["leh", "jaisalmer", "chennai", "delhi", "bengaluru"].index(req["city"])
             if req["city"] in ["leh", "jaisalmer", "chennai", "delhi", "bengaluru"]
             else 0,
-            format_func=lambda x, _l=cur_lang: t(f"city_short_{x}", lang=_l),
+            format_func=lambda x: {
+                "leh": "🏔️ Leh (Cold)",
+                "jaisalmer": "🏜️ Jaisalmer (Hot-Dry)",
+                "chennai": "🌊 Chennai (Humid)",
+                "delhi": "🏙️ Delhi (Composite)",
+                "bengaluru": "🌳 Bengaluru (Moderate)",
+            }[x],
             key="sens_city_choice",
         )
 
     cache_key = f"sens_{sens_city}_{param_choice}"
     if cache_key not in st.session_state:
-        with st.spinner(t("sens_spinner")):
+        with st.spinner("Running parametric sweep across design space…"):
             if param_choice.startswith("Insulation"):
                 val_range = [0, 20, 40, 60, 80, 100, 120, 150, 180, 200]
                 comfort_list = []

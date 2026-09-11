@@ -20,9 +20,9 @@ def test_build_3d_shelter_all_climates(climate):
         view_mode="normal",
     )
     assert fig is not None
-    # Verify rich architectural digital twin mesh components
-    assert len(fig.data) >= 15
-    assert "3D" in fig.layout.title.text
+    # Verify rich architectural digital twin: should have at least 50 mesh components
+    assert len(fig.data) >= 50
+    assert "3D Digital Twin" in fig.layout.title.text
 
 
 @pytest.mark.parametrize("view_mode", ["normal", "envelope", "thermal", "solar", "ventilation"])
@@ -39,7 +39,7 @@ def test_build_3d_shelter_all_view_modes(view_mode):
         view_mode=view_mode,
     )
     assert fig is not None
-    assert len(fig.data) >= 15
+    assert len(fig.data) >= 50
     assert fig.layout.paper_bgcolor == "#1e293b"
 
 
@@ -52,4 +52,4 @@ def test_build_3d_shelter_fallback_climate():
         window_area=1.5,
     )
     assert fig is not None
-    assert len(fig.data) >= 15
+    assert len(fig.data) >= 50

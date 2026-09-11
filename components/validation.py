@@ -77,54 +77,49 @@ def run_analytical_validation_benchmark() -> Dict[str, Any]:
     }
 
 
-from i18n import t
-
-
 def render_model_assumptions_and_validation() -> None:
     """
     Renders model assumptions, validation benchmarks, and data provenance badges.
     """
-    st.markdown(f"### {t('sec_validation_title')}")
+    st.markdown("### 🔬 Scientific Credibility, Assumptions & Validation")
 
     # Status Badges
     b1, b2, b3 = st.columns(3)
-    b1.success(t("badge_verification"))
-    b2.info(t("badge_weather"))
-    b3.warning(t("badge_cfd"))
+    b1.success("✅ **Analytical Verification:** Validated vs Closed-Form Solutions")
+    b2.info("🌐 **Weather Status:** Verified Reference EPW Datasets (IMD/NREL)")
+    b3.warning("🔬 **High-Fidelity CFD / EnergyPlus:** Future Phase Roadmap")
 
     # 1. Model Assumptions Expandable Section
-    with st.expander(t("expander_assumptions"), expanded=False):
-        st.markdown(
-            f"""
-        {t('assumptions_intro')}
+    with st.expander("📖 Reduced-Order Model Physics Assumptions (Click to Expand)", expanded=False):
+        st.markdown(r"""
+        **ThermoShelter AI implements a reduced-order building energy simulation model formulated for rapid parametric design exploration:**
         
-        {t('assumption_1')}
-        {t('assumption_2')}
-        {t('assumption_3')}
-        {t('assumption_4')}
+        1. **Lumped Thermal Node:** The indoor air mass is represented as a single well-mixed thermal capacitance node with uniform interior temperature $T_{\text{in}}$.
+        2. **1D Multi-Layer Envelope Conduction:** Steady-state Fourier thermal conduction is computed across homogeneous planar layers using standard ISO 6946 surface film resistances ($R_{\text{si}} = 0.13$, $R_{\text{se}} = 0.04\,\text{m}^2\text{K}/\text{W}$).
+        3. **Fenestration Solar Heat Gain:** Solar heat gain is calculated via ASHRAE SHGC model factoring geometric facade orientation vectors and solar incidence angles.
+        4. **Infiltration & Natural Air Exchange:** Volumetric sensible ventilation heat loss is modeled assuming constant air change rate ($\text{ACH} = 0.8\,\text{h}^{-1}$ baseline).
         5. **Linearized Longwave Radiative Exchange:** Radiation losses from external envelope surfaces to the ambient sky vault are modeled using Stefan-Boltzmann grey-body approximations.
-        6. **Explicit Numerical Integration:** Transient indoor temperature progression is resolved using forward Euler numerical sub-stepping ($\Delta t = 60\,\text{{s}}$ to $240\,\text{{s}}$) guaranteeing numerical stability.
+        6. **Explicit Numerical Integration:** Transient indoor temperature progression is resolved using forward Euler numerical sub-stepping ($\Delta t = 60\,\text{s}$ to $240\,\text{s}$) guaranteeing numerical stability.
         7. **Scope Limitation:** This reduced-order model does NOT replace full 3D transient Navier-Stokes CFD or multi-zone EnergyPlus simulations, but achieves high computational efficiency for rapid architectural optimization.
-        """
-        )
+        """)
 
     # 2. Analytical Validation Section
-    with st.expander(t("expander_analytical_val"), expanded=False):
+    with st.expander("📊 Analytical Model Validation & Benchmark Error Metrics", expanded=False):
         benchmark = run_analytical_validation_benchmark()
         ss = benchmark["steady_state"]
         tr = benchmark["transient"]
 
-        st.markdown(f"#### {t('val_ss_title')}")
+        st.markdown("#### 1. Steady-State Conduction Benchmark (ISO 6946 Verification)")
         col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-        col_v1.metric(t("val_ref_conduction"), f"{ss['q_ref_w']:.2f} W")
-        col_v2.metric(t("val_model_calc"), f"{ss['q_calc_w']:.2f} W")
-        col_v3.metric(t("val_mae_error"), f"{ss['mae_w']:.4f} W")
-        col_v4.metric(t("val_rel_error"), f"{ss['rel_error_pct']:.4f} %")
+        col_v1.metric("Reference Conduction", f"{ss['q_ref_w']:.2f} W")
+        col_v2.metric("ThermoShelter Calc", f"{ss['q_calc_w']:.2f} W")
+        col_v3.metric("MAE Error", f"{ss['mae_w']:.4f} W")
+        col_v4.metric("Relative Error", f"{ss['rel_error_pct']:.4f} %")
 
-        st.markdown(f"#### {t('val_transient_title')}")
+        st.markdown("#### 2. Transient Energy Conservation Benchmark")
         col_t1, col_t2, col_t3 = st.columns(3)
-        col_t1.metric(t("val_expected_dt"), f"{tr['dt_ref_k']:.3f} K")
-        col_t2.metric(t("val_sim_dt"), f"{tr['dt_calc_k']:.3f} K")
-        col_t3.metric(t("val_transient_status"), tr["status"])
+        col_t1.metric("Expected Temp Shift (ΔT)", f"{tr['dt_ref_k']:.3f} K")
+        col_t2.metric("Simulated Temp Shift (ΔT)", f"{tr['dt_calc_k']:.3f} K")
+        col_t3.metric("Transient Status", tr["status"])
 
-        st.caption(t("val_caption"))
+        st.caption("Analytical validation verifies that the code implementation of thermodynamic equations matches exact closed-form mathematical equations.")

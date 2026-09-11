@@ -12,9 +12,6 @@ from components.charts import create_2d_floorplan
 from services.visual3d import build_3d_shelter
 
 
-from i18n import t
-
-
 def render_3d_and_floorplan(
     rec: Dict[str, Any],
     city: str,
@@ -22,11 +19,30 @@ def render_3d_and_floorplan(
 ) -> None:
     """
     Renders side-by-side 2D floor plan and dynamic 3D Plotly shelter model.
+    Includes view-mode toggles for envelope cutaways, thermal twins, solar,
+    and passive ventilation airflow paths.
     """
     geo = rec["geometry"]
     mats = rec["materials"]
 
-    st.markdown(f"### {t('sec_3d_title')}")
+    st.markdown("### 🏗️ 5. Architectural Floor Plan & 3D Interactive Model")
+
+    view_mode_descriptions = {
+        "normal": "🏛️ **Standard Architectural**: Realistic foundation, thermal walls, fenestrations, roof slope & site context.",
+        "envelope": "🔬 **Envelope Cutaway**: Transparent exterior exposing wall core assemblies, insulation batting & thermal mass.",
+        "thermal": "🌡️ **Thermal Twin**: Surface heat flux gradient calibrated to simulation loads & ambient differential.",
+        "solar": "☀️ **Solar & Daylighting**: Active photovoltaic arrays, passive solar glazing bands & cardinal orientation.",
+        "ventilation": "💨 **Passive Ventilation**: Airflow vectors, ridge vent caps & cross-ventilation aperture alignments.",
+    }
+
+    view_mode_opts = {
+        "🏛️ Architectural": "normal",
+        "🔬 Envelope Cutaway": "envelope",
+        "🌡️ Thermal Twin": "thermal",
+        "☀️ Solar & Daylighting": "solar",
+        "💨 Ventilation Flow": "ventilation",
+    }
+
     g1, g2 = st.columns(2)
 
     with g1:
@@ -43,6 +59,16 @@ def render_3d_and_floorplan(
         )
 
     with g2:
+        selected_mode_key = st.radio(
+            "Digital Twin View Mode",
+            options=list(view_mode_opts.keys()),
+            index=0,
+            horizontal=True,
+            help="Switch between architectural rendering, structural envelope cutaways, thermal gradients, solar panels, and ventilation pathways.",
+            key=f"twin_view_mode_{city}",
+        )
+        mode_val = view_mode_opts[selected_mode_key]
+
         st.plotly_chart(
             build_3d_shelter(
                 climate_type=rec["climate_type"],
@@ -54,6 +80,8 @@ def render_3d_and_floorplan(
                 insulation_mm=rec["optimal_insulation_mm"],
                 glazing_name=rec.get("optimal_glazing_name", mats.get("glazing_type", "Double Clear")),
                 city_name=city,
+                view_mode=mode_val,
             ),
             use_container_width=True,
         )
+        st.caption(view_mode_descriptions[mode_val])

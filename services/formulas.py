@@ -76,8 +76,6 @@ from services.comfort import (
 # Re-export Thermal
 from services.thermal import (
     calculate_conduction_heat_loss,
-    calculate_cooling_requirement,
-    calculate_effective_thermal_capacity,
     calculate_heat_flow,
     calculate_heat_loss_coefficient,
     calculate_heating_requirement,
@@ -169,7 +167,6 @@ FORMULA_REGISTRY: Dict[str, Callable[..., Any]] = {
     "ventilation_loss_from_ach": calculate_ventilation_loss_from_ach,
     # Thermal mass
     "thermal_capacity": calculate_thermal_capacity,
-    "effective_thermal_capacity": calculate_effective_thermal_capacity,
     "temperature_change": calculate_temperature_change,
     "stored_thermal_energy": calculate_stored_thermal_energy,
     # Radiation & Internal heat
@@ -180,7 +177,6 @@ FORMULA_REGISTRY: Dict[str, Callable[..., Any]] = {
     "temperature_update": calculate_temperature_update,
     "simulate_temperature_step": simulate_temperature_step,
     "heating_requirement": calculate_heating_requirement,
-    "cooling_requirement": calculate_cooling_requirement,
     # Comfort & statistics
     "comfort_status": calculate_comfort_status,
     "is_comfortable": is_comfortable,

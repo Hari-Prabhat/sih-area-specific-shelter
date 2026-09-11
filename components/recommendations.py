@@ -10,9 +10,6 @@ import streamlit as st
 import pandas as pd
 
 
-from i18n import t
-
-
 def render_envelope_specifications(
     rec: Dict[str, Any],
     sim_res: Dict[str, Any],
@@ -25,29 +22,27 @@ def render_envelope_specifications(
     mats = rec["materials"]
     u_vals = sim_res["u_values"]
 
-    st.markdown(f"### {t('rec_sec4_title')}")
+    st.markdown("### 🏆 4. Recommended Envelope Specifications")
     r1, r2, r3 = st.columns(3)
-
-    mass_str = t("card_wall_mass_high") if home_type == "Permanent" else t("card_wall_mass_light")
 
     with r1:
         st.markdown(
             f"""<div class='card'>
-<h4>{t('card_wall_title')}</h4>
-<p><b>{t('card_wall_material')}:</b> {mats['wall_material_name']}</p>
-<p><b>{t('card_wall_u')}:</b> <span class='metric-badge'>{u_vals.get('wall_u', 0.50):.3f} W/m²K</span></p>
-<p><b>{t('card_wall_r')}:</b> {u_vals.get('wall_r_total', 2.0):.2f} m²K/W</p>
-<p><b>{t('card_wall_mass')}:</b> {mass_str}</p>
+<h4>🧱 Wall Assembly</h4>
+<p><b>Material:</b> {mats['wall_material_name']}</p>
+<p><b>Assembly U-Value:</b> <span class='metric-badge'>{u_vals.get('wall_u', 0.50):.3f} W/m²K</span></p>
+<p><b>Total Thermal R:</b> {u_vals.get('wall_r_total', 2.0):.2f} m²K/W</p>
+<p><b>Thermal Mass:</b> {'High Thermal Mass' if home_type == 'Permanent' else 'Lightweight Prefab Panel'}</p>
 </div>""",
             unsafe_allow_html=True,
         )
         st.markdown(
             f"""<div class='card'>
-<h4>{t('card_roof_title')}</h4>
-<p><b>{t('card_roof_design')}:</b> {mats['roof_material']}</p>
-<p><b>{t('card_roof_u')}:</b> <span class='metric-badge'>{u_vals.get('roof_u', 0.40):.3f} W/m²K</span></p>
-<p><b>{t('card_roof_r')}:</b> {u_vals.get('roof_r_total', 2.5):.2f} m²K/W</p>
-<p><b>{t('card_roof_profile')}:</b> {mats['roof_type'].title()} {t('roof_suffix')}</p>
+<h4>🏠 Roof System</h4>
+<p><b>Design:</b> {mats['roof_material']}</p>
+<p><b>Roof U-Value:</b> <span class='metric-badge'>{u_vals.get('roof_u', 0.40):.3f} W/m²K</span></p>
+<p><b>Total Roof R:</b> {u_vals.get('roof_r_total', 2.5):.2f} m²K/W</p>
+<p><b>Profile:</b> {mats['roof_type'].title()} Roof</p>
 </div>""",
             unsafe_allow_html=True,
         )
@@ -55,21 +50,21 @@ def render_envelope_specifications(
     with r2:
         st.markdown(
             f"""<div class='card'>
-<h4>{t('card_ins_title')}</h4>
-<p><b>{t('card_ins_type')}:</b> {mats['insulation_type']}</p>
-<p><b>{t('card_ins_opt_thickness')}:</b> <span class='metric-badge'>{rec['optimal_insulation_mm']:.1f} mm</span></p>
-<p><b>{t('card_ins_core_k')}:</b> {t('card_ins_core_detail')}</p>
-<p><b>{t('card_ins_added_r')}:</b> {u_vals.get('wall_r_total', 2.0) - u_vals.get('wall_base_r', 0.5):.2f} m²K/W</p>
+<h4>🛡️ Thermal Insulation</h4>
+<p><b>Type:</b> {mats['insulation_type']}</p>
+<p><b>Optimal Thickness:</b> <span class='metric-badge'>{rec['optimal_insulation_mm']:.1f} mm</span></p>
+<p><b>Core Conductivity:</b> 0.025 W/m·K (PUF Core)</p>
+<p><b>Added Insulation R:</b> {u_vals.get('wall_r_total', 2.0) - u_vals.get('wall_base_r', 0.5):.2f} m²K/W</p>
 </div>""",
             unsafe_allow_html=True,
         )
         st.markdown(
             f"""<div class='card'>
-<h4>{t('card_glazing_title')}</h4>
-<p><b>{t('card_glazing_spec')}:</b> {rec.get('optimal_glazing_name', mats['glazing_type'])}</p>
-<p><b>{t('card_glazing_area')}:</b> <span class='metric-badge'>{rec['optimal_window_area_m2']:.2f} m²</span></p>
-<p><b>{t('card_glazing_u')}:</b> {u_vals.get('glass_u', u_vals.get('window_u', 2.80)):.2f} W/m²K</p>
-<p><b>{t('card_glazing_wwr')}:</b> {(rec['optimal_window_area_m2'] / max(1.0, 2.0 * (geo['length_m'] + geo['width_m']) * geo['height_m'])) * 100.0:.1f} %</p>
+<h4>🪟 Fenestration & Glazing</h4>
+<p><b>Specification:</b> {rec.get('optimal_glazing_name', mats['glazing_type'])}</p>
+<p><b>Aperture Area:</b> <span class='metric-badge'>{rec['optimal_window_area_m2']:.2f} m²</span></p>
+<p><b>Glazing U-Value:</b> {u_vals.get('glass_u', u_vals.get('window_u', 2.80)):.2f} W/m²K</p>
+<p><b>WWR:</b> {(rec['optimal_window_area_m2'] / max(1.0, 2.0 * (geo['length_m'] + geo['width_m']) * geo['height_m'])) * 100.0:.1f} %</p>
 </div>""",
             unsafe_allow_html=True,
         )
@@ -77,19 +72,19 @@ def render_envelope_specifications(
     with r3:
         st.markdown(
             f"""<div class='card'>
-<h4>{t('card_orient_title')}</h4>
-<p><b>{t('card_orient_label')}:</b> <span class='metric-badge'>{rec.get('optimal_orientation', 'south').title()} {t('card_orient_facade')}</span></p>
-<p><b>{t('card_orient_strategy')}:</b> {mats['orientation_advice']}</p>
-<p><b>{t('card_orient_shading')}:</b> {mats['shading_advice']}</p>
+<h4>🧭 Orientation & Passive Solar</h4>
+<p><b>Orientation:</b> <span class='metric-badge'>{rec.get('optimal_orientation', 'south').title()} Facade</span></p>
+<p><b>Solar Strategy:</b> {mats['orientation_advice']}</p>
+<p><b>Shading Design:</b> {mats['shading_advice']}</p>
 </div>""",
             unsafe_allow_html=True,
         )
         st.markdown(
             f"""<div class='card'>
-<h4>{t('card_sizing_title')}</h4>
-<p><b>{t('card_sizing_area')}:</b> {geo['floor_area_m2']:.1f} m² ({geo['length_m']:.1f}m × {geo['width_m']:.1f}m)</p>
-<p><b>{t('card_sizing_height')}:</b> {geo['height_m']:.1f} m | <b>{t('card_sizing_volume')}:</b> {geo['volume_m3']:.1f} m³</p>
-<p><b>{t('card_sizing_occupants')}:</b> {rec['people']} {t('persons_unit')}</p>
+<h4>📐 Auto-Sizing Summary</h4>
+<p><b>Floor Area:</b> {geo['floor_area_m2']:.1f} m² ({geo['length_m']:.1f}m × {geo['width_m']:.1f}m)</p>
+<p><b>Height:</b> {geo['height_m']:.1f} m | <b>Volume:</b> {geo['volume_m3']:.1f} m³</p>
+<p><b>Target Occupants:</b> {rec['people']} Persons</p>
 </div>""",
             unsafe_allow_html=True,
         )
@@ -102,22 +97,23 @@ def render_ranked_candidate_designs(ranked_designs: List[Dict[str, Any]]) -> Non
     if not ranked_designs:
         return
 
-    st.markdown(f"### {t('ranking_title')}")
-    st.caption(t("ranking_caption"))
+    st.markdown("### 🥇 Multi-Candidate Optimization Ranking")
+    st.caption("The optimizer evaluates candidate envelope parameter combinations and ranks them using multi-objective scoring.")
 
     table_rows = []
     for d in ranked_designs:
+        sub = d.get("sub_scores", {})
         table_rows.append({
-            t("col_rank"): d["label"],
-            t("col_wall_material"): d["wall_material_name"],
-            t("col_insulation_mm"): f"{d['insulation_mm']:.0f} mm",
-            t("col_window_m2"): f"{d['window_area_m2']:.2f} m²",
-            t("col_glazing_spec"): d["glazing_name"],
-            t("col_orientation"): d["orientation"].title(),
-            t("col_comfort_hours"): f"{d['comfort_hours']:.0f} h ({d['comfort_percentage']:.1f}%)",
-            t("col_discomfort_dh"): f"{d['discomfort_dh']:.1f}",
-            t("col_weekly_loss"): f"{d['total_heat_loss_kwh']:.1f}",
-            t("col_composite_score"): f"{d['overall_score']:.1f} / 100",
+            "Rank": d["label"],
+            "Wall Material": d["wall_material_name"],
+            "Insulation (mm)": f"{d['insulation_mm']:.0f} mm",
+            "Window (m²)": f"{d['window_area_m2']:.2f} m²",
+            "Glazing Spec": d["glazing_name"],
+            "Orientation": d["orientation"].title(),
+            "Comfort Hours": f"{d['comfort_hours']:.0f} h ({d['comfort_percentage']:.1f}%)",
+            "Discomfort (°C·h)": f"{d['discomfort_dh']:.1f}",
+            "Weekly Loss (kWh)": f"{d['total_heat_loss_kwh']:.1f}",
+            "Composite Score": f"{d['overall_score']:.1f} / 100",
         })
 
     st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
@@ -127,5 +123,5 @@ def render_explainable_rationale(rec: Dict[str, Any]) -> None:
     """
     Renders the quantitative, physics-backed explainable recommendation box.
     """
-    st.markdown(f"### {t('sec_rationale_title')}")
+    st.markdown("### 💡 6. Design Rationale & Physics Explanation")
     st.info(rec["explanation"])
