@@ -34,6 +34,8 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
     windowGlazing,
     roofAngle,
     orientation,
+    doorArea = 2.0,
+    shape = 'rectangular',
     insulationType,
     thermalMassEnabled,
     thermalMassThickness,
@@ -44,6 +46,10 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
   const singleWinArea = windowArea / numWindows;
   const winWidth = Math.max(0.6, Math.min(2.5, Math.round(Math.sqrt(singleWinArea * 1.2) * 100) / 100));
   const winHeight = Math.max(0.6, Math.min(2.0, Math.round((singleWinArea / winWidth) * 100) / 100));
+
+  // Derive dynamic door dimensions from doorArea
+  const derivedDoorWidth = Math.max(0.8, Math.min(1.8, Math.round(Math.sqrt(doorArea / 2.2) * 100) / 100));
+  const derivedDoorHeight = Math.max(1.9, Math.min(2.5, Math.round((doorArea / derivedDoorWidth) * 100) / 100));
 
   // Envelope thickness calculations in mm
   const wallThickMm = Math.round(wallThickness * 1000);
@@ -56,6 +62,20 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
 
   return (
     <div className="space-y-6">
+      {/* Shape adaptation note when non-rectangular */}
+      {shape !== 'rectangular' && (
+        <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3.5 flex items-center justify-between text-xs font-mono text-amber-200">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-bold rounded uppercase">
+              {shape} Geometry
+            </span>
+            <span>
+              2D CAD drawing rendered for equivalent rectilinear envelope (L: {length}m × W: {width}m). Volumetric & thermal calculations reflect equivalent {shape} thermal footprint.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* View Selector Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/80 p-4 rounded-xl border border-cyan-500/30">
         <div className="flex items-center gap-3">
@@ -250,9 +270,9 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
 
                       {/* Main Entry Door */}
                       <rect
-                        x={-15}
+                        x={-(derivedDoorWidth * scale) / 2}
                         y={-hSvg / 2 - 2}
-                        width={30}
+                        width={derivedDoorWidth * scale}
                         height={tSvg + 4}
                         fill="#f97316"
                         fillOpacity="0.8"
@@ -260,7 +280,7 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                         strokeWidth="1.5"
                       />
                       <text x="0" y={-hSvg / 2 - 8} fill="#fb923c" fontSize="9" fontFamily="monospace" textAnchor="middle">
-                        DOOR (1.0m)
+                        DOOR ({derivedDoorWidth}m × {derivedDoorHeight}m)
                       </text>
 
                       {/* Center Space Label */}
@@ -495,15 +515,25 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
 
                       {/* Door */}
                       <rect
-                        x={-20}
-                        y={-90}
-                        width={40}
-                        height={90}
+                        x={-(derivedDoorWidth * scale) / 2}
+                        y={-(derivedDoorHeight * scale)}
+                        width={derivedDoorWidth * scale}
+                        height={derivedDoorHeight * scale}
                         fill="#f97316"
                         fillOpacity="0.3"
                         stroke="#f97316"
                         strokeWidth="1.5"
                       />
+                      <text
+                        x="0"
+                        y={-(derivedDoorHeight * scale) / 2}
+                        fill="#fb923c"
+                        fontSize="9"
+                        fontFamily="monospace"
+                        textAnchor="middle"
+                      >
+                        DOOR ({derivedDoorWidth}m × {derivedDoorHeight}m)
+                      </text>
 
                       {/* Dimension: Length */}
                       <g transform="translate(0, 35)">

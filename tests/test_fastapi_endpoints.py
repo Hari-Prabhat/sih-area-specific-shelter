@@ -206,3 +206,32 @@ def test_climate_analyze_route():
     assert "profile" in data
     assert "classification" in data
     assert "strategy" in data
+
+
+# =====================================================================
+# 6. PHASE 2 GEOMETRY CONSISTENCY & PARAMETRIC OPENINGS
+# =====================================================================
+
+def test_simulation_with_door_area_and_pitched_roof():
+    """Verify simulation handles door_area and pitched roof parameters correctly."""
+    payload = {
+        "city": "leh",
+        "design": {
+            "length": 5.0,
+            "width": 3.5,
+            "height": 2.8,
+            "wall_material": "stone",
+            "wall_thickness_m": 0.30,
+            "roof_type": "pitched",
+            "pitch_angle_deg": 25.0,
+            "door_area": 2.2,
+            "window_area": 3.0,
+        },
+        "hours_to_simulate": 24,
+    }
+    response = client.post("/api/simulation/run", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["geometry"]["roof_type"] == "pitched"
+    assert data["geometry"]["roof_area_m2"] > (5.0 * 3.5), "Pitched roof area must exceed horizontal floor footprint"
+    assert data["total_heat_loss_kwh"] > 0.0

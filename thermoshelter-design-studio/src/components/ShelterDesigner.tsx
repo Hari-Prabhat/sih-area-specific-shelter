@@ -86,9 +86,18 @@ export default function ShelterDesigner({
               </button>
             ))}
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/30 flex justify-between text-xs text-slate-400">
-            <span>Floor Area: {(shelterDesign.length * shelterDesign.width).toFixed(1)} m²</span>
-            <span>Vol: {(shelterDesign.length * shelterDesign.width * shelterDesign.height).toFixed(1)} m³</span>
+          <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1 text-xs text-slate-400">
+            <div className="flex justify-between">
+              <span>Floor Area: {(shelterDesign.length * shelterDesign.width).toFixed(1)} m²</span>
+              <span>Vol: {(shelterDesign.length * shelterDesign.width * shelterDesign.height).toFixed(1)} m³</span>
+            </div>
+            {shelterDesign.shape !== 'rectangular' && (
+              <p className="text-[10px] text-purple-300 italic pt-1">
+                {shelterDesign.shape === 'cylindrical' && 'Cylindrical shell: Radius derived from length/width; walls form continuous curved surface.'}
+                {shelterDesign.shape === 'dome' && 'Hemispherical dome: Self-supporting curve; roof angle not applicable.'}
+                {shelterDesign.shape === 'pyramid' && 'Pyramidal shelter: Sloped 4-facet envelope converging at peak.'}
+              </p>
+            )}
           </div>
         </div>
 
@@ -216,10 +225,16 @@ export default function ShelterDesigner({
                 min={0}
                 max={60}
                 step={5}
-                value={shelterDesign.roofAngle}
+                disabled={shelterDesign.shape === 'dome'}
+                value={shelterDesign.shape === 'dome' ? 0 : shelterDesign.roofAngle}
                 onChange={(e) => updateField('roofAngle', Number(e.target.value))}
-                className="w-full accent-cyan-500"
+                className="w-full accent-cyan-500 disabled:opacity-40"
               />
+              {shelterDesign.shape === 'dome' ? (
+                <p className="text-[10px] text-slate-500 italic">Self-curving dome geometry (flat cap / continuous radius)</p>
+              ) : shelterDesign.shape === 'pyramid' ? (
+                <p className="text-[10px] text-slate-500 italic">Sets pyramid pitch angle from horizontal base</p>
+              ) : null}
             </div>
           </div>
         </div>
