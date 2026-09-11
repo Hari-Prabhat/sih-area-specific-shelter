@@ -181,6 +181,28 @@ function RectangularShelter({ design, wallColor, accentColor }: {
         <meshStandardMaterial color="#5a4a3a" roughness={0.6} />
       </mesh>
 
+      {/* ── gable end walls ── */}
+      <mesh castShadow receiveShadow>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={6}
+            array={new Float32Array([
+              // left gable
+              -length / 2, height, width / 2,
+              -length / 2, height + roofPeak, 0,
+              -length / 2, height, -width / 2,
+              // right gable
+              length / 2, height, -width / 2,
+              length / 2, height + roofPeak, 0,
+              length / 2, height, width / 2,
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color={wallColor} roughness={0.8} side={THREE.DoubleSide} />
+      </mesh>
+
       {/* ── floor slab ── */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
         <boxGeometry args={[length + 0.2, 0.1, width + 0.2]} />
