@@ -3,3 +3,6 @@ pandas
 plotly
 matplotlib
 optuna
+fastapi
+uvicorn
+pvlib

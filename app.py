@@ -12,6 +12,9 @@ import os
 import sys
 import streamlit as st
 
+import socket
+import subprocess
+
 # ==============================================================================
 # PATH SETUP
 # ==============================================================================
@@ -22,6 +25,32 @@ COMPONENTS_DIR = os.path.join(CURRENT_DIR, "components")
 for path in [CURRENT_DIR, SERVICES_DIR, COMPONENTS_DIR]:
     if path not in sys.path:
         sys.path.insert(0, path)
+
+
+def ensure_backend_running() -> None:
+    """Ensure FastAPI backend is running on 127.0.0.1:8000; spawn if not."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.4)
+            if s.connect_ex(("127.0.0.1", 8000)) == 0:
+                return  # Backend is already running and accepting connections
+    except Exception:
+        pass
+
+    try:
+        creation_flag = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "api:app", "--host", "127.0.0.1", "--port", "8000"],
+            cwd=CURRENT_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creation_flag,
+        )
+    except Exception as e:
+        print(f"Warning: Could not auto-start backend: {e}")
+
+
+ensure_backend_running()
 
 from components.inputs import render_requirements_inputs
 from components.feature_studio import (
@@ -85,24 +114,31 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+from i18n import t, render_language_selector, get_current_language
+
 def main() -> None:
     """
     Main Application Orchestrator.
     """
+    cur_lang = get_current_language()
+
     # --------------------------------------------------------------------------
     # SIDEBAR CONTROLS & PLATFORM VIEW SWITCHER
     # --------------------------------------------------------------------------
     with st.sidebar:
         st.markdown("### 🏕️ ThermoShelter")
         app_view = st.selectbox(
-            "Platform View",
+            t("platform_view"),
             [
                 "✨ 3D Design Studio",
                 "🔬 Scientific & Bayesian Engine",
             ],
             index=0,
+            format_func=lambda v, _l=cur_lang: t("view_3d_studio", lang=_l) if "3D" in v else t("view_scientific_engine", lang=_l),
             key="thermoshelter_app_view",
         )
+        st.markdown("---")
+        render_language_selector(key="sidebar_lang_selector", label_visibility="visible")
 
     # --------------------------------------------------------------------------
     # FULLSCREEN 3D DESIGN STUDIO VIEW
@@ -112,30 +148,31 @@ def main() -> None:
         return
 
     # --------------------------------------------------------------------------
-    # SCIENTIFIC & BAYESIAN ENGINE VIEW
+    # SCIENTIFIC & BAYESIAN ENGINE VIEW: HEADER & LANGUAGE SELECTOR
     # --------------------------------------------------------------------------
-    st.markdown('<div class="main-title">🏕️ ThermoShelter Scientific Engine</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sub-title">Area-Specific Passive Shelter Design | Transient Physics & Bayesian Optimization</div>',
-        unsafe_allow_html=True,
-    )
+    head_col1, head_col2 = st.columns([3.8, 1.2])
+    with head_col1:
+        st.markdown(f'<div class="main-title">{t("app_title")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sub-title">{t("app_subtitle")}</div>', unsafe_allow_html=True)
+    with head_col2:
+        render_language_selector(key="header_lang_selector", label_visibility="visible")
 
     # --------------------------------------------------------------------------
-    # SCIENTIFIC & BAYESIAN ENGINE VIEW
+    # SCIENTIFIC WORKFLOW PROGRESSION BAR
     # --------------------------------------------------------------------------
-    st.markdown("""
+    st.markdown(f"""
     <div class="workflow-bar">
-        <span><span class="workflow-step">1. CLIMATE</span> (Ladakh & Regions)</span>
+        <span><span class="workflow-step">{t("wf_step1")}</span> {t("wf_step1_sub")}</span>
         <span>→</span>
-        <span><span class="workflow-step">2. REQUIREMENTS</span> (Permanence & Sizing)</span>
+        <span><span class="workflow-step">{t("wf_step2")}</span> {t("wf_step2_sub")}</span>
         <span>→</span>
-        <span><span class="workflow-step">3. SIMULATE</span> (168-hr ISO 6946)</span>
+        <span><span class="workflow-step">{t("wf_step3")}</span> {t("wf_step3_sub")}</span>
         <span>→</span>
-        <span><span class="workflow-step">4. OPTIMIZE</span> (Bayesian Search)</span>
+        <span><span class="workflow-step">{t("wf_step4")}</span> {t("wf_step4_sub")}</span>
         <span>→</span>
-        <span><span class="workflow-step">5. COMPARE</span> (Baseline vs Opt)</span>
+        <span><span class="workflow-step">{t("wf_step5")}</span> {t("wf_step5_sub")}</span>
         <span>→</span>
-        <span><span class="workflow-step">6. 3D VISUALIZE</span></span>
+        <span><span class="workflow-step">{t("wf_step6")}</span></span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -149,25 +186,28 @@ def main() -> None:
     st.markdown("---")
 
     # FEATURE STUDIO NAVIGATION (INSTANT-LOADING TABS)
+    cur_lang = get_current_language()
+    nav_keys = [
+        "studio_shelter_designer",
+        "studio_baseline_vs_opt",
+        "studio_material_comparison",
+        "studio_multiple_models",
+        "studio_sensitivity_analysis",
+    ]
     nav_mode = st.radio(
-        "Select Feature Studio:",
-        [
-            "🏠 Shelter Designer",
-            "⚖️ Baseline vs Optimized",
-            "🧱 Material Comparison Studio",
-            "🏛️ Multiple Shelter Models",
-            "📈 Sensitivity Analysis Studio",
-        ],
+        t("studio_nav_label"),
+        nav_keys,
+        format_func=lambda k, _l=cur_lang: t(k, lang=_l),
         horizontal=True,
         key="feature_studio_nav",
     )
     st.markdown("---")
 
     # INSTANT STUDIO DISPATCH
-    if nav_mode == "🏠 Shelter Designer":
+    if nav_mode in ("studio_shelter_designer", "🏠 Shelter Designer"):
         render_shelter_designer_studio(req, is_dark=True)
 
-    elif nav_mode == "⚖️ Baseline vs Optimized":
+    elif nav_mode in ("studio_baseline_vs_opt", "⚖️ Baseline vs Optimized"):
         render_baseline_vs_optimized_view(
             comp_city=req["city"],
             comp_people=req["people"],
@@ -175,13 +215,13 @@ def main() -> None:
             is_dark=True,
         )
 
-    elif nav_mode == "🧱 Material Comparison Studio":
+    elif nav_mode in ("studio_material_comparison", "🧱 Material Comparison Studio"):
         render_material_comparison_studio(req, is_dark=True)
 
-    elif nav_mode == "🏛️ Multiple Shelter Models":
+    elif nav_mode in ("studio_multiple_models", "🏛️ Multiple Shelter Models"):
         render_multiple_shelter_models_studio(req, is_dark=True)
 
-    elif nav_mode == "📈 Sensitivity Analysis Studio":
+    elif nav_mode in ("studio_sensitivity_analysis", "📈 Sensitivity Analysis Studio"):
         render_sensitivity_analysis_studio(req, is_dark=True)
 
 

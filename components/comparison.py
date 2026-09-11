@@ -15,6 +15,9 @@ from services.simulation_service import run_simulation, SHELTER_MODELS
 from services.recommender import get_recommendation
 
 
+from i18n import t
+
+
 def render_baseline_vs_optimized_view(
     comp_city: str,
     comp_people: int,
@@ -24,15 +27,15 @@ def render_baseline_vs_optimized_view(
     """
     Renders Baseline vs AI-Optimized comparative study with dynamic calculations.
     """
-    st.subheader("⚖️ Baseline (Standard/Uninsulated) vs AI-Optimized Shelter")
-    st.caption("Demonstrating real thermal comfort gains and energy loss reductions under identical climate and geometry.")
+    st.subheader(t("comp_studio_title"))
+    st.caption(t("comp_studio_caption"))
 
     # 1. Run or retrieve baseline and optimized results
     # Use session_state to cache simulation so it loads immediately
     cache_key = f"comp_{comp_city}_{comp_people}_{comp_home_type}"
     
     if cache_key not in st.session_state:
-        with st.spinner(f"Computing Baseline vs Optimized benchmark for {comp_city.upper()}…"):
+        with st.spinner(t("comp_spinner", city=comp_city.upper())):
             rec_comp = get_recommendation(
                 city=comp_city,
                 people=comp_people,
@@ -72,7 +75,7 @@ def render_baseline_vs_optimized_view(
     r_info = data["rec"]
 
     # Comparative Delta Metrics (Calculated Dynamically)
-    st.markdown("### 📊 Performance Impact Summary")
+    st.markdown(f"### {t('comp_impact_title')}")
     d1, d2, d3, d4 = st.columns(4)
 
     base_dh = s_base["discomfort_degree_hours"]
@@ -87,73 +90,73 @@ def render_baseline_vs_optimized_view(
     comfort_pct_delta = s_opt["comfort_percentage"] - s_base["comfort_percentage"]
 
     d1.metric(
-        "Comfort Hours",
+        t("metric_comfort_hours"),
         f"{s_opt['comfort_hours']:.0f} h / 168 h",
-        delta=f"{comfort_hrs_delta:+.0f} h vs Baseline",
+        delta=t("comp_delta_baseline", val=comfort_hrs_delta),
     )
     d2.metric(
-        "Comfort Percentage",
+        t("metric_comfort_pct"),
         f"{s_opt['comfort_percentage']:.1f} %",
         delta=f"{comfort_pct_delta:+.1f} %",
     )
     d3.metric(
-        "Discomfort Degree-Hours",
+        t("spec_discomfort"),
         f"{opt_dh:.1f} °C·h",
-        delta=f"-{dh_reduction:.1f}% Discomfort Reduction",
+        delta=t("comp_delta_discomfort", val=dh_reduction),
         delta_color="inverse",
     )
     d4.metric(
-        "Total Weekly Heat Loss",
+        t("metric_total_loss"),
         f"{opt_loss:.1f} kWh",
-        delta=f"-{loss_reduction:.1f}% Heat Loss Cut",
+        delta=t("comp_delta_loss", val=loss_reduction),
         delta_color="inverse",
     )
 
     st.markdown("---")
 
     # Overlaid Temperature Response Curves
-    st.markdown("### 📈 168-Hour Thermal Response Overlay")
+    st.markdown(f"### {t('comp_curves_title')}")
     st.plotly_chart(
         plot_baseline_vs_optimized(s_base, s_opt, is_dark=is_dark),
         use_container_width=True,
     )
 
     # Detailed Side-by-Side Specifications Comparison Table
-    st.markdown("### 📋 Design Specifications Comparison")
-    base_wall_name = "Standard Brick Masonry (Uninsulated)" if comp_home_type == "Permanent" else "Single-Skin Uninsulated Timber/Panel"
+    st.markdown(f"### {t('comp_specs_title')}")
+    base_wall_name = t("base_wall_perm") if comp_home_type == "Permanent" else t("base_wall_temp")
     comp_df = pd.DataFrame({
-        "Specification Parameter": [
-            "Wall Assembly",
-            "Added Insulation Thickness",
-            "Assembly Wall U-Value",
-            "Assembly Roof U-Value",
-            "Glazing Specification",
-            "Fenestration Aperture Area",
-            "Orientation Strategy",
-            "Comfort Hours (18–24 °C)",
-            "Discomfort Degree-Hours",
-            "Weekly Envelope Heat Loss",
+        t("comp_col_spec_param"): [
+            t("spec_wall_assembly"),
+            t("spec_insulation"),
+            t("spec_wall_u"),
+            t("spec_roof_u"),
+            t("spec_glazing"),
+            t("spec_fenestration"),
+            t("spec_orientation"),
+            t("spec_comfort_hours"),
+            t("spec_discomfort"),
+            t("spec_weekly_loss"),
         ],
-        "Conventional Baseline Design": [
+        t("comp_col_baseline"): [
             base_wall_name,
-            "0 mm (Uninsulated)",
+            t("uninsulated_label"),
             f"{s_base['u_values']['wall_u']:.3f} W/m²K",
             f"{s_base['u_values']['roof_u']:.3f} W/m²K",
-            "Single Glazed Clear (6mm float)",
+            t("single_glaze_label"),
             "2.00 m²",
-            "South Facade",
+            f"South {t('card_orient_facade')}",
             f"{s_base['comfort_hours']:.0f} / 168 h ({s_base['comfort_percentage']:.1f}%)",
             f"{s_base['discomfort_degree_hours']:.1f} °C·h",
             f"{s_base['total_heat_loss_kwh']:.1f} kWh",
         ],
-        "AI-Optimized Design": [
-            r_info.get("optimal_wall_material", "brick").title() + " + PUF Layer",
-            f"{r_info['optimal_insulation_mm']:.0f} mm PUF Core",
+        t("comp_col_optimized"): [
+            r_info.get("optimal_wall_material", "brick").title() + t("puf_layer_suffix"),
+            f"{r_info['optimal_insulation_mm']:.0f}" + t("puf_core_suffix"),
             f"{s_opt['u_values']['wall_u']:.3f} W/m²K",
             f"{s_opt['u_values']['roof_u']:.3f} W/m²K",
             r_info.get("optimal_glazing_name", "Double Clear"),
             f"{r_info['optimal_window_area_m2']:.2f} m²",
-            f"{r_info.get('optimal_orientation', 'south').title()} Facade",
+            f"{r_info.get('optimal_orientation', 'south').title()} {t('card_orient_facade')}",
             f"{s_opt['comfort_hours']:.0f} / 168 h ({s_opt['comfort_percentage']:.1f}%)",
             f"{s_opt['discomfort_degree_hours']:.1f} °C·h",
             f"{s_opt['total_heat_loss_kwh']:.1f} kWh",

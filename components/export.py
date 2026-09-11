@@ -70,11 +70,14 @@ def generate_markdown_report(rec: Dict[str, Any], sim_res: Dict[str, Any], city:
     return report
 
 
+from i18n import t
+
+
 def render_export_section(rec: Dict[str, Any], sim_res: Dict[str, Any], city: str) -> None:
     """
     Renders export and download buttons for design reports.
     """
-    st.markdown("### 📥 7. Export Engineering Design Specification")
+    st.markdown(f"### {t('sec_export_title')}")
     c1, c2 = st.columns(2)
 
     md_content = generate_markdown_report(rec, sim_res, city)
@@ -96,7 +99,7 @@ def render_export_section(rec: Dict[str, Any], sim_res: Dict[str, Any], city: st
 
     with c1:
         st.download_button(
-            label="📄 Download Markdown Engineering Report (.md)",
+            label=t("btn_download_md"),
             data=md_content,
             file_name=f"ThermoShelter_{city.upper()}_{rec['home_type']}_Design_Report.md",
             mime="text/markdown",
@@ -105,7 +108,7 @@ def render_export_section(rec: Dict[str, Any], sim_res: Dict[str, Any], city: st
 
     with c2:
         st.download_button(
-            label="💾 Download Raw Design Telemetry (.json)",
+            label=t("btn_download_json"),
             data=json.dumps(json_export_data, indent=2),
             file_name=f"ThermoShelter_{city.upper()}_Data.json",
             mime="application/json",
