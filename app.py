@@ -31,6 +31,7 @@ from components.feature_studio import (
     render_sensitivity_analysis_studio,
 )
 from components.comparison import render_baseline_vs_optimized_view
+from components.design_studio import render_design_studio
 
 # ==============================================================================
 # STREAMLIT PAGE CONFIGURATION
@@ -89,14 +90,39 @@ def main() -> None:
     Main Application Orchestrator.
     """
     # --------------------------------------------------------------------------
-    # HEADER & PRODUCT WORKFLOW
+    # SIDEBAR CONTROLS & PLATFORM VIEW SWITCHER
     # --------------------------------------------------------------------------
-    st.markdown('<div class="main-title">🏕️ ThermoShelter </div>', unsafe_allow_html=True)
+    with st.sidebar:
+        st.markdown("### 🏕️ ThermoShelter")
+        app_view = st.selectbox(
+            "Platform View",
+            [
+                "✨ 3D Design Studio",
+                "🔬 Scientific & Bayesian Engine",
+            ],
+            index=0,
+            key="thermoshelter_app_view",
+        )
+
+    # --------------------------------------------------------------------------
+    # FULLSCREEN 3D DESIGN STUDIO VIEW
+    # --------------------------------------------------------------------------
+    if app_view == "✨ 3D Design Studio":
+        render_design_studio()
+        return
+
+    # --------------------------------------------------------------------------
+    # SCIENTIFIC & BAYESIAN ENGINE VIEW
+    # --------------------------------------------------------------------------
+    st.markdown('<div class="main-title">🏕️ ThermoShelter Scientific Engine</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="sub-title">Area-Specific Passive Shelter Design, Transient Building Physics & Bayesian Optimization Platform</div>',
+        '<div class="sub-title">Area-Specific Passive Shelter Design | Transient Physics & Bayesian Optimization</div>',
         unsafe_allow_html=True,
     )
 
+    # --------------------------------------------------------------------------
+    # SCIENTIFIC & BAYESIAN ENGINE VIEW
+    # --------------------------------------------------------------------------
     st.markdown("""
     <div class="workflow-bar">
         <span><span class="workflow-step">1. CLIMATE</span> (Ladakh & Regions)</span>
@@ -113,9 +139,7 @@ def main() -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # --------------------------------------------------------------------------
     # UNIFIED REQUIREMENTS & CONSTRAINTS INPUT SECTION
-    # --------------------------------------------------------------------------
     req = render_requirements_inputs(
         default_city="leh",
         default_people=4,
@@ -124,9 +148,7 @@ def main() -> None:
 
     st.markdown("---")
 
-    # --------------------------------------------------------------------------
     # FEATURE STUDIO NAVIGATION (INSTANT-LOADING TABS)
-    # --------------------------------------------------------------------------
     nav_mode = st.radio(
         "Select Feature Studio:",
         [
@@ -141,9 +163,7 @@ def main() -> None:
     )
     st.markdown("---")
 
-    # --------------------------------------------------------------------------
-    # INSTANT STUDIO DISPATCH (NO SECONDARY BUTTONS REQUIRED)
-    # --------------------------------------------------------------------------
+    # INSTANT STUDIO DISPATCH
     if nav_mode == "🏠 Shelter Designer":
         render_shelter_designer_studio(req, is_dark=True)
 
@@ -166,4 +186,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main()

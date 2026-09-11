@@ -100,6 +100,8 @@ export default function SimulationResults({
         materialName={materialName}
         comfortIndex={result.thermalComfortIndex}
         avgTemp={result.avgInsideTemp}
+        climateData={climateData}
+        locationName={climateData.location}
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">

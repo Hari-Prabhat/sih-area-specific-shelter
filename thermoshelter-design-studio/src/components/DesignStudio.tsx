@@ -36,6 +36,9 @@ interface GeneratedDesign {
   mission: MissionConfig;
   priorities: PriorityConfig;
   resources: ResourceConfig;
+  thermalComfortScore: number;
+  estimatedInsideTemp: number;
+  shelterDesign: ShelterDesign;
   specifications: {
     floorArea: number;
     length: number;
@@ -121,38 +124,198 @@ export default function DesignStudio() {
     if (!selectedLocation) return;
     setCurrentStep('generating');
     setTimeout(() => {
+      const loc = selectedLocation.location.toLowerCase();
+      const alt = selectedLocation.altitude;
+      const tMin = selectedLocation.ambientTempMin;
+      const tMax = selectedLocation.ambientTempMax;
+      const tAvg = selectedLocation.avgAmbientTemp;
+      const hum = selectedLocation.humidity;
+
+      const floorArea = mission.occupants * 6;
+      const length = Math.ceil(Math.sqrt(floorArea) * 1.5);
+      const width = Math.ceil(Math.sqrt(floorArea));
+      const height = 3.0;
+
+      let climateName = 'Temperate / Moderate';
+      let roofAngle = 25;
+      let wallThickness = 0.28;
+      let windowArea = 4.0;
+      let windowGlazing: 'single' | 'double' | 'triple' = 'double';
+      let doorArea = 2.0;
+      let roofConfig = '30° Pitched Slate/Metal Roof with Integrated Solar Mounting';
+      let wallStrategy = '280mm Timber-Stone Hybrid Insulated Envelope';
+      let insulation = 'Cellulose / Wool Insulation - 100mm';
+      let glazing = 'Double Low-E Argon-filled Glazing';
+      let thermalMass = 'Medium - Stone hearth & plinth thermal mass';
+      let ventilation = 'Natural stack ventilation with trickle vents';
+      let passiveStrategies = [
+        'Sloped roof shedding precipitation and moderate snow loads',
+        'Timber frame aesthetic with exposed rafter overhangs',
+        'Insulated stone base plinth anchoring against damp soil',
+        'Daylight harvesting through high transom windows',
+      ];
+      let comfortScore = 85;
+      let insideTemp = 20.5;
+
+      // 1. Severe Cold & Glacial (Leh, Siachen, Kargil)
+      if (
+        loc.includes('siachen') ||
+        loc.includes('leh') ||
+        loc.includes('ladakh') ||
+        loc.includes('kargil') ||
+        alt > 2500 ||
+        tMin < -10
+      ) {
+        climateName = 'Alpine Severe Cold & Glacial';
+        roofAngle = 45;
+        wallThickness = 0.35;
+        windowArea = 5.5;
+        windowGlazing = 'triple';
+        doorArea = 2.1;
+        roofConfig = '45° Steep Snow-Shedding Gabled Roof with Snow Cap & Solar PV';
+        wallStrategy = '350mm Heavy Insulated Envelope with Corner Quoins';
+        insulation = 'Polyurethane Foam (PUF) / Aerogel - 120mm';
+        glazing = 'Triple Low-E Glazing with Argon Gap Fill (U < 0.8 W/m²K)';
+        thermalMass = 'High - Internal Trombe wall system & dense stone core';
+        ventilation = 'Dual-door insulated airlock vestibule + mechanical heat recovery (HRV)';
+        passiveStrategies = [
+          'Dual-door insulated airlock vestibule entry portico preventing cold drafts',
+          '45° steep snow-shedding roof preventing dangerous structural load accumulation',
+          '70% South-facing passive solar gain glazing band for daytime radiant charging',
+          'Internal high thermal mass Trombe wall heat bank preventing night freezing',
+          'Continuous sub-slab thermal insulation barrier anchoring against permafrost',
+        ];
+        comfortScore = 84;
+        insideTemp = 18.5;
+      }
+      // 2. Hot & Arid Desert (Jaisalmer / Thar)
+      else if (
+        loc.includes('jaisalmer') ||
+        loc.includes('rajasthan') ||
+        loc.includes('thar') ||
+        tMax >= 45 ||
+        (tAvg >= 26 && hum < 35)
+      ) {
+        climateName = 'Hot & Arid Desert (Thar)';
+        roofAngle = 0;
+        wallThickness = 0.45;
+        windowArea = 1.8;
+        windowGlazing = 'double';
+        doorArea = 2.0;
+        roofConfig = 'High-Albedo Flat Cool Roof (Albedo > 0.85) with Perimeter Parapet';
+        wallStrategy = '450mm Sandstone / Adobe Thermal Flywheel Envelope';
+        insulation = 'Extruded Polystyrene (XPS) continuous exterior - 80mm';
+        glazing = 'Double Reflective Low-E with thermal break frame';
+        thermalMass = 'Extremely High - 450mm dense masonry thermal time-lag (> 8 hours)';
+        ventilation = 'Night-purge micro-apertures & thermal convective chimney';
+        passiveStrategies = [
+          'Flat high-albedo cool roof (SRI > 85) reflecting intense daytime solar irradiance',
+          '0.4m perimeter parapet walls with stone coping creating shade zone on roof',
+          'Small deeply-recessed apertures (10% WWR) to block direct radiant penetration',
+          'Cantilevered horizontal chajjas and jaali shading screens above windows',
+          '8-10 hour thermal time lag delaying exterior peak heat wave to cool night hours',
+        ];
+        comfortScore = 82;
+        insideTemp = 24.8;
+      }
+      // 3. Warm & Humid Coastal (Chennai / Mumbai / Coastal)
+      else if (
+        loc.includes('chennai') ||
+        loc.includes('mumbai') ||
+        loc.includes('coastal') ||
+        loc.includes('guwahati') ||
+        (hum >= 68 && tMin >= 18)
+      ) {
+        climateName = 'Warm & Humid Coastal';
+        roofAngle = 30;
+        wallThickness = 0.18;
+        windowArea = 6.2;
+        windowGlazing = 'double';
+        doorArea = 2.2;
+        roofConfig = '30° Ventilated Mangalore Terracotta Tile Roof with 1.0m Overhangs';
+        wallStrategy = '180mm Lightweight Aerated Cavity Wall with Breathable Finish';
+        insulation = 'Rockwool Hydrophobic Batt Cavity Insulation - 50mm';
+        glazing = 'Double Clear High-VLT with Operable Louver Shutters';
+        thermalMass = 'Low - Rapid cooling ventilated lightweight envelope';
+        ventilation = 'Continuous cross-ventilation with continuous apex ridge exhaust';
+        passiveStrategies = [
+          'Continuous 1.0m deep eaves overhangs protecting against torrential monsoon rain',
+          'Full-length shaded front verandah reducing perimeter ground radiant gain',
+          'Wide cross-ventilation apertures on opposite facades capturing prevailing sea breezes',
+          'Continuous ridge ventilation monitor along roof apex releasing buoyant humid heat',
+          'Elevated foundation plinth on stilts preventing moisture ingress and ground flooding',
+        ];
+        comfortScore = 86;
+        insideTemp = 25.2;
+      }
+      // 4. Composite (Delhi NCR / Dual-Season)
+      else if (
+        loc.includes('delhi') ||
+        loc.includes('ncr') ||
+        tMax - tMin > 28
+      ) {
+        climateName = 'Composite Dual-Season (Severe Swing)';
+        roofAngle = 20;
+        wallThickness = 0.25;
+        windowArea = 3.5;
+        windowGlazing = 'double';
+        doorArea = 2.0;
+        roofConfig = '20° Insulated Sandwich Roof with Rooftop Photovoltaic Array';
+        wallStrategy = '250mm Cavity Brick Masonry with Continuous Thermal Break';
+        insulation = 'Expanded Polystyrene (EPS) - 80mm';
+        glazing = 'Double Low-E Solar Control Glazing with Thermal Break';
+        thermalMass = 'Moderate - Seasonal balancing thermal mass';
+        ventilation = 'Seasonal switchable hybrid natural & mechanical ventilation';
+        passiveStrategies = [
+          'Dual-season adaptation: solar capture during winter & solar shading during summer',
+          'Horizontal concrete chajja overhangs optimized for summer solstice sun angles',
+          'Rooftop grid-tied solar photovoltaic clean energy generation array',
+          'Cavity wall assembly with continuous moisture barrier and vapor retarder',
+        ];
+        comfortScore = 80;
+        insideTemp = 23.0;
+      }
+
+      const shelterDesign: ShelterDesign = {
+        length,
+        width,
+        height,
+        shape: 'rectangular',
+        orientation: 180,
+        roofAngle,
+        wallThickness,
+        windowArea,
+        windowGlazing,
+        doorArea,
+        insulationType: 'EPS',
+        thermalMassEnabled: true,
+        thermalMassThickness: 20,
+      };
+
       const design: GeneratedDesign = {
         id: `THERMOCORE-${selectedLocation.location.split(',')[0].toUpperCase().replace(/\s+/g, '-')}-01`,
         location: selectedLocation.location,
-        climate:
-          selectedLocation.altitude > 3000
-            ? 'Alpine Severe Cold'
-            : selectedLocation.altitude > 1500
-            ? 'Mountain Cold'
-            : 'Temperate',
+        climate: climateName,
         mission,
         priorities,
         resources,
+        thermalComfortScore: comfortScore,
+        estimatedInsideTemp: insideTemp,
+        shelterDesign,
         specifications: {
-          floorArea: mission.occupants * 6,
-          length: Math.ceil(Math.sqrt(mission.occupants * 6) * 1.5),
-          width: Math.ceil(Math.sqrt(mission.occupants * 6)),
-          height: 3.0,
+          floorArea,
+          length,
+          width,
+          height,
           orientation: 'South (180°)',
-          roofConfig: 'Pitched roof (30°) with integrated solar mounting',
-          wallStrategy: 'High-performance insulated envelope',
-          insulation: 'Polyurethane Foam (PUF) - 100mm',
-          glazing: 'Triple glazing with low-E coating',
-          thermalMass: 'High - Trombe wall system',
-          ventilation: 'Controlled mechanical ventilation with heat recovery',
-          passiveStrategies: [
-            'Solar capture through south-facing glazing',
-            'Thermal mass for temperature stabilization',
-            'Airlock entry system',
-            'Controlled ventilation',
-            'Windbreak integration',
-          ],
-          materialSelection: resources.materials,
+          roofConfig,
+          wallStrategy,
+          insulation,
+          glazing,
+          thermalMass,
+          ventilation,
+          passiveStrategies,
+          materialSelection: resources.materials.length > 0 ? resources.materials : ['Stone (Granite)', 'SIP Panel'],
         },
       };
       setGeneratedDesign(design);
@@ -612,22 +775,12 @@ export default function DesignStudio() {
           </div>
           {/* 3D Shelter Visualization */}
           <ShelterModel3D
-            design={{
-              length: generatedDesign.specifications.length,
-              width: generatedDesign.specifications.width,
-              height: generatedDesign.specifications.height,
-              shape: 'rectangular',
-              orientation: 180,
-              roofAngle: 30,
-              wallThickness: 0.3,
-              windowArea: 3,
-              windowGlazing: 'double',
-              doorArea: 2,
-              insulationType: 'EPS',
-              thermalMassEnabled: true,
-              thermalMassThickness: 20,
-            } as ShelterDesign}
+            design={generatedDesign.shelterDesign}
             materialName={generatedDesign.specifications.materialSelection[0] || 'Rammed Earth (Stabilized)'}
+            climateData={selectedLocation || undefined}
+            locationName={generatedDesign.location}
+            comfortIndex={generatedDesign.thermalComfortScore}
+            avgTemp={generatedDesign.estimatedInsideTemp}
           />
         </div>
       )}

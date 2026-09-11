@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ThermoShelter Design Studio | SIH 2026</title>
+    <script>
+      function notifyStreamlit() {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: "streamlit:componentReady",
+            apiVersion: 1
+          }, "*");
+        }
+      }
+      notifyStreamlit();
+      window.addEventListener("DOMContentLoaded", notifyStreamlit);
+      window.addEventListener("load", notifyStreamlit);
+    </script>
+    <script type="module" crossorigin src="./assets/index-DErJFg-F.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-l-m2Sael.css">
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background-color: #0f172a !important;
+        overflow: hidden !important;
+      }
+      #root {
+        height: 100vh !important;
+        width: 100vw !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

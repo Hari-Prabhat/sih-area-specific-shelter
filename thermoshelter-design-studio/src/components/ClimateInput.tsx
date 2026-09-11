@@ -5,9 +5,10 @@ import { climatePresets } from '../data/climatePresets';
 interface ClimateInputProps {
   climateData: ClimateData;
   setClimateData: (data: ClimateData) => void;
+  onSelectPreset?: (preset: ClimateData) => void;
 }
 
-export default function ClimateInput({ climateData, setClimateData }: ClimateInputProps) {
+export default function ClimateInput({ climateData, setClimateData, onSelectPreset }: ClimateInputProps) {
   const updateField = (field: keyof ClimateData, value: number | string) => {
     setClimateData({ ...climateData, [field]: value });
   };
@@ -31,7 +32,13 @@ export default function ClimateInput({ climateData, setClimateData }: ClimateInp
           {climatePresets.map((preset) => (
             <button
               key={preset.location}
-              onClick={() => setClimateData({ ...preset })}
+              onClick={() => {
+                if (onSelectPreset) {
+                  onSelectPreset(preset);
+                } else {
+                  setClimateData({ ...preset });
+                }
+              }}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
                 climateData.location === preset.location
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'

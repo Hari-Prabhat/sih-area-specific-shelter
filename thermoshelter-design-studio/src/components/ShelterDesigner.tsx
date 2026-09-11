@@ -1,5 +1,5 @@
 import { Settings, Play, Compass, Ruler, LayoutGrid } from 'lucide-react';
-import { ShelterDesign } from '../utils/thermalEngine';
+import { ShelterDesign, ClimateData } from '../utils/thermalEngine';
 import { materials } from '../data/materials';
 import ShelterModel3D from './ShelterModel3D';
 
@@ -9,6 +9,7 @@ interface ShelterDesignerProps {
   selectedMaterial: string;
   setSelectedMaterial: (material: string) => void;
   onRunSimulation: () => void;
+  climateData?: ClimateData;
 }
 
 export default function ShelterDesigner({
@@ -17,6 +18,7 @@ export default function ShelterDesigner({
   selectedMaterial,
   setSelectedMaterial,
   onRunSimulation,
+  climateData,
 }: ShelterDesignerProps) {
   const updateField = (field: keyof ShelterDesign, value: any) => {
     setShelterDesign({ ...shelterDesign, [field]: value });
@@ -134,7 +136,12 @@ export default function ShelterDesigner({
         </div>
       </div>
       {/* Live 3D Preview */}
-      <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
+      <ShelterModel3D
+        design={shelterDesign}
+        materialName={selectedMaterial}
+        climateData={climateData}
+        locationName={climateData?.location}
+      />
       <div className="flex justify-center">
         <button
           onClick={onRunSimulation}

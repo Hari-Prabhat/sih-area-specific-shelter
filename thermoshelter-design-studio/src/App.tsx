@@ -32,6 +32,97 @@ function App() {
   const [selectedMaterial, setSelectedMaterial] = useState('Rammed Earth (Stabilized)');
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
 
+  const handleSelectClimatePreset = (preset: ClimateData) => {
+    setClimateData(preset);
+    const loc = preset.location.toLowerCase();
+    if (loc.includes('leh') || loc.includes('ladakh') || loc.includes('siachen') || loc.includes('kargil')) {
+      setShelterDesign({
+        length: 5.5,
+        width: 3.8,
+        height: 2.8,
+        shape: 'rectangular',
+        orientation: 180,
+        roofAngle: 45,
+        wallThickness: 0.35,
+        windowArea: 5.0,
+        windowGlazing: 'triple',
+        doorArea: 2.0,
+        insulationType: 'PUF',
+        thermalMassEnabled: true,
+        thermalMassThickness: 25,
+      });
+      setSelectedMaterial('Stone (Granite)');
+    } else if (loc.includes('jaisalmer') || loc.includes('rajasthan')) {
+      setShelterDesign({
+        length: 6.2,
+        width: 4.6,
+        height: 3.2,
+        shape: 'rectangular',
+        orientation: 180,
+        roofAngle: 0,
+        wallThickness: 0.45,
+        windowArea: 1.8,
+        windowGlazing: 'double',
+        doorArea: 2.0,
+        insulationType: 'XPS',
+        thermalMassEnabled: true,
+        thermalMassThickness: 35,
+      });
+      setSelectedMaterial('Stone (Limestone)');
+    } else if (loc.includes('chennai') || loc.includes('mumbai') || loc.includes('guwahati')) {
+      setShelterDesign({
+        length: 7.2,
+        width: 3.6,
+        height: 3.2,
+        shape: 'rectangular',
+        orientation: 180,
+        roofAngle: 30,
+        wallThickness: 0.18,
+        windowArea: 6.5,
+        windowGlazing: 'double',
+        doorArea: 2.2,
+        insulationType: 'Rockwool',
+        thermalMassEnabled: false,
+        thermalMassThickness: 10,
+      });
+      setSelectedMaterial('Timber/Wood');
+    } else if (loc.includes('delhi')) {
+      setShelterDesign({
+        length: 6.0,
+        width: 4.0,
+        height: 3.0,
+        shape: 'rectangular',
+        orientation: 180,
+        roofAngle: 20,
+        wallThickness: 0.25,
+        windowArea: 3.5,
+        windowGlazing: 'double',
+        doorArea: 2.0,
+        insulationType: 'EPS',
+        thermalMassEnabled: true,
+        thermalMassThickness: 20,
+      });
+      setSelectedMaterial('Brick (Solid)');
+    } else {
+      setShelterDesign({
+        length: 5.8,
+        width: 4.0,
+        height: 3.2,
+        shape: 'rectangular',
+        orientation: 180,
+        roofAngle: 35,
+        wallThickness: 0.28,
+        windowArea: 4.0,
+        windowGlazing: 'double',
+        doorArea: 2.0,
+        insulationType: 'EPS',
+        thermalMassEnabled: true,
+        thermalMassThickness: 20,
+      });
+      setSelectedMaterial('Timber/Wood');
+    }
+  };
+
   const handleRunSimulation = () => {
     const material = getMaterialByName(selectedMaterial);
     const insulation = getMaterialByName(shelterDesign.insulationType);
@@ -100,7 +191,13 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === 'studio' && <DesignStudio />}
         {activeTab === 'dashboard' && <DashboardTab onNavigate={setActiveTab} climateData={climateData} />}
-        {activeTab === 'climate' && <ClimateInput climateData={climateData} setClimateData={setClimateData} />}
+        {activeTab === 'climate' && (
+          <ClimateInput
+            climateData={climateData}
+            setClimateData={setClimateData}
+            onSelectPreset={handleSelectClimatePreset}
+          />
+        )}
         {activeTab === 'design' && (
           <ShelterDesigner
             shelterDesign={shelterDesign}
@@ -108,6 +205,7 @@ function App() {
             selectedMaterial={selectedMaterial}
             setSelectedMaterial={setSelectedMaterial}
             onRunSimulation={handleRunSimulation}
+            climateData={climateData}
           />
         )}
         {activeTab === 'results' && simulationResult && (
