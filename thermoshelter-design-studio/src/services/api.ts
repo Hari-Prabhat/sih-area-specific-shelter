@@ -578,6 +578,12 @@ export interface CanonicalOptimizationCandidate {
   cooling_demand_kwh: number;
   total_conditioning_demand_kwh: number;
   effective_thermal_capacity_j_k: number;
+  /** Phase C: candidate thermal-mass level (none | low | medium | high). */
+  thermal_mass_level?: string;
+  /** Phase C: provenance of the climate scenario this candidate was evaluated against. */
+  climate_provenance?: string | null;
+  climate_data_mode?: string | null;
+  climate_fallback_used?: boolean | null;
   canonical_design?: any;
 }
 

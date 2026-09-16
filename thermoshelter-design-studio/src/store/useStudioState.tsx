@@ -1,0 +1,515 @@
+/**
+ * THERMOSHELTER — Studio State Store (D2)
+ * =======================================
+ * Typed React context store centralizing all cross-stage studio state:
+ * workflow stage, site/climate, mission, geometry & envelope, simulation,
+ * optimization, and backend health. No external state library is introduced.
+ *
+ * Engineering discipline: this store holds UI/presentation state and the
+ * canonical API contracts ONLY. No thermal physics lives here — every
+ * engineering value flows from the Python backend via services/api.ts.
+ */
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode,
+} from 'react';
+import { ClimateData, ShelterDesign, SimulationResult as UiSimulationResult } from '../types';
+import {
+  CanonicalOptimizationCandidate,
+  CanonicalOptimizationResult,
+  SimulationClimateProfile,
+  checkApiHealth,
+  describeApiError,
+  runOptimizationViaApi,
+  runSimulationViaApi,
+} from '../services/api';
+import { climatePresets } from '../data/climatePresets';
+import { getMaterialByName } from '../data/materials';
+import { DATA_MODE_PROVENANCE, ProvenanceValue, WORKFLOW_STAGES, WorkflowStage } from '../theme/tokens';
+
+// ---------------------------------------------------------------------------
+// Mission configuration (extracted from the retired DesignStudio mock)
+// ---------------------------------------------------------------------------
+
+export interface MissionConfig {
+  occupants: number;
+  purpose: string;
+  deploymentType: 'Temporary' | 'Seasonal' | 'Permanent';
+  durationMonths: number;
+  mobilityRequired: boolean;
+  priorities: {
+    thermalComfort: boolean;
+    energyIndependence: boolean;
+    lowCost: boolean;
+    lowWeight: boolean;
+    rapidDeployment: boolean;
+    durability: boolean;
+  };
+}
+
+const DEFAULT_MISSION: MissionConfig = {
+  occupants: 4,
+  purpose: 'Residential',
+  deploymentType: 'Permanent',
+  durationMonths: 12,
+  mobilityRequired: false,
+  priorities: {
+    thermalComfort: true,
+    energyIndependence: true,
+    lowCost: false,
+    lowWeight: false,
+    rapidDeployment: false,
+    durability: true,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Candidate thermal-mass semantics — MUST mirror services/optimize.py
+// THERMAL_MASS_LEVELS exactly (none/low/medium/high → 0/50/100/200 mm
+// concrete floor core). No invented values.
+// ---------------------------------------------------------------------------
+
+const THERMAL_MASS_LEVEL_THICKNESS_CM: Record<string, number> = {
+  none: 0,
+  low: 5,
+  medium: 10,
+  high: 20,
+};
+
+export function massLevelToDesignMass(level: string | null | undefined): {
+  thermalMassEnabled: boolean;
+  thermalMassThickness: number;
+} {
+  const cm = level ? THERMAL_MASS_LEVEL_THICKNESS_CM[level] ?? 0 : 0;
+  return { thermalMassEnabled: cm > 0, thermalMassThickness: cm };
+}
+
+// ---------------------------------------------------------------------------
+// State shape
+// ---------------------------------------------------------------------------
+
+export interface SimulationState {
+  result: UiSimulationResult | null;
+  loading: boolean;
+  error: string | null;
+}
+
+export interface OptimizationState {
+  result: CanonicalOptimizationResult | null;
+  loading: boolean;
+  error: string | null;
+  selectedCandidate: CanonicalOptimizationCandidate | null;
+}
+
+export interface StudioState {
+  // Navigation
+  stage: WorkflowStage;
+  expertMode: boolean;
+
+  // Site & climate
+  climate: ClimateData;
+  climateProfile: SimulationClimateProfile | null;
+
+  // Mission
+  mission: MissionConfig;
+
+  // Geometry & envelope
+  design: ShelterDesign;
+  wallMaterial: string;
+
+  // Simulation
+  simulation: SimulationState;
+
+  // Optimization
+  optimization: OptimizationState;
+
+  // Health
+  backendHealth: 'connecting' | 'connected' | 'unavailable';
+}
+
+export interface StudioActions {
+  setStage: (stage: WorkflowStage) => void;
+  setExpertMode: (expert: boolean) => void;
+  setClimate: (climate: ClimateData) => void;
+  setClimateProfile: (profile: SimulationClimateProfile | null) => void;
+  setMissionField: <K extends keyof MissionConfig>(field: K, value: MissionConfig[K]) => void;
+  togglePriority: (key: keyof MissionConfig['priorities']) => void;
+  setDesignField: <K extends keyof ShelterDesign>(field: K, value: ShelterDesign[K]) => void;
+  /** Whole-design replacement (used by legacy whole-object setters). */
+  replaceDesign: (design: ShelterDesign) => void;
+  setWallMaterial: (name: string) => void;
+  runSimulation: () => Promise<void>;
+  runOptimization: (
+    weights?: { comfort: number; efficiency: number; solar: number },
+    nTrials?: number,
+    homeType?: string,
+  ) => Promise<void>;
+  selectCandidate: (candidate: CanonicalOptimizationCandidate | null) => void;
+  applyCandidate: (candidate: CanonicalOptimizationCandidate) => void;
+  clearSimulationError: () => void;
+  clearOptimizationError: () => void;
+}
+
+export type StudioStore = StudioState & StudioActions;
+
+const StudioContext = createContext<StudioStore | null>(null);
+
+// ---------------------------------------------------------------------------
+// Helpers (moved verbatim from App.tsx — identical payloads, same endpoints)
+// ---------------------------------------------------------------------------
+
+function mapWallMaterialKey(selectedMaterial: string): string {
+  const matName = selectedMaterial.toLowerCase();
+  if (matName.includes('mud') || matName.includes('adobe')) return 'mud';
+  if (matName.includes('earth')) return 'mud';
+  if (matName.includes('stone')) return 'stone';
+  if (matName.includes('timber') || matName.includes('wood')) return 'timber';
+  if (matName.includes('concrete') || matName.includes('aac')) return 'concrete_block';
+  if (matName.includes('puf') || matName.includes('panel')) return 'puf_insulation';
+  return 'brick';
+}
+
+function mapGlazingKey(glazing: ShelterDesign['windowGlazing']): string {
+  if (glazing === 'single') return 'single_clear';
+  if (glazing === 'triple') return 'triple_low_e';
+  return 'double_clear';
+}
+
+/** Maps an orientation string ("south"/"north"/…) to canonical azimuth degrees. */
+export function orientationToDegrees(orientation: string): number {
+  const o = orientation.toLowerCase();
+  if (o.includes('north') && !o.includes('south')) return 0;
+  if (o.includes('east')) return 90;
+  if (o.includes('west') && !o.includes('south')) return 270;
+  return 180;
+}
+
+export function glazingToUi(glazing: string): 'single' | 'double' | 'triple' {
+  if (glazing.includes('triple')) return 'triple';
+  if (glazing.includes('single')) return 'single';
+  return 'double';
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+export function StudioStateProvider({ children }: { children: ReactNode }) {
+  // Navigation
+  const [stage, setStage] = useState<WorkflowStage>('site-climate');
+  const [expertMode, setExpertMode] = useState(false);
+
+  // Site & climate
+  const [climate, setClimate] = useState<ClimateData>(climatePresets[0]);
+  const [climateProfile, setClimateProfile] = useState<SimulationClimateProfile | null>(null);
+
+  // Mission
+  const [mission, setMission] = useState<MissionConfig>(DEFAULT_MISSION);
+
+  // Geometry & envelope
+  const [design, setDesign] = useState<ShelterDesign>({
+    length: 6,
+    width: 4,
+    height: 3,
+    shape: 'rectangular',
+    orientation: 180,
+    roofAngle: 30,
+    wallThickness: 0.3,
+    windowArea: 3,
+    windowGlazing: 'double',
+    doorArea: 2,
+    insulationType: 'EPS',
+    thermalMassEnabled: true,
+    thermalMassThickness: 20,
+  });
+  const [wallMaterial, setWallMaterial] = useState('Rammed Earth (Stabilized)');
+
+  // Simulation
+  const [simulation, setSimulation] = useState<SimulationState>({
+    result: null,
+    loading: false,
+    error: null,
+  });
+
+  // Optimization
+  const [optimization, setOptimization] = useState<OptimizationState>({
+    result: null,
+    loading: false,
+    error: null,
+    selectedCandidate: null,
+  });
+
+  // Health (quiet probe: retry only while unreachable — DesignStudio pattern, now global)
+  const [backendHealth, setBackendHealth] = useState<'connecting' | 'connected' | 'unavailable'>('connecting');
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const probe = () => {
+      checkApiHealth()
+        .then(() => {
+          if (!cancelled) setBackendHealth('connected');
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setBackendHealth('unavailable');
+          retryTimer = setTimeout(probe, 30000);
+        });
+    };
+    probe();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, []);
+
+  // ---- Actions ------------------------------------------------------------
+
+  const setDesignField = useCallback(
+    <K extends keyof ShelterDesign>(field: K, value: ShelterDesign[K]) => {
+      setDesign((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
+
+  const replaceDesign = useCallback((next: ShelterDesign) => {
+    setDesign(next);
+  }, []);
+
+  const setMissionField = useCallback(
+    <K extends keyof MissionConfig>(field: K, value: MissionConfig[K]) => {
+      setMission((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
+
+  const togglePriority = useCallback((key: keyof MissionConfig['priorities']) => {
+    setMission((prev) => ({
+      ...prev,
+      priorities: { ...prev.priorities, [key]: !prev.priorities[key] },
+    }));
+  }, []);
+
+  const runSimulation = useCallback(async () => {
+    const material = getMaterialByName(wallMaterial);
+    const insulation = getMaterialByName(design.insulationType);
+    if (!material) return;
+    setSimulation((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      // Authoritative Python thermal simulation via FastAPI. When a live/
+      // forecast/design climate profile was fetched, its real hourly arrays
+      // override the preset-city statistics (Phase B/C contract).
+      const result = await runSimulationViaApi(climate, design, material, insulation, 168, climateProfile ?? undefined);
+      setSimulation({ result, loading: false, error: null });
+      setStage('simulation');
+    } catch (err) {
+      setSimulation((prev) => ({
+        ...prev,
+        loading: false,
+        error: describeApiError(err),
+      }));
+    }
+  }, [climate, climateProfile, design, wallMaterial]);
+
+  const runOptimization = useCallback(
+    async (
+      weights?: { comfort: number; efficiency: number; solar: number },
+      nTrials?: number,
+      homeType?: string,
+    ) => {
+      setOptimization((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        const cityName = climate.location.split(',')[0].toLowerCase().trim();
+        const insulation = getMaterialByName(design.insulationType);
+        const insThick = insulation && insulation.name !== 'None' ? 0.05 : 0.0;
+
+        const result = await runOptimizationViaApi({
+          city: cityName,
+          home_type: homeType || 'Permanent',
+          design: {
+            length: design.length,
+            width: design.width,
+            height: design.height,
+            wall_material: mapWallMaterialKey(wallMaterial),
+            wall_thickness_m: design.wallThickness,
+            insulation_thickness_m: insThick,
+            insulation_conductivity: insulation ? insulation.thermalConductivity : 0.025,
+            window_area: design.windowArea,
+            door_area: design.doorArea ?? 2.0,
+            glazing: mapGlazingKey(design.windowGlazing),
+            orientation: design.orientation,
+            roof_type: design.roofAngle && design.roofAngle > 0 ? 'pitched' : 'flat',
+            pitch_angle_deg: design.roofAngle || 0.0,
+            ach: 0.5,
+            occupants: mission.occupants,
+          },
+          n_trials: nTrials || 20,
+          substeps: 15,
+          hours_to_simulate: 168,
+          weights: weights || { comfort: 0.5, efficiency: 0.3, solar: 0.2 },
+          // Phase C contract: when a location-derived climate profile was
+          // fetched, the optimizer evaluates candidates against the SAME real
+          // weather the direct simulation uses (one climate source of truth).
+          ...(climateProfile ? { climate: climateProfile.climate } : {}),
+        });
+
+        setOptimization((prev) => ({
+          ...prev,
+          result,
+          loading: false,
+          error: null,
+          selectedCandidate: result.ranked_designs?.[0] ?? null,
+        }));
+      } catch (err) {
+        setOptimization((prev) => ({
+          ...prev,
+          loading: false,
+          error: describeApiError(err),
+        }));
+      }
+    },
+    [climate, climateProfile, design, wallMaterial, mission.occupants],
+  );
+
+  const selectCandidate = useCallback((candidate: CanonicalOptimizationCandidate | null) => {
+    setOptimization((prev) => ({ ...prev, selectedCandidate: candidate }));
+  }, []);
+
+  /**
+   * Applies an optimized candidate to the authoritative ShelterDesign state.
+   *
+   * Phase D2 FIX: the candidate's thermal_mass_level is preserved through the
+   * mapping (none/low/medium/high → the canonical floor-core thickness in cm,
+   * mirroring services/optimize.py THERMAL_MASS_LEVELS), so the next
+   * simulation runs on the candidate's actual mass — previously the level
+   * was silently dropped here.
+   */
+  const applyCandidate = useCallback(
+    (candidate: CanonicalOptimizationCandidate) => {
+      const mass = massLevelToDesignMass(candidate.thermal_mass_level);
+
+      setWallMaterial(candidate.wall_material_name);
+      setDesign((prev) => ({
+        ...prev,
+        windowArea: candidate.window_area_m2,
+        windowGlazing: glazingToUi(candidate.glazing),
+        orientation: orientationToDegrees(candidate.orientation),
+        // Preserve the candidate's insulation intent; keep the selected
+        // insulation product when the candidate carries insulation.
+        insulationType:
+          candidate.insulation_thickness_m <= 0
+            ? 'None'
+            : prev.insulationType === 'None'
+              ? 'EPS'
+              : prev.insulationType,
+        thermalMassEnabled: mass.thermalMassEnabled,
+        thermalMassThickness: mass.thermalMassThickness,
+      }));
+
+      // Clear the stale simulation result so the user re-runs on the new design.
+      setSimulation((prev) => ({ ...prev, result: null }));
+      setOptimization((prev) => ({ ...prev, selectedCandidate: candidate }));
+    },
+    [],
+  );
+
+  const clearSimulationError = useCallback(() => {
+    setSimulation((prev) => ({ ...prev, error: null }));
+  }, []);
+
+  const clearOptimizationError = useCallback(() => {
+    setOptimization((prev) => ({ ...prev, error: null }));
+  }, []);
+
+  const store = useMemo<StudioStore>(
+    () => ({
+      stage,
+      expertMode,
+      climate,
+      climateProfile,
+      mission,
+      design,
+      wallMaterial,
+      simulation,
+      optimization,
+      backendHealth,
+      setStage,
+      setExpertMode,
+      setClimate,
+      setClimateProfile,
+      setMissionField,
+      togglePriority,
+      setDesignField,
+      replaceDesign,
+      setWallMaterial,
+      runSimulation,
+      runOptimization,
+      selectCandidate,
+      applyCandidate,
+      clearSimulationError,
+      clearOptimizationError,
+    }),
+    [
+      stage,
+      expertMode,
+      climate,
+      climateProfile,
+      mission,
+      design,
+      wallMaterial,
+      simulation,
+      optimization,
+      backendHealth,
+      replaceDesign,
+      setDesignField,
+      replaceDesign,
+      setMissionField,
+      togglePriority,
+      runSimulation,
+      runOptimization,
+      selectCandidate,
+      applyCandidate,
+      clearSimulationError,
+      clearOptimizationError,
+    ],
+  );
+
+  return <StudioContext.Provider value={store}>{children}</StudioContext.Provider>;
+}
+
+export function useStudioState(): StudioStore {
+  const ctx = useContext(StudioContext);
+  if (!ctx) throw new Error('useStudioState must be used within StudioStateProvider');
+  return ctx;
+}
+
+// ---------------------------------------------------------------------------
+// Derived selectors
+// ---------------------------------------------------------------------------
+
+/** Provenance of the active weather dataset (or null when using presets only). */
+export function activeWeatherProvenance(profile: SimulationClimateProfile | null): ProvenanceValue | null {
+  if (!profile) return null;
+  const raw = profile.climate?.data_provenance ?? profile.series?.provenance;
+  if (raw) {
+    const upper = String(raw).toUpperCase();
+    if (upper === 'MODEL_ANALYSIS' || upper === 'FORECAST' || upper === 'HISTORICAL_REANALYSIS' || upper === 'DESIGN' || upper === 'FALLBACK') {
+      return upper as ProvenanceValue;
+    }
+  }
+  // Fall back to the data_mode mapping (live/forecast/historical/design/fallback)
+  return profile.series?.data_mode ? DATA_MODE_PROVENANCE[profile.series.data_mode] ?? null : null;
+}
+
+export function fallbackUsed(profile: SimulationClimateProfile | null): boolean {
+  return profile?.series?.fallback_used ?? false;
+}
+
+export function stageDefinition(stage: WorkflowStage) {
+  return WORKFLOW_STAGES.find((s) => s.id === stage)!;
+}

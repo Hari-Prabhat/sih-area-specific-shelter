@@ -13,6 +13,8 @@ interface ShelterDesignerProps {
   onRunOptimization?: () => void;
   isOptimizing?: boolean;
   onNavigateToCompare?: () => void;
+  /** D2: field-level design updates avoid rebuilding the whole design object. */
+  updateDesignField?: <K extends keyof ShelterDesign>(field: K, value: ShelterDesign[K]) => void;
 }
 
 export default function ShelterDesigner({
@@ -25,9 +27,14 @@ export default function ShelterDesigner({
   onRunOptimization,
   isOptimizing = false,
   onNavigateToCompare,
+  updateDesignField,
 }: ShelterDesignerProps) {
   const updateField = (field: keyof ShelterDesign, value: any) => {
-    setShelterDesign({ ...shelterDesign, [field]: value });
+    if (updateDesignField) {
+      updateDesignField(field, value);
+    } else {
+      setShelterDesign({ ...shelterDesign, [field]: value });
+    }
   };
 
   return (
@@ -48,7 +55,7 @@ export default function ShelterDesigner({
         <button
           onClick={onRunSimulation}
           disabled={isSimulating}
-          className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           {isSimulating ? (
             <>
@@ -352,43 +359,16 @@ export default function ShelterDesigner({
       {/* Live 3D Preview */}
       <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
 
-      {/* Bottom Action Buttons */}
+      {/* Bottom Actions (D2 CTA consolidation: the single Run Simulation lives in
+          the header; this row offers the workflow's next stage) */}
       <div className="flex flex-wrap justify-center gap-4 pt-2">
-        <button
-          onClick={onRunSimulation}
-          disabled={isSimulating}
-          className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-xl flex items-center gap-3 shadow-lg shadow-green-500/20 text-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
-        >
-          {isSimulating ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Simulating with Python Backend...</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-5 h-5" />
-              <span>Run Thermal Simulation</span>
-            </>
-          )}
-        </button>
-
-        {onRunOptimization && (
+        {onRunOptimization && onNavigateToCompare && (
           <button
-            onClick={onNavigateToCompare || onRunOptimization}
-            disabled={isOptimizing}
-            className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl flex items-center gap-3 shadow-lg shadow-indigo-500/20 text-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+            onClick={onNavigateToCompare}
+            className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold rounded-xl flex items-center gap-3 shadow-lg shadow-amber-500/20 text-lg hover:from-amber-400 hover:to-orange-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
           >
-            {isOptimizing ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Optimizing...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>Optimize Design</span>
-              </>
-            )}
+            <Sparkles className="w-5 h-5" aria-hidden="true" />
+            <span>Continue to Optimization</span>
           </button>
         )}
       </div>

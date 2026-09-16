@@ -1,202 +1,264 @@
-import { useState } from 'react';
-import { Shield, Sun, Thermometer, Wind, Mountain, Settings, BarChart3, Layers, ChevronRight, Sparkles, Ruler, AlertCircle } from 'lucide-react';
+import { ChevronRight, CircleDashed, Mountain } from 'lucide-react';
+import { StudioStateProvider, useStudioState, activeWeatherProvenance, fallbackUsed } from './store/useStudioState';
 import ClimateInput from './components/ClimateInput';
+import MissionStage from './components/MissionStage';
 import ShelterDesigner from './components/ShelterDesigner';
 import SimulationResults from './components/SimulationResults';
 import ComparativeAnalysis from './components/ComparativeAnalysis';
-import DesignStudio from './components/DesignStudio';
 import EngineeringBlueprint from './components/EngineeringBlueprint';
-import { ClimateData, ShelterDesign, SimulationResult } from './types';
-import { runSimulationViaApi, runOptimizationViaApi, describeApiError, CanonicalOptimizationResult, CanonicalOptimizationCandidate, SimulationClimateProfile } from './services/api';
-import { getMaterialByName } from './data/materials';
-import { climatePresets } from './data/climatePresets';
+import ContextStrip from './components/ui/ContextStrip';
+import Stepper from './components/ui/Stepper';
+import { WORKFLOW_STAGES, WorkflowStage } from './theme/tokens';
 
-type TabType = 'studio' | 'dashboard' | 'climate' | 'design' | 'blueprint' | 'results' | 'compare';
+/** Renders the stage's working content, or an honest placeholder for later phases. */
+function StageRouter() {
+  const {
+    stage,
+    simulation,
+    optimization,
+  } = useStudioState();
 
-function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('studio');
-  const [climateData, setClimateData] = useState<ClimateData>(climatePresets[0]);
-  const [shelterDesign, setShelterDesign] = useState<ShelterDesign>({
-    length: 6,
-    width: 4,
-    height: 3,
-    shape: 'rectangular',
-    orientation: 180,
-    roofAngle: 30,
-    wallThickness: 0.3,
-    windowArea: 3,
-    windowGlazing: 'double',
-    doorArea: 2,
-    insulationType: 'EPS',
-    thermalMassEnabled: true,
-    thermalMassThickness: 20,
-  });
-  const [selectedMaterial, setSelectedMaterial] = useState('Rammed Earth (Stabilized)');
-  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationError, setSimulationError] = useState<string | null>(null);
+  switch (stage) {
+    case 'site-climate':
+      return <ClimateStage />;
+    case 'mission':
+      return <MissionStage />;
+    case 'design':
+      return <ShelterDesignerStage />;
+    case 'passive-strategy':
+    case 'digital-twin':
+    case 'report':
+      return <DeferredStage stage={stage} />;
+    case 'simulation':
+      return simulation.result ? (
+        <SimulationResultsStage />
+      ) : (
+        <EmptyStage
+          title="No Simulation Results Yet"
+          message="Configure the shelter in the Design stage, then run the authoritative Python thermal simulation."
+        />
+      );
+    case 'optimization':
+      return <ComparativeStage />;
+    case 'blueprint':
+      return <BlueprintStage />;
+    default:
+      return null;
+  }
+}
 
-  // Phase B: backend-derived climate profile (real provider weather for the
-  // selected location). Null = classic preset statistics path.
-  const [climateProfile, setClimateProfile] = useState<SimulationClimateProfile | null>(null);
+/** Site & Climate stage: the authoritative Phase B/C climate workflow. */
+function ClimateStage() {
+  const { climate, climateProfile, setClimate, setClimateProfile, setStage } = useStudioState();
+  return (
+    <div className="space-y-6">
+      <ClimateInput
+        climateData={climate}
+        setClimateData={setClimate}
+        climateProfile={climateProfile}
+        onProfileChange={setClimateProfile}
+      />
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setStage('mission')}
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+        >
+          Continue to Mission <ChevronRight className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
-  // Optimization state
-  const [optimizationResult, setOptimizationResult] = useState<CanonicalOptimizationResult | null>(null);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [optimizationError, setOptimizationError] = useState<string | null>(null);
+/** Geometry & Envelope stage: the existing designer, store-wired. */
+function ShelterDesignerStage() {
+  const {
+    design,
+    wallMaterial,
+    simulation,
+    optimization,
+    setDesignField,
+    replaceDesign,
+    setWallMaterial,
+    runSimulation,
+    setStage,
+  } = useStudioState();
 
-  const handleRunSimulation = async () => {
-    const material = getMaterialByName(selectedMaterial);
-    const insulation = getMaterialByName(shelterDesign.insulationType);
-    if (material) {
-      setIsSimulating(true);
-      setSimulationError(null);
-      try {
-        // Authoritative Python thermal simulation via FastAPI endpoint.
-        // When a live/forecast/design climate profile was fetched, its real
-        // hourly arrays override the preset-city statistics.
-        const result = await runSimulationViaApi(climateData, shelterDesign, material, insulation, 168, climateProfile ?? undefined);
-        setSimulationResult(result);
-        setActiveTab('results');
-      } catch (err: any) {
-        console.error('Backend thermal simulation failed:', err);
-        setSimulationError(describeApiError(err));
-        // Do NOT produce substitute simulation results or execute local physics.
-      } finally {
-        setIsSimulating(false);
-      }
-    }
-  };
+  return (
+    <ShelterDesigner
+      shelterDesign={design}
+      setShelterDesign={replaceDesign}
+      selectedMaterial={wallMaterial}
+      setSelectedMaterial={setWallMaterial}
+      onRunSimulation={runSimulation}
+      isSimulating={simulation.loading}
+      onRunOptimization={() => setStage('optimization')}
+      isOptimizing={optimization.loading}
+      onNavigateToCompare={() => setStage('optimization')}
+      updateDesignField={setDesignField}
+    />
+  );
+}
 
-  /**
-   * Run Bayesian optimization via POST /api/optimization/run.
-   * Dispatches to the Python TPE optimizer and updates state with ranked candidates.
-   */
-  const handleRunOptimization = async (
-    weights?: { comfort: number; efficiency: number; solar: number },
-    nTrials?: number,
-    homeType?: string
-  ) => {
-    setIsOptimizing(true);
-    setOptimizationError(null);
-    try {
-      const cityName = climateData.location.split(',')[0].toLowerCase().trim();
+/** Simulation stage content. */
+function SimulationResultsStage() {
+  const { simulation, climate, design, wallMaterial } = useStudioState();
+  return (
+    <SimulationResults
+      result={simulation.result!}
+      climateData={climate}
+      shelterDesign={design}
+      materialName={wallMaterial}
+    />
+  );
+}
 
-      // Map wall material to canonical key
-      const matName = selectedMaterial.toLowerCase();
-      let wallMat = 'brick';
-      if (matName.includes('mud') || matName.includes('adobe')) wallMat = 'mud';
-      else if (matName.includes('earth')) wallMat = 'mud';
-      else if (matName.includes('stone')) wallMat = 'stone';
-      else if (matName.includes('timber') || matName.includes('wood')) wallMat = 'timber';
-      else if (matName.includes('concrete') || matName.includes('aac')) wallMat = 'concrete_block';
-      else if (matName.includes('puf') || matName.includes('panel')) wallMat = 'puf_insulation';
+/** Optimization stage content. */
+function ComparativeStage() {
+  const { climate, design, wallMaterial, simulation, optimization, runOptimization, applyCandidate, setStage } =
+    useStudioState();
+  return (
+    <ComparativeAnalysis
+      climateData={climate}
+      shelterDesign={design}
+      selectedMaterial={wallMaterial}
+      baselineResult={simulation.result}
+      optimizationResult={optimization.result}
+      isOptimizing={optimization.loading}
+      onRunOptimization={runOptimization}
+      onApplyCandidate={applyCandidate}
+      onNavigateToDesign={() => setStage('design')}
+    />
+  );
+}
 
-      let glazingKey = 'double_clear';
-      if (shelterDesign.windowGlazing === 'single') glazingKey = 'single_clear';
-      else if (shelterDesign.windowGlazing === 'triple') glazingKey = 'triple_low_e';
+/** Blueprint stage content. */
+function BlueprintStage() {
+  const { design, wallMaterial, climate } = useStudioState();
+  return (
+    <EngineeringBlueprint
+      design={design}
+      materialName={wallMaterial}
+      locationName={climate.location}
+    />
+  );
+}
 
-      const insulation = getMaterialByName(shelterDesign.insulationType);
-      const insThick = insulation && insulation.name !== 'None' ? 0.05 : 0.0;
+/** Honest placeholder for stages delivered in later phases. */
+function DeferredStage({ stage }: { stage: WorkflowStage }) {
+  const def = WORKFLOW_STAGES.find((s) => s.id === stage)!;
+  return (
+    <div className="text-center py-24">
+      <CircleDashed className="w-14 h-14 text-slate-600 mx-auto mb-4" aria-hidden="true" />
+      <h3 className="text-xl font-semibold text-slate-300 mb-2">{def.fullLabel}</h3>
+      <p className="text-sm text-slate-500 max-w-md mx-auto">
+        This stage is part of the planned studio workflow and will be delivered in a later phase.
+        Current data for this stage remains available where it exists today.
+      </p>
+    </div>
+  );
+}
 
-      const result = await runOptimizationViaApi({
-        city: cityName,
-        home_type: homeType || 'Permanent',
-        design: {
-          length: shelterDesign.length,
-          width: shelterDesign.width,
-          height: shelterDesign.height,
-          wall_material: wallMat,
-          wall_thickness_m: shelterDesign.wallThickness,
-          insulation_thickness_m: insThick,
-          insulation_conductivity: insulation ? insulation.thermalConductivity : 0.025,
-          window_area: shelterDesign.windowArea,
-          door_area: shelterDesign.doorArea ?? 2.0,
-          glazing: glazingKey,
-          orientation: shelterDesign.orientation,
-          roof_type: (shelterDesign.roofAngle && shelterDesign.roofAngle > 0) ? 'pitched' : 'flat',
-          pitch_angle_deg: shelterDesign.roofAngle || 0.0,
-          ach: 0.5,
-          occupants: 2,
-        },
-        n_trials: nTrials || 20,
-        substeps: 15,
-        hours_to_simulate: 168,
-        weights: weights || { comfort: 0.5, efficiency: 0.3, solar: 0.2 },
-        // Phase C: when a location-derived climate profile was fetched, the
-        // optimizer evaluates candidates against the SAME real weather the
-        // direct simulation uses (one climate source of truth).
-        ...(climateProfile ? { climate: climateProfile.climate } : {}),
-      });
+/** Empty-state with a helpful next action. */
+function EmptyStage({ title, message }: { title: string; message: string }) {
+  const { setStage } = useStudioState();
+  return (
+    <div className="text-center py-20">
+      <CircleDashed className="w-14 h-14 text-slate-600 mx-auto mb-4" aria-hidden="true" />
+      <h3 className="text-xl font-semibold text-slate-400 mb-2">{title}</h3>
+      <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">{message}</p>
+      <button
+        type="button"
+        onClick={() => setStage('design')}
+        className="px-6 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+      >
+        Go to Geometry &amp; Envelope
+      </button>
+    </div>
+  );
+}
 
-      setOptimizationResult(result);
-    } catch (err: any) {
-      console.error('Optimization API error:', err);
-      setOptimizationError(describeApiError(err));
-    } finally {
-      setIsOptimizing(false);
-    }
-  };
+/** Persistent engineering-context strip values derived from real state only. */
+function ContextStripBinding() {
+  const {
+    climate,
+    climateProfile,
+    design,
+    wallMaterial,
+    backendHealth,
+  } = useStudioState();
 
-  /**
-   * Apply an optimization candidate's parameters to the authoritative ShelterDesign state.
-   * After applying, the user should re-run simulation to see updated results.
-   */
-  const handleApplyCandidate = (candidate: CanonicalOptimizationCandidate) => {
-    // Map candidate wall_material_name to selectedMaterial
-    setSelectedMaterial(candidate.wall_material_name);
+  const provenance = activeWeatherProvenance(climateProfile);
+  const zone = (climateProfile?.climate as { climate_zone?: string } | undefined)?.climate_zone ?? null;
 
-    // Map candidate glazing to ShelterDesign windowGlazing
-    let glazing: 'single' | 'double' | 'triple' = 'double';
-    if (candidate.glazing.includes('triple')) glazing = 'triple';
-    else if (candidate.glazing.includes('single')) glazing = 'single';
+  return (
+    <ContextStrip
+      data={{
+        location: climate.location,
+        climateZone: zone,
+        provenance,
+        fallbackUsed: fallbackUsed(climateProfile),
+        windowHours: climateProfile ? climateProfile.series.air_temperature_C.length : null,
+        materialName: wallMaterial,
+        insulationLabel:
+          design.insulationType && design.insulationType !== 'None' ? `${design.insulationType} insulation` : 'No insulation',
+        orientationDeg: design.orientation,
+        geometryLabel: `${design.length} × ${design.width} × ${design.height} m`,
+        backendHealth,
+      }}
+    />
+  );
+}
 
-    // Map candidate orientation string to degrees
-    let orientation = 180;
-    const orientLower = candidate.orientation.toLowerCase();
-    if (orientLower === 'north' || orientLower.includes('north')) orientation = 0;
-    else if (orientLower === 'east' || orientLower.includes('east')) orientation = 90;
-    else if (orientLower === 'south' || orientLower.includes('south')) orientation = 180;
-    else if (orientLower === 'west' || orientLower.includes('west')) orientation = 270;
+/** Error banners for global failures (simulation / optimization). */
+function ErrorBanners() {
+  const { simulation, optimization, clearSimulationError, clearOptimizationError } = useStudioState();
+  return (
+    <>
+      {simulation.error && (
+        <div className="mb-6 p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200" role="alert">
+          <div className="flex-1">
+            <h4 className="font-semibold text-sm text-red-300">Simulation Error</h4>
+            <p className="text-xs text-red-200 mt-0.5">{simulation.error}</p>
+          </div>
+          <button
+            onClick={clearSimulationError}
+            className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {optimization.error && (
+        <div className="mb-6 p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200" role="alert">
+          <div className="flex-1">
+            <h4 className="font-semibold text-sm text-red-300">Optimization Error</h4>
+            <p className="text-xs text-red-200 mt-0.5">{optimization.error}</p>
+          </div>
+          <button
+            onClick={clearOptimizationError}
+            className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
 
-    // Determine insulation type from thickness
-    let insulationType = shelterDesign.insulationType;
-    if (candidate.insulation_thickness_m <= 0) {
-      insulationType = 'None';
-    } else if (insulationType === 'None') {
-      insulationType = 'EPS'; // Default to EPS if we had none but candidate needs insulation
-    }
-
-    setShelterDesign({
-      ...shelterDesign,
-      windowArea: candidate.window_area_m2,
-      windowGlazing: glazing,
-      orientation,
-      insulationType,
-    });
-
-    // Clear stale simulation result so user knows to re-run
-    setSimulationResult(null);
-  };
-
-
-  const tabs = [
-    { id: 'studio' as TabType, label: 'Design Studio', icon: Sparkles },
-    { id: 'dashboard' as TabType, label: 'Dashboard', icon: Shield },
-    { id: 'climate' as TabType, label: 'Climate Data', icon: Thermometer },
-    { id: 'design' as TabType, label: 'Shelter Design', icon: Settings },
-    { id: 'blueprint' as TabType, label: 'Blueprint', icon: Ruler },
-    { id: 'results' as TabType, label: 'Results', icon: BarChart3 },
-    { id: 'compare' as TabType, label: 'Compare', icon: Layers },
-  ];
+function StudioShell() {
+  const { stage, setStage, expertMode, setExpertMode } = useStudioState();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
-              <Mountain className="w-6 h-6 text-white" />
+              <Mountain className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
             <div>
               <h1 className="text-lg font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
@@ -205,126 +267,38 @@ function App() {
               <p className="text-xs text-slate-400">Area-Specific Shelter Design for Thermal Comfort</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <Shield className="w-4 h-4 text-amber-500" />
-            <span>SIH 2026 | DRDO</span>
+          <div className="flex items-center gap-3">
+            {/* Mode toggle: guided stepper vs expert free navigation */}
+            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={expertMode}
+                onChange={(e) => setExpertMode(e.target.checked)}
+                className="w-4 h-4 accent-amber-500"
+              />
+              Expert mode
+            </label>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span>SIH 2026 | DRDO</span>
+            </div>
           </div>
         </div>
       </header>
 
-      <nav className="bg-slate-800/50 border-b border-slate-700/30">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1 overflow-x-auto py-2">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
+      {/* Persistent context strip — real state only */}
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        <ContextStripBinding />
+      </div>
 
+      {/* Workflow navigation */}
+      <div className="max-w-7xl mx-auto px-4 pt-3">
+        <Stepper current={stage} onNavigate={setStage} expertMode={expertMode} />
+      </div>
+
+      {/* Main stage content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {simulationError && (
-          <div className="mb-6 p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200">
-            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <h4 className="font-semibold text-sm text-red-300">Simulation Error</h4>
-              <p className="text-xs text-red-200 mt-0.5">{simulationError}</p>
-            </div>
-            <button
-              onClick={() => setSimulationError(null)}
-              className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {optimizationError && (
-          <div className="mb-6 p-4 bg-red-950/60 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-200">
-            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <h4 className="font-semibold text-sm text-red-300">Optimization Error</h4>
-              <p className="text-xs text-red-200 mt-0.5">{optimizationError}</p>
-            </div>
-            <button
-              onClick={() => setOptimizationError(null)}
-              className="text-red-400 hover:text-red-200 text-xs font-semibold px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'studio' && <DesignStudio />}
-        {activeTab === 'dashboard' && <DashboardTab onNavigate={setActiveTab} climateData={climateData} />}
-        {activeTab === 'climate' && <ClimateInput climateData={climateData} setClimateData={setClimateData} climateProfile={climateProfile} onProfileChange={setClimateProfile} />}
-        {activeTab === 'design' && (
-          <ShelterDesigner
-            shelterDesign={shelterDesign}
-            setShelterDesign={setShelterDesign}
-            selectedMaterial={selectedMaterial}
-            setSelectedMaterial={setSelectedMaterial}
-            onRunSimulation={handleRunSimulation}
-            isSimulating={isSimulating}
-            onRunOptimization={() => handleRunOptimization()}
-            isOptimizing={isOptimizing}
-            onNavigateToCompare={() => setActiveTab('compare')}
-          />
-        )}
-        {activeTab === 'blueprint' && (
-          <EngineeringBlueprint
-            design={shelterDesign}
-            materialName={selectedMaterial}
-            locationName={climateData.location}
-          />
-        )}
-        {activeTab === 'results' && simulationResult && (
-          <SimulationResults
-            result={simulationResult}
-            climateData={climateData}
-            shelterDesign={shelterDesign}
-            materialName={selectedMaterial}
-          />
-        )}
-        {activeTab === 'results' && !simulationResult && (
-          <div className="text-center py-20">
-            <BarChart3 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-400 mb-2">No Results Yet</h3>
-            <button
-              onClick={() => setActiveTab('climate')}
-              className="px-6 py-2 bg-amber-500 text-black rounded-lg font-medium"
-            >
-              Get Started
-            </button>
-          </div>
-        )}
-        {activeTab === 'compare' && (
-          <ComparativeAnalysis
-            climateData={climateData}
-            shelterDesign={shelterDesign}
-            selectedMaterial={selectedMaterial}
-            baselineResult={simulationResult}
-            optimizationResult={optimizationResult}
-            isOptimizing={isOptimizing}
-            onRunOptimization={handleRunOptimization}
-            onApplyCandidate={handleApplyCandidate}
-            onNavigateToDesign={() => setActiveTab('design')}
-          />
-        )}
+        <ErrorBanners />
+        <StageRouter />
       </main>
 
       <footer className="bg-slate-900/80 border-t border-slate-700/30 py-4 mt-8">
@@ -336,64 +310,10 @@ function App() {
   );
 }
 
-function DashboardTab({
-  onNavigate,
-  climateData,
-}: {
-  onNavigate: (tab: TabType) => void;
-  climateData: ClimateData;
-}) {
+export default function App() {
   return (
-    <div className="space-y-8">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border border-amber-500/20 p-8">
-        <h2 className="text-3xl font-bold mb-3">
-          Area-Specific Shelter Design for{' '}
-          <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-            Thermal Comfort
-          </span>
-        </h2>
-        <p className="text-slate-300 max-w-2xl mb-6">
-          Design energy-efficient, self-sustained passive shelters optimized for specific climatic conditions.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => onNavigate('studio')}
-            className="px-6 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold rounded-lg flex items-center gap-2"
-          >
-            <Sparkles className="w-4 h-4" /> Launch Design Studio
-          </button>
-          <button
-            onClick={() => onNavigate('climate')}
-            className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold rounded-lg"
-          >
-            Manual Design <ChevronRight className="w-4 h-4 inline" />
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/5 border border-blue-500/20 rounded-xl p-4">
-          <Mountain className="w-5 h-5 text-blue-400 mb-2" />
-          <p className="text-xs text-slate-400">Location</p>
-          <p className="text-sm font-semibold">{climateData.location}</p>
-        </div>
-        <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border border-orange-500/20 rounded-xl p-4">
-          <Thermometer className="w-5 h-5 text-orange-400 mb-2" />
-          <p className="text-xs text-slate-400">Avg Temp</p>
-          <p className="text-sm font-semibold">{climateData.avgAmbientTemp}°C</p>
-        </div>
-        <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border border-yellow-500/20 rounded-xl p-4">
-          <Sun className="w-5 h-5 text-yellow-400 mb-2" />
-          <p className="text-xs text-slate-400">Solar</p>
-          <p className="text-sm font-semibold">{climateData.solarIrradiance} kWh/m²/yr</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-500/20 to-green-600/5 border border-green-500/20 rounded-xl p-4">
-          <Wind className="w-5 h-5 text-green-400 mb-2" />
-          <p className="text-xs text-slate-400">Altitude</p>
-          <p className="text-sm font-semibold">{climateData.altitude}m</p>
-        </div>
-      </div>
-    </div>
+    <StudioStateProvider>
+      <StudioShell />
+    </StudioStateProvider>
   );
 }
-
-export default App;
