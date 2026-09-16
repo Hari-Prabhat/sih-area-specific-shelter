@@ -769,14 +769,14 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
             maximum_temperature=round(observed_max, 1),
             diurnal_range_mean=round(observed_max - observed_min, 1),
             source="Open-Meteo Aggregated Meteorological Service",
-            provenance=DataProvenance.MEASURED
+            provenance=DataProvenance.MODEL_ANALYSIS
         )
 
         wind_data = WindData(
             average_speed=round(avg_wind, 2),
             prevailing_direction="Variable",
             source="Open-Meteo Global Numerical Weather Model",
-            provenance=DataProvenance.MEASURED
+            provenance=DataProvenance.MODEL_ANALYSIS
         )
 
         humidity_data = HumidityData(
@@ -784,7 +784,7 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
             min_relative_humidity=max(0.0, round(avg_rh - 20.0, 1)),
             max_relative_humidity=min(100.0, round(avg_rh + 20.0, 1)),
             source="Open-Meteo Global Numerical Weather Model",
-            provenance=DataProvenance.MEASURED
+            provenance=DataProvenance.MODEL_ANALYSIS
         )
 
         design_extremes = DesignExtremes(
@@ -796,7 +796,7 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
 
         data_quality = DataQuality(
             confidence=DataConfidence.HIGH,
-            provenance=DataProvenance.MEASURED,
+            provenance=DataProvenance.MODEL_ANALYSIS,
             sources=["Open-Meteo Global Numerical Weather Prediction (ECMWF/GFS)"],
             notes="Derived from live external numerical forecast model."
         )
@@ -833,7 +833,7 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
             unit="W/m²",
             temporal_resolution="annual_mean_flux",
             source="Open-Meteo Solar Radiation Model",
-            provenance=DataProvenance.MEASURED
+            provenance=DataProvenance.MODEL_ANALYSIS
         )
 
 

@@ -964,6 +964,12 @@ def adapt_backend_climate_profile(backend_profile: Any) -> ClimateProfile:
         "ESTIMATED": DataProvenance.ESTIMATED,
         "SIMULATED": DataProvenance.SIMULATED,
         "OPTIMIZED": DataProvenance.OPTIMIZED,
+        # Phase C: explicit model-derived / design / fallback categories
+        "MODEL_ANALYSIS": DataProvenance.MODEL_ANALYSIS,
+        "FORECAST": DataProvenance.FORECAST,
+        "HISTORICAL_REANALYSIS": DataProvenance.HISTORICAL_REANALYSIS,
+        "DESIGN": DataProvenance.DESIGN,
+        "FALLBACK": DataProvenance.FALLBACK,
     }
     raw_prov = str(quality.provenance.value) if hasattr(quality.provenance, "value") else str(quality.provenance)
     canonical_prov = prov_map.get(raw_prov.upper(), DataProvenance.ESTIMATED)

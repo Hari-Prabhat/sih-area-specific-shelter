@@ -238,7 +238,7 @@ class TestTimeseriesNormalizer(unittest.TestCase):
             wind_speed_mps=[3.0] * n,
             solar_direct_W_m2=[500.0] * n if solar else None,
             solar_diffuse_W_m2=[120.0] * n if solar else None,
-            data_mode=mode, provenance="MEASURED" if mode == WeatherDataMode.LIVE else "SIMULATED", provider="Test Provider",
+            data_mode=mode, provenance="MODEL_ANALYSIS" if mode == WeatherDataMode.LIVE else "SIMULATED", provider="Test Provider",
             retrieval_timestamp="2026-09-16T00:00:00Z",
             period_start="2026-07-01T00:00:00", period_end="2026-07-01T23:00:00",
             fallback_used=False, notes="",

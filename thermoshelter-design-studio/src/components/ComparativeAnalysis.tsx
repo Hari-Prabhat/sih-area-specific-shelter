@@ -377,7 +377,7 @@ export default function ComparativeAnalysis({
                   onChange={(e) => handleWeightChange('comfort', parseFloat(e.target.value))}
                   className="w-full accent-emerald-500"
                 />
-                <p className="text-[11px] text-slate-400">Maximizes hours within the 18°C–26°C adaptive comfort zone.</p>
+                <p className="text-[11px] text-slate-400">Maximizes hours within the 18°C–24°C adaptive comfort zone.</p>
               </div>
 
               <div className="space-y-2">
