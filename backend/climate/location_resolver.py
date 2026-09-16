@@ -225,6 +225,123 @@ class LocationResolver:
             f"Or supply coordinates directly in format 'latitude, longitude'."
         )
 
+    def search_locations(self, name: str, count: int = 5, allow_online: bool = True) -> List[Location]:
+        """
+        Returns up to `count` candidate locations for a place-name query,
+        enabling disambiguation of ambiguous names (e.g. 'Bhagwanpur').
+        Local matches first, then Open-Meteo geocoding when allowed.
+        Raises ClimateServiceError-compatible ValueError only on empty input;
+        returns [] when nothing is found.
+        """
+        query_clean = (name or "").strip()
+        if not query_clean:
+            raise ValueError("Place name cannot be empty")
+
+        # Coordinate input ("lat, lon") resolves directly to one validated
+        # candidate - the architecture works from coordinates, not a city list.
+        parts = [p for p in query_clean.replace(";", ",").split(",") if p.strip()]
+        if len(parts) == 2:
+            try:
+                lat_val, lon_val = float(parts[0]), float(parts[1])
+            except ValueError:
+                lat_val = None  # not coordinates after all; fall through to name search
+            if lat_val is not None:
+                loc = self.resolve((lat_val, lon_val))
+                return [loc]
+
+        results: List[Location] = []
+        query_lower = query_clean.lower()
+
+        for loc in self._local_locations:
+            loc_name = str(loc.get("name", "")).lower()
+            loc_region = str(loc.get("region", "")).lower()
+            if loc_name and (query_lower in loc_name or query_lower in loc_region):
+                results.append(
+                    Location(
+                        place_name=f"{loc['name']}, {loc.get('region', loc.get('country', 'India'))}",
+                        latitude=loc["latitude"],
+                        longitude=loc["longitude"],
+                        elevation=loc.get("altitude"),
+                        timezone=loc.get("timezone", "Asia/Kolkata"),
+                        country=loc.get("country", "India"),
+                        region=loc.get("region"),
+                        source=loc.get("source", "Local Climatological Database"),
+                    )
+                )
+            if len(results) >= count:
+                return results
+
+        if allow_online:
+            try:
+                url = "https://geocoding-api.open-meteo.com/v1/search"
+                params = {"name": query_clean, "count": max(1, int(count)), "format": "json"}
+                response = requests.get(url, params=params, timeout=self.timeout_seconds)
+                if response.status_code == 200:
+                    data = response.json()
+                    for first in data.get("results", [])[: max(0, count - len(results))]:
+                        results.append(
+                            Location(
+                                place_name=(
+                                    f"{first.get('name')}, {first.get('admin1', first.get('country', ''))}"
+                                ),
+                                latitude=first["latitude"],
+                                longitude=first["longitude"],
+                                elevation=first.get("elevation"),
+                                timezone=first.get("timezone", "Asia/Kolkata"),
+                                country=first.get("country", "India"),
+                                region=first.get("admin1"),
+                                source="Open-Meteo Geocoding API",
+                            )
+                        )
+            except Exception:
+                pass  # network failure: return whatever local candidates were found
+
+        return results
+
+    def resolve_from_pincode(self, pincode: str, allow_online: bool = True) -> Location:
+        """
+        Resolves a 6-digit Indian PIN code via the India Post PIN directory
+        (keyless public API) to obtain the district/state, then geocodes the
+        district via Open-Meteo. Provider attribution is preserved.
+        """
+        pin = (pincode or "").strip()
+        if not (pin.isdigit() and len(pin) == 6):
+            raise ValueError(f"Invalid PIN code '{pin}': expected 6 digits")
+
+        if not allow_online:
+            raise ValueError("PIN resolution requires online geocoding (allow_online=False)")
+
+        district: Optional[str] = None
+        region: Optional[str] = None
+        try:
+            resp = requests.get(
+                f"https://api.postalpincode.in/pincode/{pin}", timeout=self.timeout_seconds
+            )
+            if resp.status_code == 200:
+                payload = resp.json()
+                if isinstance(payload, list) and payload:
+                    offices = payload[0].get("PostOffice") or []
+                    if offices:
+                        district = offices[0].get("District")
+                        region = offices[0].get("State")
+        except Exception:
+            pass
+
+        if not district:
+            raise ValueError(
+                f"PIN code '{pin}' could not be resolved to a district "
+                "(India Post directory unreachable or unknown PIN)"
+            )
+
+        location = self.resolve_from_name(f"{district}, {region or 'India'}", allow_online=True)
+        location = location.model_copy(
+            update={
+                "source": f"India Post PIN Directory ({pin}) + Open-Meteo Geocoding",
+                "region": region or location.region,
+            }
+        )
+        return location
+
     def resolve(self, query: Union[str, Tuple[float, float], Dict[str, Any], Location]) -> Location:
         """
         Universal entry point to resolve any supported location input into a validated Location model.

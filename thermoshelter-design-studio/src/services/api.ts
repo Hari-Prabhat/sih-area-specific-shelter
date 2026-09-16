@@ -97,6 +97,147 @@ export interface HealthStatus {
   subsystems?: Record<string, string>;
 }
 
+// ==========================================================================
+// CLIMATE & LOCATION INTELLIGENCE (Phase B)
+// ==========================================================================
+
+/**
+ * Candidate location returned by GET /api/climate/geocode.
+ * Coordinates are the operative values - the architecture works from
+ * coordinates, never from a hardcoded city list.
+ */
+export interface ClimateLocationCandidate {
+  place_name: string;
+  latitude: number;
+  longitude: number;
+  elevation?: number | null;
+  timezone?: string | null;
+  country?: string | null;
+  region?: string | null;
+  source?: string | null;
+}
+
+/** Data mode of a fetched weather dataset. Never conflated by the backend. */
+export type WeatherDatasetMode = 'live' | 'forecast' | 'historical' | 'design' | 'fallback';
+
+/**
+ * Typed hourly weather series (GET /api/climate/weather and the `series`
+ * element of /api/climate/simulation-profile). Mirrors the backend
+ * HourlyWeatherSeries contract; raw provider JSON never reaches the client.
+ */
+export interface HourlyWeatherSeriesDto {
+  latitude: number;
+  longitude: number;
+  elevation_m?: number | null;
+  timezone?: string | null;
+  timestamps: string[];
+  air_temperature_C: number[];
+  relative_humidity_percent?: number[] | null;
+  wind_speed_mps?: number[] | null;
+  wind_direction_deg?: number[] | null;
+  precipitation_mm?: number[] | null;
+  cloud_cover_percent?: number[] | null;
+  solar_global_W_m2?: number[] | null;
+  solar_direct_W_m2?: number[] | null;
+  solar_diffuse_W_m2?: number[] | null;
+  data_mode: WeatherDatasetMode;
+  provenance: string;
+  provider: string;
+  retrieval_timestamp: string;
+  period_start: string;
+  period_end: string;
+  fallback_used: boolean;
+  notes?: string;
+}
+
+/**
+ * Response of GET /api/climate/simulation-profile: the full
+ * location -> weather -> canonical ClimateProfile -> strategy pipeline.
+ * `climate` is the canonical profile dict the simulation endpoint accepts.
+ */
+export interface SimulationClimateProfile {
+  climate: {
+    city?: string;
+    climate_zone?: string;
+    data_provenance?: string;
+    data_source?: string;
+    elevation_m?: number | null;
+    timestamps?: string[];
+    hourly_temperature: number[];
+    hourly_direct_solar?: number[] | null;
+    hourly_diffuse_solar?: number[] | null;
+    [key: string]: unknown;
+  };
+  series: HourlyWeatherSeriesDto;
+  strategy: Record<string, unknown> | null;
+}
+
+/**
+ * Maps a climate API failure into user-facing text. Reuses the Phase A
+ * ApiError classification - only a genuinely unreachable backend reports
+ * "service unavailable"; invalid locations and provider failures keep
+ * their own distinct, actionable messages.
+ */
+export function describeClimateError(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.kind) {
+      case 'unavailable':
+        return 'Climate service unavailable. Start the FastAPI backend and try again.';
+      case 'invalid_input':
+      case 'simulation_failed':
+      case 'http':
+        return error.message;
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Resolves a free-text place query (city, district, state, or 'lat, lon')
+ * into candidate locations for disambiguation. Never sends user text to
+ * any provider other than the backend's allowlisted geocoder.
+ */
+export async function geocodeLocations(query: string, count: number = 5): Promise<ClimateLocationCandidate[]> {
+  const url = `${API_BASE_URL}/api/climate/geocode?query=${encodeURIComponent(query)}&count=${count}`;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { Accept: 'application/json' } });
+  } catch (error: any) {
+    throw toApiError(error);
+  }
+  if (!response.ok) {
+    throw await parseErrorResponse(response);
+  }
+  const body = await response.json();
+  return (body?.results ?? []) as ClimateLocationCandidate[];
+}
+
+/**
+ * Runs the full backend climate pipeline for a location:
+ * location -> coordinates -> hourly weather -> canonical ClimateProfile
+ * -> passive strategy inputs. The returned `climate` object plugs directly
+ * into /api/simulation/run, keeping Python the sole physics authority.
+ */
+export async function fetchSimulationClimateProfile(
+  location: string,
+  mode: WeatherDatasetMode = 'live',
+  hours: number = 168,
+): Promise<SimulationClimateProfile> {
+  const params = new URLSearchParams({ location, mode, hours: String(hours) });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/climate/simulation-profile?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+    });
+  } catch (error: any) {
+    throw toApiError(error);
+  }
+  if (!response.ok) {
+    throw await parseErrorResponse(response);
+  }
+  return response.json();
+}
+
 /**
  * Classified API failure kinds.
  * 'unavailable'  — backend unreachable (network error, connection refused, proxy down)
@@ -243,13 +384,18 @@ export async function checkApiHealth(): Promise<HealthStatus> {
 
 /**
  * Maps frontend UI entities into the canonical request payload for /api/simulation/run
+ *
+ * When a backend-derived climate profile is supplied (Phase B), its canonical
+ * dict overrides the preset-city lookup so the simulation runs on real
+ * provider weather for the selected location.
  */
 export function buildCanonicalSimulationPayload(
   climate: ClimateData,
   design: ShelterDesign,
   material?: MaterialProperties,
   insulation?: MaterialProperties,
-  hoursToSimulate: number = 168
+  hoursToSimulate: number = 168,
+  climateProfile?: SimulationClimateProfile,
 ) {
   // Map wall material name to standardized key
   const matName = material ? material.name.toLowerCase() : 'brick';
@@ -270,7 +416,8 @@ export function buildCanonicalSimulationPayload(
   const insThick = insulation && insulation.name !== 'None' ? 0.05 : 0.0;
 
   // Resolve city name from location string (e.g. "Leh, Ladakh" -> "leh")
-  const cityName = climate.location.split(',')[0].toLowerCase().trim();
+  const cityName = climateProfile?.climate?.city
+    ?? climate.location.split(',')[0].toLowerCase().trim();
 
   return {
     city: cityName,
@@ -296,6 +443,7 @@ export function buildCanonicalSimulationPayload(
     hours_to_simulate: hoursToSimulate,
     substeps: 30,
     initial_indoor_temp: 20.0,
+    ...(climateProfile ? { climate: climateProfile.climate } : {}),
   };
 }
 
@@ -365,9 +513,10 @@ export async function runSimulationViaApi(
   design: ShelterDesign,
   material?: MaterialProperties,
   insulation?: MaterialProperties,
-  hoursToSimulate: number = 168
+  hoursToSimulate: number = 168,
+  climateProfile?: SimulationClimateProfile,
 ): Promise<UiSimulationResult> {
-  const payload = buildCanonicalSimulationPayload(climate, design, material, insulation, hoursToSimulate);
+  const payload = buildCanonicalSimulationPayload(climate, design, material, insulation, hoursToSimulate, climateProfile);
 
   let response: Response;
   try {

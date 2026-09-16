@@ -13,7 +13,11 @@ import {
   buildCanonicalSimulationPayload,
   checkApiHealth,
   describeApiError,
+  describeClimateError,
+  fetchSimulationClimateProfile,
+  geocodeLocations,
   runSimulationViaApi,
+  SimulationClimateProfile,
 } from './api';
 import type { ClimateData, ShelterDesign, MaterialProperties } from '../types';
 
@@ -196,5 +200,141 @@ describe('API error classification from responses', () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err.kind).toBe('invalid_input');
     expect(err.message).toContain('body.design.length');
+  });
+});
+
+// ==========================================================================
+// Phase B: Climate & Location Intelligence client
+// ==========================================================================
+
+const climateProfileFixture: SimulationClimateProfile = {
+  climate: {
+    city: 'Test Site',
+    climate_zone: 'hot_dry',
+    data_provenance: 'simulated',
+    data_source: 'Open-Meteo Forecast (NWP model ensemble) [forecast]',
+    elevation_m: 216.0,
+    timestamps: ['2026-07-01T00:00', '2026-07-01T01:00'],
+    hourly_temperature: [31.2, 30.8],
+    hourly_direct_solar: [0, 0],
+    hourly_diffuse_solar: [0, 0],
+  },
+  series: {
+    latitude: 28.6,
+    longitude: 77.2,
+    elevation_m: 216.0,
+    timezone: 'Asia/Kolkata',
+    timestamps: ['2026-07-01T00:00', '2026-07-01T01:00'],
+    air_temperature_C: [31.2, 30.8],
+    solar_direct_W_m2: [0, 0],
+    solar_diffuse_W_m2: [0, 0],
+    data_mode: 'forecast',
+    provenance: 'SIMULATED',
+    provider: 'Open-Meteo Forecast (NWP model ensemble)',
+    retrieval_timestamp: '2026-09-16T00:00:00Z',
+    period_start: '2026-07-01T00:00',
+    period_end: '2026-07-01T01:00',
+    fallback_used: false,
+  },
+  strategy: { primary_strategy: 'Thermal mass damping + nocturnal flush cooling' },
+};
+
+describe('climate payload construction (Phase B)', () => {
+  it('omits the climate override on the classic preset path', () => {
+    const payload = buildCanonicalSimulationPayload(climate, design, wallMaterial, insulation);
+    expect(payload.climate).toBeUndefined();
+    expect(payload.city).toBe('leh');
+  });
+
+  it('attaches the backend climate profile and its city when provided', () => {
+    const payload = buildCanonicalSimulationPayload(
+      climate,
+      design,
+      wallMaterial,
+      insulation,
+      168,
+      climateProfileFixture,
+    );
+    expect(payload.city).toBe('Test Site');
+    expect(payload.climate).toBe(climateProfileFixture.climate);
+    expect(payload.climate?.hourly_temperature).toEqual([31.2, 30.8]);
+    // The canonical design payload itself is unchanged
+    expect(payload.design.length).toBe(6);
+    expect(payload.design.thermal_mass_enabled).toBe(true);
+  });
+});
+
+describe('climate API client (Phase B)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('geocodeLocations parses backend candidates', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          query: 'jaisalmer',
+          count: 1,
+          results: [{ place_name: 'Jaisalmer, Rajasthan', latitude: 26.9157, longitude: 70.9083 }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    const results = await geocodeLocations('jaisalmer', 4);
+    expect(results).toHaveLength(1);
+    expect(results[0].latitude).toBeCloseTo(26.9157, 3);
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/climate/geocode?query=jaisalmer');
+  });
+
+  it('fetchSimulationClimateProfile requests the given location/mode/hours', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify(climateProfileFixture), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const profile = await fetchSimulationClimateProfile('28.6,77.2', 'live', 168);
+    expect(profile.series.data_mode).toBe('forecast'); // fixture mode preserved
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/climate/simulation-profile');
+    expect(calledUrl).toContain('mode=live');
+    expect(calledUrl).toContain('hours=168');
+  });
+
+  it('classifies climate 422 (invalid location) as invalid_input, not unavailable', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: { error: 'invalid_location', message: 'Could not resolve location' } }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    const err = await fetchSimulationClimateProfile('zzz', 'live', 24).catch((e: unknown) => e);
+    expect(err).toMatchObject({ kind: 'invalid_input', status: 422 });
+    expect(describeClimateError(err)).toContain('Could not resolve location');
+  });
+
+  it('classifies climate network failure as unavailable', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new TypeError('Failed to fetch'));
+    const err = await geocodeLocations('delhi').catch((e: unknown) => e);
+    expect(err).toMatchObject({ kind: 'unavailable' });
+    expect(describeClimateError(err)).toContain('Climate service unavailable');
+  });
+
+  it('runSimulationViaApi posts the climate-derived profile to /api/simulation/run', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 500 })
+    );
+    // We only need to inspect the request body; the 500 keeps the call short.
+    await runSimulationViaApi(climate, design, wallMaterial, insulation, 168, climateProfileFixture).catch(() => null);
+    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.city).toBe('Test Site');
+    expect(body.climate.hourly_temperature).toEqual([31.2, 30.8]);
   });
 });

@@ -5,25 +5,34 @@ Vendor-agnostic abstraction layer supporting real-time observations,
 historical climate norms, and local offline fallbacks with caching.
 """
 
+
+
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
 import json
+import logging
 import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 import requests
 
 from backend.climate.climate_cache import ClimateCache
+from backend.climate.errors import ClimateErrorCategory, ClimateServiceError
 from backend.climate.schemas import (
     CurrentWeather,
     DataConfidence,
     DataProvenance,
     DataQuality,
     DesignExtremes,
+    HourlyWeatherSeries,
     HumidityData,
     SolarData,
     TemperatureProfile,
+    WeatherDataMode,
     WindData,
 )
+
+logger = logging.getLogger("thermoshelter.climate.weather")
 
 
 class BaseWeatherProvider(ABC):
@@ -392,6 +401,320 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
             source="Open-Meteo Live Forecast API"
         )
 
+    # ------------------------------------------------------------------
+    # HOURLY TIMESERIES (Phase B)
+    # ------------------------------------------------------------------
+
+    _HOURLY_VARIABLES = [
+        "temperature_2m",
+        "relative_humidity_2m",
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "precipitation",
+        "cloud_cover",
+        "shortwave_radiation",
+        "direct_normal_irradiance",
+        "diffuse_radiation",
+    ]
+
+    def get_hourly_forecast(
+        self, latitude: float, longitude: float, hours: int = 168, include_past: bool = False
+    ) -> HourlyWeatherSeries:
+        """
+        Retrieves an hourly forecast timeseries (numerical weather prediction).
+        Default horizon is 168 hours from the current hour (Open-Meteo
+        forecast_hours), matching the simulation's 7-day horizon. With
+        include_past=True the window ends at the current hour (past_hours)
+        for a live/nowcast scenario, and the series is labelled LIVE (never
+        presented as a future forecast).
+        """
+        params: Dict[str, Any] = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": self._HOURLY_VARIABLES,
+            "wind_speed_unit": "ms",
+            "timezone": "auto",
+            "forecast_hours": max(1, min(int(hours), 384)),
+        }
+        if include_past:
+            params.pop("forecast_hours", None)
+            params["past_hours"] = max(1, min(int(hours), 168))
+
+        try:
+            resp = requests.get(self.FORECAST_URL, params=params, timeout=self.timeout_seconds)
+        except requests.Timeout as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_TIMEOUT,
+                f"Open-Meteo forecast request timed out after {self.timeout_seconds}s",
+            ) from exc
+        except requests.RequestException as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 429:
+                raise ClimateServiceError(
+                    ClimateErrorCategory.PROVIDER_RATE_LIMIT,
+                    "Open-Meteo rate limit reached (HTTP 429)",
+                ) from exc
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_ERROR,
+                f"Open-Meteo forecast request failed: {exc}",
+            ) from exc
+
+        if resp.status_code == 429:
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_RATE_LIMIT,
+                "Open-Meteo rate limit reached (HTTP 429)",
+            )
+        if resp.status_code != 200:
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_ERROR,
+                f"Open-Meteo forecast returned HTTP {resp.status_code}",
+            )
+
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.MALFORMED_RESPONSE,
+                "Open-Meteo forecast returned a non-JSON payload",
+            ) from exc
+
+        if data.get("error"):
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_ERROR,
+                f"Open-Meteo forecast error: {data.get('reason', 'unknown')}",
+            )
+
+        return self._parse_hourly_payload(
+            data,
+            latitude=latitude,
+            longitude=longitude,
+            mode=(WeatherDataMode.LIVE if include_past else WeatherDataMode.FORECAST),
+            provenance=DataProvenance.MEASURED if include_past else DataProvenance.SIMULATED,
+            provider_label=(
+                "Open-Meteo Recent Conditions (NWP analysis, ending now)"
+                if include_past
+                else "Open-Meteo Forecast (NWP model ensemble)"
+            ),
+            requested_hours=(int(hours) if include_past else None),
+        )
+
+    def get_hourly_archive(
+        self,
+        latitude: float,
+        longitude: float,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        hours: int = 168,
+    ) -> HourlyWeatherSeries:
+        """
+        Retrieves an hourly HISTORICAL reanalysis timeseries (ERA5, ~25 km grid).
+        Reanalysis data is model-derived - it is neither an on-site measurement
+        nor a design climate, and is labelled accordingly.
+        """
+        if end_date is None:
+            end_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+        if start_date is None:
+            start_dt = datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=max(1, (int(hours) + 23) // 24) - 1)
+            start_date = start_dt.strftime("%Y-%m-%d")
+
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": self._HOURLY_VARIABLES,
+            "wind_speed_unit": "ms",
+            "timezone": "auto",
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        try:
+            resp = requests.get(self.ARCHIVE_URL, params=params, timeout=self.timeout_seconds)
+        except requests.Timeout as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_TIMEOUT,
+                f"Open-Meteo archive request timed out after {self.timeout_seconds}s",
+            ) from exc
+        except requests.RequestException as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_ERROR,
+                f"Open-Meteo archive request failed: {exc}",
+            ) from exc
+
+        if resp.status_code != 200:
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_ERROR,
+                f"Open-Meteo archive returned HTTP {resp.status_code}",
+            )
+
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.MALFORMED_RESPONSE,
+                "Open-Meteo archive returned a non-JSON payload",
+            ) from exc
+
+        if data.get("error"):
+            raise ClimateServiceError(
+                ClimateErrorCategory.PROVIDER_ERROR,
+                f"Open-Meteo archive error: {data.get('reason', 'unknown')}",
+            )
+
+        return self._parse_hourly_payload(
+            data,
+            latitude=latitude,
+            longitude=longitude,
+            mode=WeatherDataMode.HISTORICAL,
+            provenance=DataProvenance.HISTORICAL,
+            provider_label="Open-Meteo Historical Reanalysis (ERA5)",
+            requested_hours=None,
+        )
+
+    def get_elevation(self, latitude: float, longitude: float) -> float:
+        """
+        Provider-backed elevation from the Open-Meteo Elevation API
+        (Copernicus DEM GLO-90, ~90 m resolution). This is a gridded DEM
+        estimate, not survey-grade accuracy.
+        """
+        try:
+            resp = requests.get(
+                "https://api.open-meteo.com/v1/elevation",
+                params={"latitude": latitude, "longitude": longitude},
+                timeout=self.timeout_seconds,
+            )
+        except requests.Timeout as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.ELEVATION_FAILURE,
+                f"Open-Meteo elevation request timed out after {self.timeout_seconds}s",
+            ) from exc
+        except requests.RequestException as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.ELEVATION_FAILURE,
+                f"Open-Meteo elevation request failed: {exc}",
+            ) from exc
+
+        if resp.status_code != 200:
+            raise ClimateServiceError(
+                ClimateErrorCategory.ELEVATION_FAILURE,
+                f"Open-Meteo elevation returned HTTP {resp.status_code}",
+            )
+        try:
+            data = resp.json()
+            elevation_values = data.get("elevation")
+            if not isinstance(elevation_values, list) or not elevation_values:
+                raise ValueError("missing 'elevation' array")
+            return float(elevation_values[0])
+        except (ValueError, TypeError, KeyError) as exc:
+            raise ClimateServiceError(
+                ClimateErrorCategory.MALFORMED_RESPONSE,
+                f"Open-Meteo elevation payload malformed: {exc}",
+            ) from exc
+
+    def _parse_hourly_payload(
+        self,
+        data: Dict[str, Any],
+        latitude: float,
+        longitude: float,
+        mode: WeatherDataMode,
+        provenance: DataProvenance,
+        provider_label: str,
+        requested_hours: Optional[int] = None,
+    ) -> HourlyWeatherSeries:
+        """
+        Validates an Open-Meteo hourly payload and maps it into the canonical
+        HourlyWeatherSeries contract. Required fields are enforced; optional
+        fields are carried only when actually present. No substitution, no
+        synthetic interpolation.
+        """
+        hourly = data.get("hourly")
+        if not isinstance(hourly, dict):
+            raise ClimateServiceError(
+                ClimateErrorCategory.MALFORMED_RESPONSE,
+                "Open-Meteo payload missing 'hourly' object",
+            )
+
+        timestamps = hourly.get("time")
+        temps = hourly.get("temperature_2m")
+        if not isinstance(timestamps, list) or not timestamps:
+            raise ClimateServiceError(
+                ClimateErrorCategory.MALFORMED_RESPONSE,
+                "Open-Meteo payload missing hourly 'time' array",
+            )
+        if not isinstance(temps, list) or len(temps) != len(timestamps):
+            raise ClimateServiceError(
+                ClimateErrorCategory.MALFORMED_RESPONSE,
+                "Open-Meteo payload temperature array missing or misaligned",
+            )
+        # Open-Meteo pads the response tail with nulls beyond the usable model
+        # horizon (notably solar variables when past_hours is requested). A pure
+        # trailing-null suffix is trimmed to the usable window; interior nulls
+        # are a genuine data gap and are rejected, never substituted.
+        null_idx = [i for i, t in enumerate(temps) if t is None]
+        if null_idx:
+            first, last = null_idx[0], null_idx[-1]
+            if last != len(temps) - 1 or (last - first + 1) != len(null_idx):
+                raise ClimateServiceError(
+                    ClimateErrorCategory.DATA_UNAVAILABLE,
+                    "Open-Meteo hourly temperature series contains interior null values",
+                )
+            temps = temps[: first]
+        timestamps = timestamps[: len(temps)]
+        trimmed = len(null_idx) > 0
+        for _k, _v in hourly.items():
+            if isinstance(_v, list) and len(_v) > len(timestamps):
+                hourly[_k] = _v[: len(timestamps)]
+        # Honour the requested window length: with past_hours the provider
+        # returns the full remaining horizon, so slice to the requested count
+        # (taking the most recent hours). Forward forecasts already match.
+        if requested_hours is not None and len(timestamps) > requested_hours:
+            take = int(requested_hours)
+            for _k, _v in hourly.items():
+                if isinstance(_v, list) and len(_v) > take:
+                    hourly[_k] = _v[-take:]
+            timestamps = timestamps[-take:]
+            temps = temps[-take:]
+            trimmed = True
+
+        def _opt(key: str) -> Optional[List[float]]:
+            arr = hourly.get(key)
+            if not isinstance(arr, list) or any(v is None for v in arr):
+                return None  # omit rather than substitute
+            return [float(v) for v in arr]
+
+        series = HourlyWeatherSeries(
+            latitude=float(latitude),
+            longitude=float(longitude),
+            elevation_m=(float(data["elevation"]) if data.get("elevation") is not None else None),
+            timezone=data.get("timezone"),
+            timestamps=[str(t) for t in timestamps],
+            air_temperature_C=[float(t) for t in temps],
+            relative_humidity_percent=_opt("relative_humidity_2m"),
+            wind_speed_mps=_opt("wind_speed_10m"),
+            wind_direction_deg=_opt("wind_direction_10m"),
+            precipitation_mm=_opt("precipitation"),
+            cloud_cover_percent=_opt("cloud_cover"),
+            solar_global_W_m2=_opt("shortwave_radiation"),
+            solar_direct_W_m2=_opt("direct_normal_irradiance"),
+            solar_diffuse_W_m2=_opt("diffuse_radiation"),
+            data_mode=mode,
+            provenance=provenance,
+            provider=provider_label,
+            retrieval_timestamp=datetime.utcnow().isoformat() + "Z",
+            period_start=str(timestamps[0]),
+            period_end=str(timestamps[-1]),
+            fallback_used=False,
+            notes=(
+                "Window trimmed to %d usable hours; provider response extended "
+                "beyond the available model horizon with nulls." % len(timestamps)
+            )
+            if trimmed
+            else "",
+        )
+        logger.info(
+            "Open-Meteo hourly series resolved: mode=%s hours=%d lat=%.4f lon=%.4f tz=%s",
+            mode.value, len(series.timestamps), latitude, longitude, series.timezone,
+        )
+        return series
+
     def get_historical_climate(
         self, latitude: float, longitude: float
     ) -> Tuple[TemperatureProfile, WindData, HumidityData, DesignExtremes, DataQuality]:
@@ -612,3 +935,198 @@ class CompositeWeatherProvider(BaseWeatherProvider):
         result = self.fallback.get_solar_data(latitude, longitude)
         self.cache.set(cache_key, result, ttl_seconds=86400.0)
         return result
+
+
+    # ------------------------------------------------------------------
+    # HOURLY TIMESERIES + ELEVATION HIERARCHY (Phase B)
+    # live provider -> cached valid data -> bundled design fallback -> error
+    # ------------------------------------------------------------------
+
+    def get_hourly_forecast(
+        self, latitude: float, longitude: float, hours: int = 168, include_past: bool = False
+    ) -> HourlyWeatherSeries:
+        mode_key = "past" if include_past else "fwd"
+        cache_key = self.cache.generate_key("hourly_forecast", latitude, longitude, hours=hours, window=mode_key)
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if self.enable_online:
+            try:
+                result = self.external.get_hourly_forecast(latitude, longitude, hours=hours, include_past=include_past)
+                # Forecast models refresh continuously; keep a short TTL.
+                self.cache.set(cache_key, result, ttl_seconds=1800.0)
+                return result
+            except ClimateServiceError as exc:
+                logger.warning("Hourly forecast provider failed (%s); falling back", exc.category.value)
+            except Exception as exc:  # defensive: never let provider bugs crash the route
+                logger.warning("Unexpected hourly forecast failure: %s", exc)
+
+        result = self._fallback_hourly_series(latitude, longitude, hours, requested_mode="forecast")
+        self.cache.set(cache_key, result, ttl_seconds=600.0)
+        return result
+
+    def get_hourly_archive(
+        self,
+        latitude: float,
+        longitude: float,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        hours: int = 168,
+    ) -> HourlyWeatherSeries:
+        cache_key = self.cache.generate_key(
+            "hourly_archive", latitude, longitude, start=start_date or "auto", end=end_date or "auto"
+        )
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if self.enable_online:
+            try:
+                result = self.external.get_hourly_archive(
+                    latitude, longitude, start_date=start_date, end_date=end_date, hours=hours
+                )
+                # Reanalysis archives are immutable; cache for a full day.
+                self.cache.set(cache_key, result, ttl_seconds=86400.0)
+                return result
+            except ClimateServiceError as exc:
+                logger.warning("Hourly archive provider failed (%s); falling back", exc.category.value)
+            except Exception as exc:
+                logger.warning("Unexpected hourly archive failure: %s", exc)
+
+        result = self._fallback_hourly_series(latitude, longitude, hours, requested_mode="historical")
+        self.cache.set(cache_key, result, ttl_seconds=600.0)
+        return result
+
+    def get_elevation(self, latitude: float, longitude: float) -> Optional[float]:
+        """
+        Provider-backed elevation (Copernicus DEM GLO-90 via Open-Meteo).
+        Falls back to the nearest bundled benchmark station's elevation when
+        the DEM service is unreachable; the estimate is then labelled as such.
+        Returns None only when neither source can supply a value.
+        """
+        cache_key = self.cache.generate_key("elevation", latitude, longitude)
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if self.enable_online:
+            try:
+                elevation = self.external.get_elevation(latitude, longitude)
+                self.cache.set(cache_key, elevation, ttl_seconds=86400.0)
+                return elevation
+            except ClimateServiceError as exc:
+                logger.warning("Elevation provider failed (%s); using station fallback", exc.category.value)
+            except Exception as exc:
+                logger.warning("Unexpected elevation failure: %s", exc)
+
+        # Nearest bundled benchmark station elevation (documented estimate).
+        try:
+            key, _data, dist = self.fallback._find_closest_dataset(latitude, longitude)
+            if key and dist < 150.0:
+                for loc in getattr(self.fallback, "_locations", []):
+                    if loc.get("id", "").lower() == key:
+                        altitude = loc.get("altitude")
+                        if altitude is not None:
+                            self.cache.set(cache_key, float(altitude), ttl_seconds=86400.0)
+                            return float(altitude)
+        except Exception:
+            pass
+        return None
+
+    def get_design_climate(
+        self, latitude: float, longitude: float, hours: int = 168
+    ) -> HourlyWeatherSeries:
+        """
+        Returns the DESIGN-mode hourly series from the nearest bundled EPW
+        benchmark station. This is explicitly-requested design-year data
+        (not a fallback for failed live calls, hence mode=DESIGN), labelled
+        with the source station and its distance from the requested site.
+        """
+        return self._bundled_epw_series(latitude, longitude, hours, mode=WeatherDataMode.DESIGN)
+
+    def _fallback_hourly_series(
+        self, latitude: float, longitude: float, hours: int, requested_mode: str
+    ) -> HourlyWeatherSeries:
+        """FALLBACK variant of the bundled EPW series (provider failure path)."""
+        return self._bundled_epw_series(latitude, longitude, hours, mode=WeatherDataMode.FALLBACK)
+
+    def _bundled_epw_series(
+        self, latitude: float, longitude: float, hours: int, mode: WeatherDataMode
+    ) -> HourlyWeatherSeries:
+        """
+        Builds a clearly-labelled hourly series from the bundled EPW
+        design-climate dataset of the nearest benchmark station. This is real
+        design-year data - never presented as live weather.
+        """
+        from services.climate_service import get_climate_data  # lazy import, no cycle
+
+        try:
+            key, _data, dist = self.fallback._find_closest_dataset(latitude, longitude)
+        except Exception:
+            key, dist = "leh", 9999.0
+        station = key or "leh"
+
+        weather = get_climate_data(station)
+        if "error" in weather or not weather.get("hourly_temperature"):
+            raise ClimateServiceError(
+                ClimateErrorCategory.DATA_UNAVAILABLE,
+                f"No weather data available for coordinates ({latitude}, {longitude}) "
+                "and no bundled fallback dataset could be loaded",
+            )
+
+        n = max(1, min(int(hours), len(weather["hourly_temperature"])))
+        # Nominal design-year timestamps (Jan 1..7); documented as nominal.
+        timestamps = [
+            (datetime(2001, 1, 1) + timedelta(hours=i)).isoformat() for i in range(n)
+        ]
+
+        def _slice(arr: Optional[List[Any]]) -> Optional[List[float]]:
+            if not arr or len(arr) < n:
+                return None
+            return [float(v) for v in arr[:n]]
+
+        is_fallback = mode == WeatherDataMode.FALLBACK
+        provider = (
+            f"Bundled EPW design climate ({station.upper()})"
+            if not is_fallback
+            else f"Bundled EPW design climate ({station.upper()}) [provider fallback]"
+        )
+        series = HourlyWeatherSeries(
+            latitude=float(latitude),
+            longitude=float(longitude),
+            elevation_m=None,
+            timezone="Asia/Kolkata",
+            timestamps=timestamps,
+            air_temperature_C=[float(t) for t in weather["hourly_temperature"][:n]],
+            relative_humidity_percent=_slice(weather.get("hourly_humidity")),
+            wind_speed_mps=_slice(weather.get("hourly_wind_speed")),
+            solar_direct_W_m2=_slice(weather.get("hourly_direct_solar")),
+            solar_diffuse_W_m2=_slice(weather.get("hourly_diffuse_solar")),
+            data_mode=mode,
+            provenance=DataProvenance.ESTIMATED if is_fallback else DataProvenance.HISTORICAL,
+            provider=provider,
+            retrieval_timestamp=datetime.utcnow().isoformat() + "Z",
+            period_start=timestamps[0],
+            period_end=timestamps[-1],
+            fallback_used=is_fallback,
+            notes=(
+                (
+                    f"Live provider unavailable for requested series; serving the bundled "
+                    f"{station.upper()} EPW design-climate year (nearest benchmark, "
+                    f"{dist:.0f} km). Timestamps are nominal design-year values, NOT the "
+                    f"requested period. Treat as DESIGN/FALLBACK, not live weather."
+                )
+                if is_fallback
+                else (
+                    f"Bundled {station.upper()} EPW design-climate year (nearest benchmark, "
+                    f"{dist:.0f} km from requested site). Timestamps are nominal design-year "
+                    f"values. Suitable for design studies, not live conditions."
+                )
+            ),
+        )
+        logger.info(
+            "Bundled EPW series served: mode=%s station=%s dist=%.0fkm hours=%d",
+            mode.value, station, dist, n,
+        )
+        return series

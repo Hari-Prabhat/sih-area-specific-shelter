@@ -7,7 +7,7 @@ import ComparativeAnalysis from './components/ComparativeAnalysis';
 import DesignStudio from './components/DesignStudio';
 import EngineeringBlueprint from './components/EngineeringBlueprint';
 import { ClimateData, ShelterDesign, SimulationResult } from './types';
-import { runSimulationViaApi, runOptimizationViaApi, describeApiError, CanonicalOptimizationResult, CanonicalOptimizationCandidate } from './services/api';
+import { runSimulationViaApi, runOptimizationViaApi, describeApiError, CanonicalOptimizationResult, CanonicalOptimizationCandidate, SimulationClimateProfile } from './services/api';
 import { getMaterialByName } from './data/materials';
 import { climatePresets } from './data/climatePresets';
 
@@ -36,6 +36,10 @@ function App() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationError, setSimulationError] = useState<string | null>(null);
 
+  // Phase B: backend-derived climate profile (real provider weather for the
+  // selected location). Null = classic preset statistics path.
+  const [climateProfile, setClimateProfile] = useState<SimulationClimateProfile | null>(null);
+
   // Optimization state
   const [optimizationResult, setOptimizationResult] = useState<CanonicalOptimizationResult | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -48,8 +52,10 @@ function App() {
       setIsSimulating(true);
       setSimulationError(null);
       try {
-        // Authoritative Python thermal simulation via FastAPI endpoint
-        const result = await runSimulationViaApi(climateData, shelterDesign, material, insulation);
+        // Authoritative Python thermal simulation via FastAPI endpoint.
+        // When a live/forecast/design climate profile was fetched, its real
+        // hourly arrays override the preset-city statistics.
+        const result = await runSimulationViaApi(climateData, shelterDesign, material, insulation, 168, climateProfile ?? undefined);
         setSimulationResult(result);
         setActiveTab('results');
       } catch (err: any) {
@@ -261,7 +267,7 @@ function App() {
 
         {activeTab === 'studio' && <DesignStudio />}
         {activeTab === 'dashboard' && <DashboardTab onNavigate={setActiveTab} climateData={climateData} />}
-        {activeTab === 'climate' && <ClimateInput climateData={climateData} setClimateData={setClimateData} />}
+        {activeTab === 'climate' && <ClimateInput climateData={climateData} setClimateData={setClimateData} climateProfile={climateProfile} onProfileChange={setClimateProfile} />}
         {activeTab === 'design' && (
           <ShelterDesigner
             shelterDesign={shelterDesign}

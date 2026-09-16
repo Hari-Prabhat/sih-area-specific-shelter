@@ -7,7 +7,7 @@ and constituent physical metrics for downstream consumption.
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 class DataProvenance(str, Enum):
@@ -17,6 +17,22 @@ class DataProvenance(str, Enum):
     ESTIMATED = "ESTIMATED"
     SIMULATED = "SIMULATED"
     OPTIMIZED = "OPTIMIZED"
+
+
+class WeatherDataMode(str, Enum):
+    """
+    Distinct weather dataset modes. These must NEVER be conflated:
+      - LIVE:       current/near-current observed conditions.
+      - FORECAST:   hourly future weather (numerical weather prediction).
+      - HISTORICAL: past reanalysis/observations (e.g. ERA5) — NOT a design climate.
+      - DESIGN:     representative engineering design climate (e.g. bundled EPW benchmarks).
+      - FALLBACK:   bundled deterministic demo dataset when providers are unreachable.
+    """
+    LIVE = "live"
+    FORECAST = "forecast"
+    HISTORICAL = "historical"
+    DESIGN = "design"
+    FALLBACK = "fallback"
 
 
 class DataConfidence(str, Enum):
@@ -197,6 +213,92 @@ class ClimateProfile(BaseModel):
     design_extremes: DesignExtremes = Field(..., description="Design-basis thermal extremes")
     data_quality: DataQuality = Field(..., description="Data provenance, confidence, and sources")
     current_weather: Optional[CurrentWeather] = Field(None, description="Optional live weather snapshot")
+
+
+class HourlyWeatherSeries(BaseModel):
+    """
+    Canonical typed hourly weather timeseries (SI units, explicit provenance).
+
+    This is the ONLY form in which provider weather timeseries may travel between
+    layers — raw provider JSON must never flow into the simulation contract.
+    Optional arrays are omitted when the provider does not supply them; nothing
+    is silently substituted.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    latitude: float = Field(..., ge=-90.0, le=90.0, description="Requested latitude (decimal degrees)")
+    longitude: float = Field(..., ge=-180.0, le=180.0, description="Requested longitude (decimal degrees)")
+    elevation_m: Optional[float] = Field(None, description="Site elevation (m), provider-derived where available")
+    timezone: Optional[str] = Field(None, description="IANA timezone of the timeseries timestamps")
+
+    timestamps: List[str] = Field(..., min_length=1, description="ISO 8601 hourly timestamps")
+    air_temperature_C: List[float] = Field(..., min_length=1, description="Hourly air temperature at 2 m (°C)")
+    relative_humidity_percent: Optional[List[float]] = Field(None, description="Hourly relative humidity (%)")
+    wind_speed_mps: Optional[List[float]] = Field(None, description="Hourly wind speed at 10 m (m/s)")
+    wind_direction_deg: Optional[List[float]] = Field(None, description="Hourly wind direction (degrees)")
+    precipitation_mm: Optional[List[float]] = Field(None, description="Hourly precipitation (mm)")
+    cloud_cover_percent: Optional[List[float]] = Field(None, description="Hourly total cloud cover (%)")
+    solar_global_W_m2: Optional[List[float]] = Field(None, description="Hourly GHI (W/m²)")
+    solar_direct_W_m2: Optional[List[float]] = Field(None, description="Hourly DNI (W/m²)")
+    solar_diffuse_W_m2: Optional[List[float]] = Field(None, description="Hourly DHI (W/m²)")
+
+    data_mode: WeatherDataMode = Field(..., description="Dataset mode — live / forecast / historical / design / fallback")
+    provenance: DataProvenance = Field(..., description="Data lineage for the timeseries")
+    provider: str = Field(..., description="Provider/model identifier (e.g. 'Open-Meteo Forecast (ICON/GFS)')")
+    retrieval_timestamp: str = Field(..., description="ISO 8601 UTC retrieval timestamp")
+    period_start: Optional[str] = Field(None, description="ISO 8601 first timestamp of the requested period")
+    period_end: Optional[str] = Field(None, description="ISO 8601 last timestamp of the requested period")
+    fallback_used: bool = Field(False, description="True when data came from cache/fallback rather than a live provider call")
+    notes: Optional[str] = Field(None, description="Explicit documentation of any fallback handling")
+
+    @field_validator("air_temperature_C")
+    @classmethod
+    def _validate_temperature(cls, v: List[float]) -> List[float]:
+        for i, t in enumerate(v):
+            if not (-80.0 <= t <= 70.0):
+                raise ValueError(f"Air temperature at index {i} outside terrestrial bounds (-80..70 °C): {t}")
+        return v
+
+    @field_validator(
+        "relative_humidity_percent", "wind_speed_mps", "wind_direction_deg",
+        "precipitation_mm", "cloud_cover_percent",
+        "solar_global_W_m2", "solar_direct_W_m2", "solar_diffuse_W_m2",
+    )
+    @classmethod
+    def _validate_array_lengths(cls, v: Optional[List[float]], info: Any) -> Optional[List[float]]:
+        """All supplied arrays must align 1:1 with the timestamp axis."""
+        if v is None:
+            return None
+        n = len(v)
+        # Cross-field length check against timestamps
+        ts_len = info.data.get("timestamps")
+        if ts_len is not None and n != len(ts_len):
+            raise ValueError(
+                f"Field '{info.field_name}' length {n} does not match timestamps length {len(ts_len)}"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _validate_timeseries_alignment(self) -> "HourlyWeatherSeries":
+        """Every supplied array must align 1:1 with the timestamp axis."""
+        n = len(self.timestamps)
+        arrays = {
+            "air_temperature_C": self.air_temperature_C,
+            "relative_humidity_percent": self.relative_humidity_percent,
+            "wind_speed_mps": self.wind_speed_mps,
+            "wind_direction_deg": self.wind_direction_deg,
+            "precipitation_mm": self.precipitation_mm,
+            "cloud_cover_percent": self.cloud_cover_percent,
+            "solar_global_W_m2": self.solar_global_W_m2,
+            "solar_direct_W_m2": self.solar_direct_W_m2,
+            "solar_diffuse_W_m2": self.solar_diffuse_W_m2,
+        }
+        for name, arr in arrays.items():
+            if arr is not None and len(arr) != n:
+                raise ValueError(
+                    f"Field '{name}' length {len(arr)} does not match timestamps length {n}"
+                )
+        return self
 
 
 class PassiveStrategy(BaseModel):

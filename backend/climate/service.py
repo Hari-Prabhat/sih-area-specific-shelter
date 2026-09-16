@@ -10,7 +10,7 @@ Central orchestrator for Member 1 Subsystem. Provides unified methods for:
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 
 from backend.climate.climate_classifier import ClassificationExplanation, ClimateClassifier
@@ -23,7 +23,8 @@ from backend.climate.schemas import (
     CurrentWeather,
     Location,
     PassiveStrategy,
-)
+
+    HourlyWeatherSeries,)
 from backend.climate.weather_provider import BaseWeatherProvider, CompositeWeatherProvider
 
 
@@ -54,6 +55,116 @@ class ClimateService:
             enable_online=enable_online,
             data_dir=self.data_dir
         )
+
+    def search_locations(self, name: str, count: int = 5, allow_online: bool = True) -> List[Location]:
+        """Returns candidate locations for disambiguation of ambiguous queries."""
+        return self.location_resolver.search_locations(name, count=count, allow_online=allow_online)
+
+    def resolve_from_pincode(self, pincode: str, allow_online: bool = True) -> Location:
+        """Resolves an Indian PIN code to a validated Location via India Post + geocoding."""
+        return self.location_resolver.resolve_from_pincode(pincode, allow_online=allow_online)
+
+    def get_hourly_weather(
+        self,
+        location: Union[Location, str, Tuple[float, float], Dict[str, Any]],
+        mode: str = "forecast",
+        hours: int = 168,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> "HourlyWeatherSeries":
+        """
+        Retrieves a typed hourly weather timeseries for a location.
+
+        Modes (never conflated):
+          - 'live':       168-hour window ending at the current hour (observed + NWP).
+          - 'forecast':   168-hour forward forecast from now.
+          - 'historical': hourly reanalysis (ERA5) for the requested window.
+          - 'design':     explicitly-requested bundled EPW design-year climate
+                           from the nearest benchmark station (labelled DESIGN).
+
+        The returned series carries explicit data_mode / provenance / fallback_used
+        metadata; raw provider payloads never cross this boundary.
+        """
+        from backend.climate.errors import ClimateErrorCategory, ClimateServiceError
+        from backend.climate.schemas import WeatherDataMode
+
+        loc = self.resolve_location(location)
+
+        if mode == "forecast":
+            return self.weather_provider.get_hourly_forecast(loc.latitude, loc.longitude, hours=hours)
+        if mode == "live":
+            return self.weather_provider.get_hourly_forecast(
+                loc.latitude, loc.longitude, hours=hours, include_past=True
+            )
+        if mode == "historical":
+            return self.weather_provider.get_hourly_archive(
+                loc.latitude, loc.longitude, start_date=start_date, end_date=end_date, hours=hours
+            )
+        if mode == "design":
+            return self.weather_provider.get_design_climate(loc.latitude, loc.longitude, hours=hours)
+        raise ClimateServiceError(
+            ClimateErrorCategory.INVALID_CLIMATE_DATA,
+            f"Unknown weather mode '{mode}'. Use 'live', 'forecast', or 'historical'.",
+        )
+
+    def get_simulation_climate_profile(
+        self,
+        location: Union[Location, str, Tuple[float, float], Dict[str, Any]],
+        mode: str = "forecast",
+        hours: int = 168,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        include_elevation: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        End-to-end climate pipeline for simulation input:
+
+        location -> coordinates -> hourly weather (real provider arrays)
+                 -> canonical ClimateProfile -> passive strategy inputs
+
+        Returns {"climate": <canonical profile dict>, "series": <HourlyWeatherSeries dict>,
+                 "strategy": <PassiveStrategy dict>}.
+
+        The canonical profile carries the provider's REAL hourly arrays (no
+        diurnal synthesis) plus full provenance. Raises ClimateServiceError
+        with a machine-readable category on any failure.
+        """
+        from backend.climate.errors import ClimateErrorCategory, ClimateServiceError
+        from backend.climate.timeseries_normalizer import hourly_series_to_climate_profile
+        from backend.climate.climate_strategy import ClimateStrategyEngine
+
+        loc = self.resolve_location(location)
+
+        series = self.get_hourly_weather(
+            loc, mode=mode, hours=hours, start_date=start_date, end_date=end_date
+        )
+
+        # Provider-backed elevation for the resolved coordinates when the
+        # series does not already carry one.
+        elevation_m = series.elevation_m
+        if include_elevation and elevation_m is None:
+            elevation_m = self.weather_provider.get_elevation(loc.latitude, loc.longitude)
+
+        profile = hourly_series_to_climate_profile(
+            series,
+            display_name=loc.place_name,
+        )
+        if elevation_m is not None and profile.elevation_m is None:
+            profile.elevation_m = float(elevation_m)
+
+        # Passive strategy inputs derived from the profile statistics
+        # (classification is the existing explainable NBC-aligned engine).
+        try:
+            stats_profile = self.get_climate_profile(loc, include_current_weather=False)
+            strategy = self.generate_passive_strategy(stats_profile)
+        except Exception:
+            strategy = None
+
+        return {
+            "climate": profile.to_dict(),
+            "series": series.model_dump(),
+            "strategy": strategy.model_dump() if strategy is not None else None,
+        }
 
     def resolve_location(self, query: Union[str, Tuple[float, float], Dict[str, Any], Location]) -> Location:
         """Resolves place name, coordinates, or dictionary into a validated Location."""
