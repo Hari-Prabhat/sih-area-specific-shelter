@@ -12,10 +12,12 @@ temperature/solar arrays and passes them through 1:1, preserving
 timestamps, elevation, timezone, and provenance.
 
 Data-mode terminology (must never be conflated):
-  live       -> MEASURED-adjacent NWP/observation window ending now
-  forecast   -> SIMULATED (numerical weather prediction)
-  historical -> HISTORICAL (reanalysis, e.g. ERA5)
-  fallback   -> ESTIMATED (bundled design climate, labelled FALLBACK)
+  live       -> MODEL_ANALYSIS (recent NWP model analysis ending now; NOT an
+                on-site measured observation)
+  forecast   -> FORECAST (forward-looking numerical weather prediction)
+  historical -> HISTORICAL_REANALYSIS (model reanalysis, e.g. ERA5)
+  design     -> DESIGN (representative EPW/TMY design-year climate)
+  fallback   -> FALLBACK (bundled dataset served when providers fail)
 """
 
 import logging
@@ -28,13 +30,14 @@ from services.shelter.models import DataProvenance as CanonicalProvenance
 
 logger = logging.getLogger("thermoshelter.climate.normalize")
 
-# WeatherDataMode -> canonical provenance
+# WeatherDataMode -> canonical provenance (Phase C terminology:
+# model-derived products are never labelled MEASURED)
 _MODE_PROVENANCE = {
-    WeatherDataMode.LIVE: CanonicalProvenance.MEASURED,
-    WeatherDataMode.FORECAST: CanonicalProvenance.SIMULATED,
-    WeatherDataMode.HISTORICAL: CanonicalProvenance.HISTORICAL,
-    WeatherDataMode.DESIGN: CanonicalProvenance.HISTORICAL,
-    WeatherDataMode.FALLBACK: CanonicalProvenance.ESTIMATED,
+    WeatherDataMode.LIVE: CanonicalProvenance.MODEL_ANALYSIS,
+    WeatherDataMode.FORECAST: CanonicalProvenance.FORECAST,
+    WeatherDataMode.HISTORICAL: CanonicalProvenance.HISTORICAL_REANALYSIS,
+    WeatherDataMode.DESIGN: CanonicalProvenance.DESIGN,
+    WeatherDataMode.FALLBACK: CanonicalProvenance.FALLBACK,
 }
 
 # WeatherDataMode -> data confidence fraction

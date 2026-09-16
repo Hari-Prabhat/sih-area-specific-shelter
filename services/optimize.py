@@ -50,6 +50,25 @@ except ImportError:
 
 
 
+# ---------------------------------------------------------------------
+# Phase C: thermal-mass candidate levels. These reuse the canonical
+# ShelterDesign floor-core mass semantics EXACTLY (concrete, rho=2300 kg/m3,
+# c=880 J/kgK, area = length x width) so optimizer candidates and user
+# designs share one physical definition. No invented constants.
+# ---------------------------------------------------------------------
+THERMAL_MASS_LEVELS: Dict[str, float] = {"none": 0.0, "low": 0.05, "medium": 0.10, "high": 0.20}
+_TM_DENSITY_KG_M3 = 2300.0
+_TM_SPECIFIC_HEAT_J_KGK = 880.0
+
+
+def _thermal_mass_capacity_j_k(level: Optional[str], length: float, width: float) -> Optional[float]:
+    """Engine-ready extra capacity for a mass level, or None when disabled."""
+    thickness_m = THERMAL_MASS_LEVELS.get(str(level), 0.0)
+    if thickness_m <= 0.0:
+        return None
+    return _TM_DENSITY_KG_M3 * _TM_SPECIFIC_HEAT_J_KGK * thickness_m * (length * width)
+
+
 def _objective(
     trial: Any,
     city: str,
@@ -74,10 +93,16 @@ def _objective(
     hourly_temperatures: Optional[List[float]] = None,
     hourly_direct_solar: Optional[List[float]] = None,
     hourly_diffuse_solar: Optional[List[float]] = None,
+    thermal_mass_level: Optional[str] = None,
+    climate_scenario: Optional[Dict[str, Any]] = None,
 ) -> float:
     """
     Evaluates one candidate shelter configuration against physical objectives.
     Returns a unified discomfort / penalty score to minimize.
+
+    Phase C: when a climate scenario is supplied, the candidate is evaluated
+    against the scenario's hourly vectors (same climate as direct simulation);
+    the city key is only a fallback label and can never override the vectors.
     """
     is_temp = str(home_type).lower().startswith("temp")
 
@@ -142,6 +167,14 @@ def _objective(
         orient_choice = trial.suggest_categorical("orientation", ["south", "north", "east", "west"])
 
 
+    # 5b. Thermal Mass Candidate (Phase C) - none / low / medium / high
+    if thermal_mass_level and thermal_mass_level in THERMAL_MASS_LEVELS:
+        tm_level_choice = str(thermal_mass_level)
+    else:
+        tm_level_choice = trial.suggest_categorical(
+            "thermal_mass_level", ["none", "low", "medium", "high"]
+        )
+
     # 6. Run Physical Simulation
     sim_result = run_simulation(
         city=city,
@@ -159,6 +192,7 @@ def _objective(
         hourly_temperatures=hourly_temperatures,
         hourly_direct_solar=hourly_direct_solar,
         hourly_diffuse_solar=hourly_diffuse_solar,
+        extra_thermal_capacity_j_k=_thermal_mass_capacity_j_k(tm_level_choice, length, width),
     )
 
     if "error" in sim_result:
@@ -232,6 +266,7 @@ def optimize_shelter(opt_input: Union[OptimizationInput, Dict[str, Any]]) -> Opt
         substeps=contract_input.substeps,
         hours_to_simulate=contract_input.hours_to_simulate,
         weights=contract_input.weights,
+        climate_scenario=contract_input.climate_scenario,
     )
 
     return adapt_optimization_result(raw_dict)
@@ -258,11 +293,23 @@ def run_optimization(
     substeps: int = 15,
     hours_to_simulate: int = 168,
     weights: Optional[Dict[str, float]] = None,
+    climate_scenario: Optional[Dict[str, Any]] = None,
+    scenario_kind: Optional[str] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
     Runs Optuna TPE optimization across design parameters and returns
     both the optimal configuration and a ranked list of candidate designs.
+
+    Phase C climate scenario contract:
+      - climate_scenario: canonical ClimateProfile dict. When supplied it is
+        THE climate for every candidate evaluation (resolved once here, then
+        reused in-memory for all trials - the weather API is never called per
+        candidate). City-key statistics are NOT used and cannot override it.
+      - scenario_kind: optional deterministic design-week selection over the
+        scenario series ('cold' | 'hot' | 'typical'); None keeps the series'
+        own defined window (live/forecast week, or the head of a design-year
+        dataset) - documented in services/climate_scenario.py.
 
     Accepts either an OptimizationInput instance as the first positional argument,
     or standard keyword arguments.
@@ -300,6 +347,7 @@ def run_optimization(
         substeps = inp.substeps
         hours_to_simulate = inp.hours_to_simulate
         weights = inp.weights
+        climate_scenario = inp.climate_scenario or climate_scenario
     elif isinstance(city, dict) and "city" in city:
         inp = OptimizationInput.from_dict(city)
         city_str = inp.city
@@ -322,15 +370,53 @@ def run_optimization(
         substeps = inp.substeps
         hours_to_simulate = inp.hours_to_simulate
         weights = inp.weights
+        climate_scenario = inp.climate_scenario or climate_scenario
     else:
         city_str = str(city) if city is not None else "leh"
 
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    weather = get_climate_data(city_str)
-    if "error" in weather:
-        raise ValueError(weather["error"])
+    # ------------------------------------------------------------------
+    # Phase C: establish THE climate scenario (once, before any trial).
+    # With a scenario present, city-statistics are never fetched and can
+    # never override the location-derived vectors. The scenario dict
+    # carries its own provenance/fallback flags, so optimization and
+    # direct simulation always see the SAME dataset (Part 14).
+    # ------------------------------------------------------------------
+    hourly_t: Optional[List[float]] = None
+    hourly_ds: Optional[List[float]] = None
+    hourly_dfs: Optional[List[float]] = None
+    scenario_dict: Optional[Dict[str, Any]] = None
+    scenario_provenance: Optional[str] = None
+    scenario_data_mode: Optional[str] = None
+    scenario_fallback_used = False
+    city_label = city_str
+
+    if climate_scenario is not None:
+        try:
+            from services.contracts import adapt_to_climate_profile as _adapt_cp
+        except ImportError:
+            from contracts import adapt_to_climate_profile as _adapt_cp  # type: ignore
+        from services.climate_scenario import resolve_optimization_scenario
+
+        profile = _adapt_cp(dict(climate_scenario))
+        scenario = resolve_optimization_scenario(
+            profile, hours=hours_to_simulate, scenario_kind=scenario_kind
+        )
+        scenario_dict = scenario.to_dict()
+        scenario_provenance = scenario.data_provenance
+        scenario_data_mode = climate_scenario.get("data_mode")
+        scenario_fallback_used = bool(climate_scenario.get("fallback_used", False))
+        hourly_t = scenario.hourly_temperature
+        hourly_ds = scenario.hourly_direct_solar
+        hourly_dfs = scenario.hourly_diffuse_solar
+        if scenario.city:
+            city_label = scenario.city
+    else:
+        weather = get_climate_data(city_str)
+        if "error" in weather:
+            raise ValueError(weather["error"])
 
     study = optuna.create_study(
         direction="minimize",
@@ -358,6 +444,10 @@ def run_optimization(
             substeps=substeps,
             hours_to_simulate=hours_to_simulate,
             weights=weights,
+            hourly_temperatures=hourly_t,
+            hourly_direct_solar=hourly_ds,
+            hourly_diffuse_solar=hourly_dfs,
+            climate_scenario=scenario_dict,
         ),
         n_trials=n_trials,
     )
@@ -390,7 +480,7 @@ def run_optimization(
 
     # Run final authoritative simulation with the best design (full accuracy substeps=60)
     best_sim = run_simulation(
-        city=city_str,
+        city=city_label,
         length=length,
         width=width,
         height=height,
@@ -402,6 +492,9 @@ def run_optimization(
         occupants=occupants,
         hours_to_simulate=hours_to_simulate,
         substeps=60,
+        hourly_temperatures=hourly_t,
+        hourly_direct_solar=hourly_ds,
+        hourly_diffuse_solar=hourly_dfs,
     )
 
     glaze_name = GLAZING_PROPERTIES.get(best_glaze, {}).get("name", best_glaze.replace("_", " ").title())
@@ -420,15 +513,17 @@ def run_optimization(
         c_mat = str(p.get("wall_material", best_mat))
         c_glaze = str(p.get("glazing", best_glaze))
         c_orient = str(p.get("orientation", best_orient))
+        c_tm_level = str(p.get("thermal_mass_level", "none"))
 
-        config_key = (round(c_ins, 2), round(c_win, 1), c_mat, c_glaze, c_orient)
+        config_key = (round(c_ins, 2), round(c_win, 1), c_mat, c_glaze, c_orient, c_tm_level)
         if config_key in seen_configs:
             continue
         seen_configs.add(config_key)
 
-        # Run verification simulation for candidate
+        # Run verification simulation for candidate (SAME scenario vectors;
+        # Phase C: the candidate's chosen thermal mass reaches the engine)
         c_sim = run_simulation(
-            city=city_str,
+            city=city_label,
             length=length,
             width=width,
             height=height,
@@ -440,6 +535,10 @@ def run_optimization(
             occupants=occupants,
             hours_to_simulate=hours_to_simulate,
             substeps=15,
+            hourly_temperatures=hourly_t,
+            hourly_direct_solar=hourly_ds,
+            hourly_diffuse_solar=hourly_dfs,
+            extra_thermal_capacity_j_k=_thermal_mass_capacity_j_k(c_tm_level, length, width),
         )
         if "error" in c_sim:
             continue
@@ -497,6 +596,10 @@ def run_optimization(
             "cooling_demand_kwh": c_sim.get("cooling_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("cooling_demand_kwh", 0.0)),
             "total_conditioning_demand_kwh": c_sim.get("total_conditioning_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("total_conditioning_demand_kwh", 0.0)),
             "effective_thermal_capacity_j_k": c_sim.get("effective_thermal_capacity_j_k", 0.0),
+            "climate_provenance": scenario_provenance,
+            "climate_data_mode": scenario_data_mode,
+            "climate_fallback_used": scenario_fallback_used,
+            "thermal_mass_level": c_tm_level,
         }
         ranked_designs.append(candidate_record)
 
@@ -545,14 +648,24 @@ def run_optimization(
         })
 
 
+    scenario_note = ""
+    if scenario_dict is not None:
+        scenario_note = (
+            f" Evaluated against the location-derived climate scenario "
+            f"(provenance: {scenario_provenance or 'unknown'}"
+            + (", fallback dataset" if scenario_fallback_used else "")
+            + ")."
+        )
+
     explanation = (
-        f"Optimized {home_type} shelter configuration for {city_str.title()} achieving "
+        f"Optimized {home_type} shelter configuration for {str(city_label).title()} achieving "
         f"{best_sim['comfort_percentage']:.1f}% comfort hours with {best_ins * 1000.0:.0f} mm insulation "
         f"and {best_mat.replace('_', ' ').title()} walls."
+        + scenario_note
     )
 
     return {
-        "city": city_str,
+        "city": city_label,
         "home_type": home_type,
         "insulation_thickness_m": best_ins,
         "insulation_mm": round(best_ins * 1000.0, 1),
@@ -566,6 +679,10 @@ def run_optimization(
         "ranked_designs": ranked_designs,
         "n_trials": n_trials,
         "explanation": explanation,
+        "climate_scenario": scenario_dict,
+        "climate_provenance": scenario_provenance,
+        "climate_data_mode": scenario_data_mode,
+        "climate_fallback_used": scenario_fallback_used,
     }
 
 

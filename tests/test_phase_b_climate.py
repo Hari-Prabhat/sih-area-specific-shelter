@@ -261,15 +261,15 @@ class TestTimeseriesNormalizer(unittest.TestCase):
             hourly_series_to_climate_profile(series)
         assert exc.value.category == ClimateErrorCategory.DATA_UNAVAILABLE
 
-    def test_fallback_mode_maps_to_estimated_provenance(self):
-        from services.shelter.models import DataProvenance
+    def test_fallback_mode_maps_to_fallback_provenance(self):
+        # Phase C terminology: an explicit fallback dataset is labelled
+        # FALLBACK (model-derived products are never MEASURED).
         profile = hourly_series_to_climate_profile(self._series(mode=WeatherDataMode.FALLBACK))
-        assert profile.data_provenance == DataProvenance.ESTIMATED
+        assert profile.data_provenance == "fallback"
 
-    def test_historical_mode_maps_to_historical_provenance(self):
-        from services.shelter.models import DataProvenance
+    def test_historical_mode_maps_to_reanalysis_provenance(self):
         profile = hourly_series_to_climate_profile(self._series(mode=WeatherDataMode.HISTORICAL))
-        assert profile.data_provenance == DataProvenance.HISTORICAL
+        assert profile.data_provenance == "historical_reanalysis"
 
 
 # =====================================================================
@@ -336,7 +336,10 @@ class TestClimateRoutes(unittest.TestCase):
         body = r.json()
         cl = body["climate"]
         assert len(cl["hourly_temperature"]) == 24
-        assert cl["data_provenance"] in ("historical", "estimated", "measured", "simulated")
+        assert cl["data_provenance"] in (
+            "historical", "historical_reanalysis", "estimated", "measured",
+            "model_analysis", "forecast", "design", "fallback", "simulated",
+        )
         assert body["series"]["data_mode"] == "design"
         # Passive strategy inputs accompany the profile (explainable, not opaque)
         assert body["strategy"] is not None

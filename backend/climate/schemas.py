@@ -11,12 +11,22 @@ from pydantic import BaseModel, Field, field_validator, model_validator, ConfigD
 
 
 class DataProvenance(str, Enum):
-    """Data origin and generation method."""
+    """Data origin and generation method.
+
+    Phase C terminology: model-derived products (NWP analysis, forecast,
+    reanalysis) are never labelled MEASURED - that category is reserved
+    for actual station/sensor observations.
+    """
     MEASURED = "MEASURED"
     HISTORICAL = "HISTORICAL"
     ESTIMATED = "ESTIMATED"
     SIMULATED = "SIMULATED"
     OPTIMIZED = "OPTIMIZED"
+    MODEL_ANALYSIS = "MODEL_ANALYSIS"
+    FORECAST = "FORECAST"
+    HISTORICAL_REANALYSIS = "HISTORICAL_REANALYSIS"
+    DESIGN = "DESIGN"
+    FALLBACK = "FALLBACK"
 
 
 class WeatherDataMode(str, Enum):

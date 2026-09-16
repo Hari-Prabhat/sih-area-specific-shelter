@@ -489,7 +489,9 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
             latitude=latitude,
             longitude=longitude,
             mode=(WeatherDataMode.LIVE if include_past else WeatherDataMode.FORECAST),
-            provenance=DataProvenance.MEASURED if include_past else DataProvenance.SIMULATED,
+            provenance=(
+                DataProvenance.MODEL_ANALYSIS if include_past else DataProvenance.FORECAST
+            ),
             provider_label=(
                 "Open-Meteo Recent Conditions (NWP analysis, ending now)"
                 if include_past
@@ -564,7 +566,7 @@ class OpenMeteoWeatherProvider(BaseWeatherProvider):
             latitude=latitude,
             longitude=longitude,
             mode=WeatherDataMode.HISTORICAL,
-            provenance=DataProvenance.HISTORICAL,
+            provenance=DataProvenance.HISTORICAL_REANALYSIS,
             provider_label="Open-Meteo Historical Reanalysis (ERA5)",
             requested_hours=None,
         )

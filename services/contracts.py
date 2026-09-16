@@ -522,6 +522,11 @@ class OptimizationInput:
     substeps: int = 15
     hours_to_simulate: int = 168
     weights: Optional[Dict[str, float]] = None
+    # Phase C climate scenario contract: canonical ClimateProfile dict that
+    # defines the SINGLE climate scenario for all candidate evaluations.
+    # When supplied, the optimizer evaluates against THESE hourly vectors and
+    # never falls back to city-key statistics.
+    climate_scenario: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
         self.validate()
@@ -591,6 +596,7 @@ class OptimizationInput:
             substeps=int(data.get("substeps", 15)),
             hours_to_simulate=int(data.get("hours_to_simulate", 168)),
             weights=data.get("weights"),
+            climate_scenario=data.get("climate_scenario"),
         )
 
 
@@ -627,6 +633,12 @@ class OptimizationCandidate:
     total_conditioning_demand_kwh: float = 0.0
     effective_thermal_capacity_j_k: float = 0.0
     canonical_design: Optional[Dict[str, Any]] = None
+    # Phase C: provenance of the climate scenario each candidate was
+    # evaluated against (traceability from results back to weather data).
+    climate_provenance: Optional[str] = None
+    climate_data_mode: Optional[str] = None
+    climate_fallback_used: Optional[bool] = None
+    thermal_mass_level: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -690,6 +702,10 @@ class OptimizationCandidate:
             total_conditioning_demand_kwh=float(data.get("total_conditioning_demand_kwh", 0.0)),
             effective_thermal_capacity_j_k=float(data.get("effective_thermal_capacity_j_k", 0.0)),
             canonical_design=data.get("canonical_design"),
+            climate_provenance=data.get("climate_provenance"),
+            climate_data_mode=data.get("climate_data_mode"),
+            climate_fallback_used=data.get("climate_fallback_used"),
+            thermal_mass_level=data.get("thermal_mass_level"),
         )
 
 
@@ -714,6 +730,12 @@ class OptimizationResult:
     ranked_designs: List[OptimizationCandidate]
     n_trials: int = 40
     explanation: Optional[str] = None
+    # Phase C: the exact climate scenario every candidate was evaluated
+    # against, with full provenance for traceability.
+    climate_scenario: Optional[Dict[str, Any]] = None
+    climate_provenance: Optional[str] = None
+    climate_data_mode: Optional[str] = None
+    climate_fallback_used: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes OptimizationResult to dictionary."""
@@ -734,6 +756,10 @@ class OptimizationResult:
             "recommended_design": ranked[0] if ranked else None,
             "n_trials": self.n_trials,
             "explanation": self.explanation,
+            "climate_scenario": self.climate_scenario,
+            "climate_provenance": self.climate_provenance,
+            "climate_data_mode": self.climate_data_mode,
+            "climate_fallback_used": self.climate_fallback_used,
         }
         return d
 
@@ -760,6 +786,10 @@ class OptimizationResult:
             ranked_designs=candidates,
             n_trials=int(data.get("n_trials", 40)),
             explanation=data.get("explanation"),
+            climate_scenario=data.get("climate_scenario"),
+            climate_provenance=data.get("climate_provenance"),
+            climate_data_mode=data.get("climate_data_mode"),
+            climate_fallback_used=bool(data.get("climate_fallback_used", False)),
         )
 
 

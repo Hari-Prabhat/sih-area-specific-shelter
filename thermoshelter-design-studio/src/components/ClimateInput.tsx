@@ -157,9 +157,9 @@ placeholder="City, district, state, PIN code, or 'lat, lon'"
         )}
         {candidates.length > 0 && (
           <div className="mb-3 space-y-1.5">
-            {candidates.map((c) => (
+            {candidates.map((c, idx) => (
               <button
-                key={candidateKey(c)}
+                key={`${candidateKey(c)}-${idx}`}
                 onClick={() => handleSelect(c)}
                 disabled={fetching}
                 className="w-full px-3 py-2 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600/30 rounded-lg text-left transition-all disabled:opacity-50"

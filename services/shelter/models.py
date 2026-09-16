@@ -37,6 +37,17 @@ class DataProvenance:
     SIMULATED = "simulated"
     OPTIMIZED = "optimized"
 
+    # Phase C: explicit model-derived categories. A provider/model-derived
+    # NWP analysis product is NOT an on-site measured observation; historical
+    # reanalysis is not a generic historical label; design datasets (EPW/TMY)
+    # and fallback datasets are their own categories. MEASURED is reserved
+    # for actual station/sensor observations.
+    MODEL_ANALYSIS = "model_analysis"
+    FORECAST = "forecast"
+    HISTORICAL_REANALYSIS = "historical_reanalysis"
+    DESIGN = "design"
+    FALLBACK = "fallback"
+
     @classmethod
     def all_values(cls) -> set[str]:
         return {
@@ -47,6 +58,11 @@ class DataProvenance:
             cls.MEASURED,
             cls.SIMULATED,
             cls.OPTIMIZED,
+            cls.MODEL_ANALYSIS,
+            cls.FORECAST,
+            cls.HISTORICAL_REANALYSIS,
+            cls.DESIGN,
+            cls.FALLBACK,
         }
 
 

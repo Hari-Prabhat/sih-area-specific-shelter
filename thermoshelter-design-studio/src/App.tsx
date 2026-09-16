@@ -123,6 +123,10 @@ function App() {
         substeps: 15,
         hours_to_simulate: 168,
         weights: weights || { comfort: 0.5, efficiency: 0.3, solar: 0.2 },
+        // Phase C: when a location-derived climate profile was fetched, the
+        // optimizer evaluates candidates against the SAME real weather the
+        // direct simulation uses (one climate source of truth).
+        ...(climateProfile ? { climate: climateProfile.climate } : {}),
       });
 
       setOptimizationResult(result);

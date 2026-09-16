@@ -113,6 +113,10 @@ class OptimizationRunRequest(BaseModel):
         None,
         description="Restricted candidate list of orientation angles/facades"
     )
+    scenario_kind: Optional[str] = Field(
+        None,
+        description="Deterministic design-week selection over the supplied climate scenario: 'cold', 'hot', or 'typical' (default: use the scenario's own defined window)"
+    )
 
 
 # =====================================================================
@@ -145,21 +149,25 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
     try:
         raw_dict = request.model_dump()
 
-        # 1. Validate & Resolve Target City / Climate
+        # 1. Validate & Resolve Target City / Climate (Phase C)
+        #
+        # A canonical hourly ClimateProfile IS the climate scenario: it is
+        # forwarded verbatim to the optimizer and city-key statistics are
+        # never consulted. Only when no hourly profile is supplied does the
+        # request resolve a city key for the legacy bundled-statistics path.
+        climate_scenario_payload: Optional[Dict[str, Any]] = None
         city_name: Optional[str] = None
         if isinstance(request.climate, str):
             city_name = request.climate.strip().lower()
         elif isinstance(request.climate, dict):
-            city_name = request.climate.get("city", request.climate.get("location"))
-            if city_name:
-                city_name = str(city_name).strip().lower()
+            if request.climate.get("hourly_temperature") and len(request.climate["hourly_temperature"]) > 0:
+                climate_scenario_payload = request.climate
+                resolved = _resolve_climate(request.climate)
+                city_name = resolved.city if resolved else None
             else:
-                # If a full hourly profile is supplied, check its city field
-                if "hourly_temperature" in request.climate and not request.climate.get("city"):
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail={"error": "Invalid Climate", "message": "Climate profile must specify target city"}
-                    )
+                city_name = request.climate.get("city", request.climate.get("location"))
+                if city_name:
+                    city_name = str(city_name).strip().lower()
         elif request.city is not None:
             city_name = request.city.strip().lower()
 
@@ -171,13 +179,15 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
 
         target_city = city_name or "leh"
 
-        # Verify climate availability for target city
-        weather_check = get_climate_data(target_city)
-        if "error" in weather_check:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": "Climate Not Found", "message": weather_check["error"]}
-            )
+        # Verify climate availability ONLY for the legacy city-key path; a
+        # supplied hourly scenario already carries validated vectors.
+        if climate_scenario_payload is None:
+            weather_check = get_climate_data(target_city)
+            if "error" in weather_check:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"error": "Climate Not Found", "message": weather_check["error"]}
+                )
 
         # 2. Resolve Baseline Shelter Design
         try:
@@ -201,9 +211,13 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
                 }
             }
 
+            if climate_scenario_payload is not None:
+                extra_overrides["climate_scenario"] = climate_scenario_payload
+            if getattr(request, "scenario_kind", None):
+                extra_overrides["scenario_kind"] = request.scenario_kind
             opt_input = OptimizationAdapter.from_shelter_design(
                 design=design,
-                city_or_climate=target_city,
+                city_or_climate=climate_scenario_payload if climate_scenario_payload is not None else target_city,
                 home_type=request.home_type,
                 n_trials=request.n_trials,
                 **extra_overrides,

@@ -251,9 +251,17 @@ class OptimizationAdapter:
         """
         sd = adapt_to_shelter_design(design)
 
+        # Phase C: a location-derived ClimateProfile (or its canonical dict)
+        # becomes the optimization climate scenario - the SAME source of
+        # truth the direct simulation uses. City keys are only fallback
+        # labels and can never override the supplied hourly vectors.
+        scenario: Optional[Dict[str, Any]] = None
         if isinstance(city_or_climate, ClimateProfile):
+            scenario = city_or_climate.to_dict()
             city_str = city_or_climate.city
         elif isinstance(city_or_climate, dict):
+            if city_or_climate.get("hourly_temperature"):
+                scenario = dict(city_or_climate)
             city_str = str(city_or_climate.get("city", "leh"))
         elif isinstance(city_or_climate, str):
             city_str = city_or_climate.strip().lower()
@@ -303,6 +311,7 @@ class OptimizationAdapter:
             "substeps": kwargs.get("substeps", 15),
             "hours_to_simulate": kwargs.get("hours_to_simulate", 168),
             "weights": kwargs.get("weights"),
+            "climate_scenario": kwargs.get("climate_scenario", scenario),
         }
 
         return adapt_to_optimization_input(payload)
