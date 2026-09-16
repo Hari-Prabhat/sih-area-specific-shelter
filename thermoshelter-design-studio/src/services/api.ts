@@ -86,7 +86,7 @@ export interface CanonicalSimulationResult {
 }
 
 /**
- * Health check response schema
+ * Health check response schema (GET /api/health)
  */
 export interface HealthStatus {
   status: string;
@@ -94,6 +94,131 @@ export interface HealthStatus {
   version: string;
   canonical_contracts: boolean;
   physics_engine: string;
+  subsystems?: Record<string, string>;
+}
+
+/**
+ * Classified API failure kinds.
+ * 'unavailable'  — backend unreachable (network error, connection refused, proxy down)
+ * 'invalid_input'— request rejected by validation (HTTP 400/422)
+ * 'simulation_failed' — simulation calculation failure on the server (HTTP 500)
+ * 'http'         — any other non-OK HTTP response
+ */
+export type ApiErrorKind = 'unavailable' | 'invalid_input' | 'simulation_failed' | 'http';
+
+export class ApiError extends Error {
+  readonly kind: ApiErrorKind;
+  readonly status?: number;
+  readonly detail?: unknown;
+
+  constructor(kind: ApiErrorKind, message: string, status?: number, detail?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.kind = kind;
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/**
+ * Extracts a short human-readable reason from a FastAPI error body.
+ * Handles both {detail: {error, message}} shapes and native
+ * {detail: [{loc, msg}, ...]} validation arrays.
+ */
+function extractApiReason(errData: any): string | undefined {
+  const detail = errData?.detail;
+  if (!detail) return undefined;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d: any) => {
+        const loc = Array.isArray(d?.loc) ? d.loc.join('.') : d?.loc;
+        return loc ? `${loc}: ${d?.msg ?? ''}` : (d?.msg ?? '');
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof detail === 'object') {
+    return detail.message ?? detail.error;
+  }
+  return String(detail);
+}
+
+function truncate(text: string, maxLen: number = 160): string {
+  return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
+}
+
+async function parseErrorResponse(response: Response): Promise<ApiError> {
+  let errData: any = null;
+  try {
+    errData = await response.json();
+  } catch {
+    // Non-JSON error body
+  }
+  const reason = extractApiReason(errData);
+  if (response.status === 400 || response.status === 422) {
+    return new ApiError(
+      'invalid_input',
+      `Invalid design input${reason ? `: ${truncate(reason)}` : ''}`,
+      response.status,
+      errData,
+    );
+  }
+  if (response.status >= 500) {
+    // A genuine FastAPI 5xx always serializes a JSON body. A 5xx with a
+    // non-JSON body comes from the transport layer (e.g. the Vite proxy
+    // responding ECONNREFUSED when the backend process is down), so it is
+    // classified as an unreachable backend rather than a simulation failure.
+    if (!errData) {
+      return new ApiError(
+        'unavailable',
+        `Backend unreachable (HTTP ${response.status})`,
+        response.status,
+      );
+    }
+    return new ApiError(
+      'simulation_failed',
+      `Simulation failed${reason ? `: ${truncate(reason)}` : ''}`,
+      response.status,
+      errData,
+    );
+  }
+  return new ApiError(
+    'http',
+    `Request failed (HTTP ${response.status})${reason ? `: ${truncate(reason)}` : ''}`,
+    response.status,
+    errData,
+  );
+}
+
+function toApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) return error;
+  // fetch() rejects with TypeError on network failure / connection refused
+  if (error instanceof TypeError) {
+    return new ApiError('unavailable', `Backend unreachable: ${error.message}`);
+  }
+  const msg = error instanceof Error ? error.message : String(error);
+  return new ApiError('http', msg);
+}
+
+/**
+ * Maps an error thrown by the API client into user-facing text.
+ * Only a genuinely unreachable backend reports "service unavailable";
+ * validation and simulation failures keep their own distinct messages.
+ * Full technical detail remains available on the console via the caller.
+ */
+export function describeApiError(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.kind) {
+      case 'unavailable':
+        return 'Simulation service unavailable. Start the FastAPI backend and try again.';
+      case 'invalid_input':
+      case 'simulation_failed':
+      case 'http':
+        return error.message;
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -101,12 +226,17 @@ export interface HealthStatus {
  */
 export async function checkApiHealth(): Promise<HealthStatus> {
   const url = `${API_BASE_URL}/api/health`;
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+  } catch (error: any) {
+    throw toApiError(error);
+  }
   if (!response.ok) {
-    throw new Error(`Health check failed with status ${response.status}`);
+    throw await parseErrorResponse(response);
   }
   return response.json();
 }
@@ -160,6 +290,8 @@ export function buildCanonicalSimulationPayload(
       pitch_angle_deg: design.roofAngle || 0.0,
       ach: 0.5,
       occupants: 2,
+      thermal_mass_enabled: design.thermalMassEnabled,
+      thermal_mass_thickness_m: design.thermalMassEnabled ? design.thermalMassThickness / 100.0 : 0.0,
     },
     hours_to_simulate: hoursToSimulate,
     substeps: 30,
@@ -237,8 +369,9 @@ export async function runSimulationViaApi(
 ): Promise<UiSimulationResult> {
   const payload = buildCanonicalSimulationPayload(climate, design, material, insulation, hoursToSimulate);
 
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}/api/simulation/run`, {
+    response = await fetch(`${API_BASE_URL}/api/simulation/run`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -246,19 +379,18 @@ export async function runSimulationViaApi(
       },
       body: JSON.stringify(payload),
     });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const msg = errData.detail ? JSON.stringify(errData.detail) : `HTTP ${response.status}`;
-      throw new Error(`Simulation API error: ${msg}`);
-    }
-
-    const canonResult: CanonicalSimulationResult = await response.json();
-    return adaptCanonicalToUiResult(canonResult, design);
   } catch (error: any) {
-    console.warn('[ThermoShelter API] Could not connect to FastAPI backend:', error.message);
-    throw error;
+    const apiError = toApiError(error);
+    console.warn('[ThermoShelter API] Could not connect to FastAPI backend:', apiError.message);
+    throw apiError;
   }
+
+  if (!response.ok) {
+    throw await parseErrorResponse(response);
+  }
+
+  const canonResult: CanonicalSimulationResult = await response.json();
+  return adaptCanonicalToUiResult(canonResult, design);
 }
 
 /**
@@ -334,19 +466,22 @@ export async function runOptimizationViaApi(payload: {
   hours_to_simulate?: number;
   weights?: { comfort: number; efficiency: number; solar: number };
 }): Promise<CanonicalOptimizationResult> {
-  const response = await fetch(`${API_BASE_URL}/api/optimization/run`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/optimization/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    throw toApiError(error);
+  }
 
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    const msg = errData.detail ? JSON.stringify(errData.detail) : `HTTP ${response.status}`;
-    throw new Error(`Optimization API error: ${msg}`);
+    throw await parseErrorResponse(response);
   }
 
   return response.json();

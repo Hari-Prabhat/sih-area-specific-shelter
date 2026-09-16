@@ -896,6 +896,16 @@ class ShelterDesign:
                 deg_map = {"north": 0.0, "east": 90.0, "south": 180.0, "west": 270.0}
                 ori_deg = deg_map.get(str(ori_raw).lower(), 180.0)
 
+            # Sensible thermal mass (canonical data flow from UI design settings)
+            tm_enabled = bool(kwargs.get("thermal_mass_enabled", False))
+            tm_thickness_m = float(kwargs.get("thermal_mass_thickness_m", 0.0))
+            if tm_thickness_m < 0.0:
+                raise ValueError(f"Thermal mass thickness cannot be negative, got {tm_thickness_m} m")
+            if tm_enabled and tm_thickness_m <= 0.0:
+                raise ValueError(
+                    "thermal_mass_enabled=True requires a positive thermal_mass_thickness_m"
+                )
+
             # Build constituent components
             req = ShelterRequirements(
                 occupants=max(1, occupants_val),
@@ -1046,6 +1056,24 @@ class ShelterDesign:
                 ],
             )
 
+            # Sensible thermal mass element (floor-slab storage core) when requested
+            # by the canonical design. Concrete properties match the floor slab
+            # material definition used by this constructor.
+            thermal_mass_synth: List[ThermalMassDefinition] = []
+            if tm_enabled and tm_thickness_m > 0.0:
+                thermal_mass_synth.append(
+                    ThermalMassDefinition(
+                        id="tm_floor_core",
+                        name="Sensible Thermal Mass (Floor Core)",
+                        material_id="concrete_floor_core",
+                        thickness_m=tm_thickness_m,
+                        area_m2=length * width,
+                        density_kg_m3=2300.0,
+                        specific_heat_j_kgk=880.0,
+                        location="floor_slab",
+                    )
+                )
+
             self.design_id = str(design_id or "synthesized_design")
             self.name = str(name or f"{shelter_type} Shelter Design")
             self.requirements = req
@@ -1057,7 +1085,7 @@ class ShelterDesign:
             self.glazing = glaze_def
             self.openings = openings_synth
             self.zones = []
-            self.thermal_mass_elements = []
+            self.thermal_mass_elements = thermal_mass_synth
             self.passive_strategies = []
             self.version = str(version)
             self.created_at = str(created_at or "2026-01-01T00:00:00+00:00")
@@ -1073,6 +1101,11 @@ class ShelterDesign:
                 "insulation_thickness_m": insulation_thickness_m,
                 "insulation_conductivity": insulation_conductivity,
                 "roof_insulation_m": roof_insulation_m,
+                "thermal_mass_enabled": tm_enabled,
+                "thermal_mass_thickness_m": tm_thickness_m,
+                "thermal_mass_capacity_j_k": (
+                    thermal_mass_synth[0].thermal_capacity_j_per_k if thermal_mass_synth else 0.0
+                ),
                 "roof_conductivity": roof_conductivity,
                 "door_area": door_area_val,
                 "shelter_type": shelter_type,

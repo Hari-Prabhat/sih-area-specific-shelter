@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Users, Target, Zap, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Sparkles, Building2, Mountain } from 'lucide-react';
 import { ClimateData, ShelterDesign } from '../types';
 import { climatePresets } from '../data/climatePresets';
 import { materials } from '../data/materials';
+import { checkApiHealth } from '../services/api';
 import ShelterModel3D from './ShelterModel3D';
 
 type StudioStep = 'location' | 'mission' | 'priorities' | 'resources' | 'review' | 'generating' | 'results';
@@ -77,6 +78,30 @@ export default function DesignStudio() {
   });
   const [generatedDesign, setGeneratedDesign] = useState<GeneratedDesign | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Quiet backend connectivity indicator: probes FastAPI health on mount and
+  // retries every 30 s only while the backend is unreachable. Never blocks the UI.
+  const [backendStatus, setBackendStatus] = useState<'connecting' | 'connected' | 'unavailable'>('connecting');
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const probe = () => {
+      checkApiHealth()
+        .then(() => {
+          if (!cancelled) setBackendStatus('connected');
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setBackendStatus('unavailable');
+          retryTimer = setTimeout(probe, 30000);
+        });
+    };
+    probe();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, []);
 
   const steps = [
     { id: 'location', label: 'Location', icon: MapPin },
@@ -169,6 +194,35 @@ export default function DesignStudio() {
         <div>
           <h2 className="text-xl font-bold">ThermoShelter Design Studio</h2>
           <p className="text-sm text-slate-400">Professional shelter design workflow</p>
+        </div>
+        <div
+          className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium ${
+            backendStatus === 'connected'
+              ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+              : backendStatus === 'unavailable'
+              ? 'bg-red-500/10 border-red-500/40 text-red-300'
+              : 'bg-slate-500/10 border-slate-500/40 text-slate-300'
+          }`}
+          title={
+            backendStatus === 'connected'
+              ? 'FastAPI backend reachable'
+              : 'FastAPI backend not reachable. Start it with: python -m uvicorn backend.main:app --port 8000'
+          }
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              backendStatus === 'connected'
+                ? 'bg-emerald-400'
+                : backendStatus === 'unavailable'
+                ? 'bg-red-400 animate-pulse'
+                : 'bg-slate-400 animate-pulse'
+            }`}
+          />
+          {backendStatus === 'connected'
+            ? 'Backend connected'
+            : backendStatus === 'unavailable'
+            ? 'Backend unavailable'
+            : 'Connecting…'}
         </div>
       </div>
 

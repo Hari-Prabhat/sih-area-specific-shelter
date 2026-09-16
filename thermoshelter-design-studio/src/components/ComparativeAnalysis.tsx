@@ -38,6 +38,8 @@ import {
 import { ClimateData, ShelterDesign, SimulationResult } from '../types';
 import {
   runSimulationViaApi,
+  describeApiError,
+  ApiError,
   CanonicalOptimizationResult,
   CanonicalOptimizationCandidate,
   CanonicalSimulationResult,
@@ -173,7 +175,7 @@ export default function ComparativeAnalysis({
       setComparisons((prev) => [...prev, { id: Date.now().toString(), label: newMaterial, result }]);
     } catch (err: any) {
       console.error('Material comparison simulation failed:', err);
-      setSweepError('Simulation service unavailable. Start the FastAPI backend and try again.');
+      setSweepError(describeApiError(err));
     } finally {
       setIsLoading(false);
     }
@@ -208,13 +210,13 @@ export default function ComparativeAnalysis({
       );
       const successfulEntries = entries.filter(Boolean) as ComparisonEntry[];
       if (successfulEntries.length === 0) {
-        setSweepError('Simulation service unavailable. Start the FastAPI backend and try again.');
+        setSweepError(describeApiError(new ApiError('unavailable', 'All quick-compare simulations failed')));
       } else {
         setComparisons(successfulEntries);
       }
     } catch (err: any) {
       console.error('Quick compare failed:', err);
-      setSweepError('Simulation service unavailable. Start the FastAPI backend and try again.');
+      setSweepError(describeApiError(err));
     } finally {
       setIsLoading(false);
     }

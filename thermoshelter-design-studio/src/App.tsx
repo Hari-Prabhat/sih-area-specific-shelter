@@ -7,7 +7,7 @@ import ComparativeAnalysis from './components/ComparativeAnalysis';
 import DesignStudio from './components/DesignStudio';
 import EngineeringBlueprint from './components/EngineeringBlueprint';
 import { ClimateData, ShelterDesign, SimulationResult } from './types';
-import { runSimulationViaApi, runOptimizationViaApi, CanonicalOptimizationResult, CanonicalOptimizationCandidate } from './services/api';
+import { runSimulationViaApi, runOptimizationViaApi, describeApiError, CanonicalOptimizationResult, CanonicalOptimizationCandidate } from './services/api';
 import { getMaterialByName } from './data/materials';
 import { climatePresets } from './data/climatePresets';
 
@@ -54,9 +54,7 @@ function App() {
         setActiveTab('results');
       } catch (err: any) {
         console.error('Backend thermal simulation failed:', err);
-        setSimulationError(
-          'Simulation service unavailable. Start the FastAPI backend and try again.'
-        );
+        setSimulationError(describeApiError(err));
         // Do NOT produce substitute simulation results or execute local physics.
       } finally {
         setIsSimulating(false);
@@ -124,7 +122,7 @@ function App() {
       setOptimizationResult(result);
     } catch (err: any) {
       console.error('Optimization API error:', err);
-      setOptimizationError(err.message || 'Optimization failed');
+      setOptimizationError(describeApiError(err));
     } finally {
       setIsOptimizing(false);
     }

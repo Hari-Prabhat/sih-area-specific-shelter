@@ -22,7 +22,8 @@ def test_health_check():
     response = client.get("/api/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] == "ok"
+    assert data["service"] == "thermoshelter-api"
     assert data["canonical_contracts"] is True
     assert "Python" in data["physics_engine"]
     assert data["subsystems"]["member3_simulation"] == "active"

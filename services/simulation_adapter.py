@@ -164,6 +164,13 @@ class SimulationAdapter:
             hourly_temperatures=c.hourly_temperature,
             hourly_direct_solar=c.hourly_direct_solar,
             hourly_diffuse_solar=c.hourly_diffuse_solar,
+            # Sensible thermal mass explicitly requested through the canonical
+            # design (flat-constructor flag set only when the user enables it).
+            extra_thermal_capacity_j_k=(
+                d.metadata.get("thermal_mass_capacity_j_k")
+                if d.metadata.get("thermal_mass_enabled")
+                else None
+            ),
         )
 
         if "error" in raw_res:

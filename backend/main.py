@@ -95,12 +95,15 @@ async def type_error_handler(request: Request, exc: TypeError):
 @app.get("/api/health", tags=["system"], summary="Health Check")
 def health_check() -> Dict[str, Any]:
     """
-    Returns system health status and confirms that canonical engineering
-    contracts and the Python simulation engine are operational.
+    Machine-readable liveness probe for the FastAPI backend.
+
+    Reaching this handler at all proves the service is up, canonical contracts
+    import cleanly, and the Python simulation engine is operational — no
+    dependency probing is performed or fabricated here.
     """
     return {
-        "status": "healthy",
-        "service": "ThermoShelter AI",
+        "status": "ok",
+        "service": "thermoshelter-api",
         "version": "1.0.0",
         "canonical_contracts": True,
         "physics_engine": "Python 1D Forward Euler + ISO 6946 (Authoritative)",

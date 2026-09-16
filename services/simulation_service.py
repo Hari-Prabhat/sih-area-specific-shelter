@@ -212,6 +212,7 @@ def run_simulation(
     hourly_temperatures: Optional[List[float]] = None,
     hourly_direct_solar: Optional[List[float]] = None,
     hourly_diffuse_solar: Optional[List[float]] = None,
+    extra_thermal_capacity_j_k: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Authoritative physical simulation runner for shelter thermal response.
@@ -350,6 +351,13 @@ def run_simulation(
         floor_specific_heat=880.0,
     )
     total_thermal_mass = thermal_mass_data["C_total"]
+
+    # Optional user-specified sensible thermal-mass storage (e.g. a dedicated
+    # floor-core element requested through the canonical design). This is added
+    # ON TOP of the ISO 13790 active-depth envelope capacitance above. When the
+    # parameter is omitted (None), behavior is identical to previous releases.
+    if extra_thermal_capacity_j_k:
+        total_thermal_mass += float(extra_thermal_capacity_j_k)
 
     # Precompute invariant conductance coefficients
     ua_walls = float(u_wall * solid_wall_area)
