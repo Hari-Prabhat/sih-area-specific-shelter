@@ -1,7 +1,12 @@
-import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles } from 'lucide-react';
+import { lazy, Suspense } from 'react';
+import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles, ChevronRight } from 'lucide-react';
 import { ShelterDesign } from '../types';
 import { materials } from '../data/materials';
-import ShelterModel3D from './ShelterModel3D';
+import StageSuspense from './ui/StageSuspense';
+
+// D3: the three.js digital twin is the heaviest view in the studio and is
+// loaded on demand. Engineering logic inside ShelterModel3D is untouched.
+const ShelterModel3D = lazy(() => import('./ShelterModel3D'));
 
 interface ShelterDesignerProps {
   shelterDesign: ShelterDesign;
@@ -83,6 +88,8 @@ export default function ShelterDesigner({
               <button
                 key={shape}
                 onClick={() => updateField('shape', shape)}
+                aria-pressed={shelterDesign.shape === shape}
+                aria-label={`${shape} shelter form`}
                 className={`p-4 rounded-lg border transition-all text-center ${
                   shelterDesign.shape === shape
                     ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-sm'
@@ -356,22 +363,24 @@ export default function ShelterDesigner({
         </div>
       </div>
 
-      {/* Live 3D Preview */}
-      <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
+      {/* Live 3D Preview (lazy three.js twin) */}
+      <Suspense fallback={<StageSuspense label="3D preview" />}>
+        <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
+      </Suspense>
 
       {/* Bottom Actions (D2 CTA consolidation: the single Run Simulation lives in
           the header; this row offers the workflow's next stage) */}
-      <div className="flex flex-wrap justify-center gap-4 pt-2">
-        {onRunOptimization && onNavigateToCompare && (
+      {onRunOptimization && onNavigateToCompare && (
+        <div className="flex justify-center pt-2">
           <button
             onClick={onNavigateToCompare}
-            className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold rounded-xl flex items-center gap-3 shadow-lg shadow-amber-500/20 text-lg hover:from-amber-400 hover:to-orange-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-amber-300 rounded-lg hover:bg-amber-500/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
           >
-            <Sparkles className="w-5 h-5" aria-hidden="true" />
-            <span>Continue to Optimization</span>
+            Continue to Optimization
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

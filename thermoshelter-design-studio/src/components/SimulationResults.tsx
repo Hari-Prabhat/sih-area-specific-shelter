@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import {
   BarChart3,
   Thermometer,
@@ -31,7 +31,10 @@ import {
 } from 'recharts';
 import { SimulationResult, ClimateData, ShelterDesign } from '../types';
 import { CanonicalSimulationResult } from '../services/api';
-import ShelterModel3D from './ShelterModel3D';
+import StageSuspense from './ui/StageSuspense';
+
+// D3: lazy three.js digital twin — see ShelterDesigner.
+const ShelterModel3D = lazy(() => import('./ShelterModel3D'));
 
 interface SimulationResultsProps {
   result: SimulationResult;
@@ -233,13 +236,15 @@ export default function SimulationResults({
         </div>
       )}
 
-      {/* 3D Shelter Visualization */}
-      <ShelterModel3D
-        design={shelterDesign}
-        materialName={materialName}
-        comfortIndex={result.thermalComfortIndex}
-        avgTemp={result.avgInsideTemp}
-      />
+      {/* 3D Shelter Visualization (lazy three.js twin) */}
+      <Suspense fallback={<StageSuspense label="3D visualization" />}>
+        <ShelterModel3D
+          design={shelterDesign}
+          materialName={materialName}
+          comfortIndex={result.thermalComfortIndex}
+          avgTemp={result.avgInsideTemp}
+        />
+      </Suspense>
 
       {/* Row 2: Multi-Day Temperature Profile & Heat Loss Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

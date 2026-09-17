@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import {
   Layers,
   Plus,
@@ -45,7 +45,28 @@ import {
   CanonicalSimulationResult,
 } from '../services/api';
 import { materials, getMaterialByName } from '../data/materials';
-import ShelterModel3D from './ShelterModel3D';
+import StageSuspense from './ui/StageSuspense';
+import Button from './ui/Button';
+import ProvenanceChip from './ui/ProvenanceChip';
+
+// D3: lazy three.js digital twin — see ShelterDesigner.
+const ShelterModel3D = lazy(() => import('./ShelterModel3D'));
+
+// D3: the optimization result carries the climate scenario provenance it was
+// evaluated against (Phase C contract: climate_provenance on the response).
+// Surfacing it here keeps OPTIMIZED results visibly distinct from weather data.
+function ClimateProvenanceBadge({ result }: { result: CanonicalOptimizationResult }) {
+  if (!result.climate_provenance) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ProvenanceChip
+        value={result.climate_provenance}
+        fallbackUsed={result.climate_fallback_used ?? false}
+      />
+      <span className="text-xs text-slate-400">climate scenario used for optimization</span>
+    </div>
+  );
+}
 
 interface ComparativeAnalysisProps {
   climateData: ClimateData;
@@ -428,23 +449,15 @@ export default function ComparativeAnalysis({
                 <span>Runs Python TPE sampler across insulation thickness (0–200mm), fenestration (1–12m²), wall substrates, & orientation.</span>
               </div>
 
-              <button
+              <Button
                 onClick={handleTriggerOptimization}
                 disabled={isOptimizing}
-                className="px-6 py-2.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-400 hover:to-purple-500 text-white font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                loading={isOptimizing}
+                loadingText={`Running Optuna Optimizer (${nTrials} Trials)…`}
+                icon={!isOptimizing ? <Sparkles className="w-4 h-4" /> : undefined}
               >
-                {isOptimizing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Running Optuna Optimizer ({nTrials} Trials)...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Run Bayesian Optimization</span>
-                  </>
-                )}
-              </button>
+                Run Bayesian Optimization
+              </Button>
             </div>
           </div>
 
@@ -456,13 +469,14 @@ export default function ComparativeAnalysis({
               <p className="text-sm text-slate-400 max-w-md mx-auto mb-4">
                 Click "Run Bayesian Optimization" above to search the parameter space using Optuna and discover top-performing shelter configurations.
               </p>
-              <button
+              <Button
+                variant="secondary"
                 onClick={handleTriggerOptimization}
                 disabled={isOptimizing}
-                className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white font-medium rounded-lg inline-flex items-center gap-2 shadow-md shadow-indigo-500/20"
+                icon={<Sparkles className="w-4 h-4" />}
               >
-                <Sparkles className="w-4 h-4" /> Start Optimization
-              </button>
+                Start Optimization
+              </Button>
             </div>
           )}
 
@@ -473,7 +487,8 @@ export default function ComparativeAnalysis({
               {optimizationResult.recommended_design && (
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-slate-900/80 rounded-2xl border border-indigo-500/40 p-6">
                   <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
+                      <ClimateProvenanceBadge result={optimizationResult} />
                       <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-full text-xs font-semibold text-amber-300 mb-2">
                         <Award className="w-3.5 h-3.5" />
                         Recommended Design #{optimizationResult.recommended_design.rank} — {optimizationResult.recommended_design.label}
@@ -795,6 +810,7 @@ export default function ComparativeAnalysis({
                       <button
                         onClick={() => handleApply(activeCandidate)}
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                        aria-label={`Apply optimized design ${activeCandidate.rank ?? ''} to the design studio`}
                       >
                         <Check className="w-3.5 h-3.5" /> Apply This Design
                       </button>
@@ -807,7 +823,9 @@ export default function ComparativeAnalysis({
                     </div>
                   </div>
 
-                  <ShelterModel3D design={previewCandidateDesign} materialName={activeCandidate.wall_material_name} />
+                  <Suspense fallback={<StageSuspense label="3D candidate preview" />}>
+                    <ShelterModel3D design={previewCandidateDesign} materialName={activeCandidate.wall_material_name} />
+                  </Suspense>
                 </div>
               )}
 

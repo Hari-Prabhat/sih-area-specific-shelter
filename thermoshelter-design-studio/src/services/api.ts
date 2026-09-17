@@ -606,6 +606,9 @@ export interface CanonicalOptimizationResult {
   recommended_design?: CanonicalOptimizationCandidate;
   n_trials: number;
   explanation?: string;
+  /** Phase C provenance of the climate scenario the optimization ran against. */
+  climate_provenance?: string | null;
+  climate_fallback_used?: boolean | null;
 }
 
 /**

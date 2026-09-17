@@ -1,14 +1,22 @@
-import { ChevronRight, CircleDashed, Mountain } from 'lucide-react';
+import { lazy, Suspense } from 'react';
+import { CircleDashed, Mountain } from 'lucide-react';
 import { StudioStateProvider, useStudioState, activeWeatherProvenance, fallbackUsed } from './store/useStudioState';
 import ClimateInput from './components/ClimateInput';
 import MissionStage from './components/MissionStage';
 import ShelterDesigner from './components/ShelterDesigner';
-import SimulationResults from './components/SimulationResults';
-import ComparativeAnalysis from './components/ComparativeAnalysis';
-import EngineeringBlueprint from './components/EngineeringBlueprint';
 import ContextStrip from './components/ui/ContextStrip';
 import Stepper from './components/ui/Stepper';
+import Button from './components/ui/Button';
+import StageSuspense from './components/ui/StageSuspense';
 import { WORKFLOW_STAGES, WorkflowStage } from './theme/tokens';
+
+// D3 code splitting: heavyweight stage views load on demand. The initial
+// shell (header, ContextStrip, Stepper, Climate/Mission/Design stages) ships
+// without three.js, recharts or the CAD blueprint; each chunk is fetched the
+// first time its stage opens. Shared UI primitives stay eager on purpose.
+const SimulationResults = lazy(() => import('./components/SimulationResults'));
+const ComparativeAnalysis = lazy(() => import('./components/ComparativeAnalysis'));
+const EngineeringBlueprint = lazy(() => import('./components/EngineeringBlueprint'));
 
 /** Renders the stage's working content, or an honest placeholder for later phases. */
 function StageRouter() {
@@ -59,13 +67,7 @@ function ClimateStage() {
         onProfileChange={setClimateProfile}
       />
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setStage('mission')}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-        >
-          Continue to Mission <ChevronRight className="w-4 h-4" aria-hidden="true" />
-        </button>
+        <Button onClick={() => setStage('mission')}>Continue to Mission</Button>
       </div>
     </div>
   );
@@ -168,13 +170,7 @@ function EmptyStage({ title, message }: { title: string; message: string }) {
       <CircleDashed className="w-14 h-14 text-slate-600 mx-auto mb-4" aria-hidden="true" />
       <h3 className="text-xl font-semibold text-slate-400 mb-2">{title}</h3>
       <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">{message}</p>
-      <button
-        type="button"
-        onClick={() => setStage('design')}
-        className="px-6 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-      >
-        Go to Geometry &amp; Envelope
-      </button>
+      <Button onClick={() => setStage('design')}>Go to Geometry &amp; Envelope</Button>
     </div>
   );
 }
@@ -295,10 +291,12 @@ function StudioShell() {
         <Stepper current={stage} onNavigate={setStage} expertMode={expertMode} />
       </div>
 
-      {/* Main stage content */}
+      {/* Main stage content — heavyweight views resolve through Suspense */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         <ErrorBanners />
-        <StageRouter />
+        <Suspense fallback={<StageSuspense />}>
+          <StageRouter />
+        </Suspense>
       </main>
 
       <footer className="bg-slate-900/80 border-t border-slate-700/30 py-4 mt-8">

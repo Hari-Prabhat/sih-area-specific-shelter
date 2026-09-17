@@ -467,7 +467,6 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       backendHealth,
       replaceDesign,
       setDesignField,
-      replaceDesign,
       setMissionField,
       togglePriority,
       runSimulation,
