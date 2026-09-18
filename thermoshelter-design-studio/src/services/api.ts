@@ -389,6 +389,28 @@ export async function checkApiHealth(): Promise<HealthStatus> {
  * dict overrides the preset-city lookup so the simulation runs on real
  * provider weather for the selected location.
  */
+/**
+ * Canonical solver configuration for direct simulations — mirrors the backend
+ * SimulationInput defaults (services/contracts.py: substeps=60,
+ * initial_indoor_temp=20.0).
+ *
+ * Fidelity architecture (INTENTIONAL, backend-owned — services/optimize.py):
+ *   - Optimizer trials evaluate candidates at substeps=15 (search speed).
+ *   - The backend then re-verifies the best design at substeps=60
+ *     ("final authoritative simulation", optimize.py).
+ *   - Ranked-candidate verification sims also run at substeps=15.
+ *   - Direct simulation always runs at the canonical substeps=60.
+ * This two-tier fidelity is deliberate optimizer performance engineering,
+ * not an inconsistency — do not "unify" it from the frontend.
+ */
+const CANONICAL_DIRECT_SIMULATION = {
+  substeps: 60,
+  initial_indoor_temp: 20.0,
+} as const;
+
+/** Backend air-changes-per-hour preset (services/formula_constants.py DEFAULT_ACH). */
+export const DEFAULT_ACH = 0.5;
+
 export function buildCanonicalSimulationPayload(
   climate: ClimateData,
   design: ShelterDesign,
@@ -396,6 +418,10 @@ export function buildCanonicalSimulationPayload(
   insulation?: MaterialProperties,
   hoursToSimulate: number = 168,
   climateProfile?: SimulationClimateProfile,
+  /** D4-A WP1: occupancy from the mission requirements drives internal gains. */
+  occupants: number = 2,
+  /** D4-A WP1: air changes per hour — explicit design state (DEFAULT_ACH preset). */
+  ach: number = DEFAULT_ACH,
 ) {
   // Map wall material name to standardized key
   const matName = material ? material.name.toLowerCase() : 'brick';
@@ -412,8 +438,14 @@ export function buildCanonicalSimulationPayload(
   if (design.windowGlazing === 'single') glazingKey = 'single_clear';
   else if (design.windowGlazing === 'triple') glazingKey = 'triple_low_e';
 
-  // Derive insulation thickness
-  const insThick = insulation && insulation.name !== 'None' ? 0.05 : 0.0;
+  // D4-A WP2: insulation thickness is explicit design state (cm → m). The
+  // authoritative condition is the design state itself (insulationType /
+  // insulationThickness) — a caller may still pass a previously selected
+  // insulation material for conductivity without implying insulation exists.
+  const insThick =
+    design.insulationType !== 'None' && design.insulationThickness > 0
+      ? design.insulationThickness / 100.0
+      : 0.0;
 
   // Resolve city name from location string (e.g. "Leh, Ladakh" -> "leh")
   const cityName = climateProfile?.climate?.city
@@ -435,14 +467,16 @@ export function buildCanonicalSimulationPayload(
       orientation: design.orientation,
       roof_type: (design.roofAngle && design.roofAngle > 0) ? 'pitched' : 'flat',
       pitch_angle_deg: design.roofAngle || 0.0,
-      ach: 0.5,
-      occupants: 2,
+      // D4-A WP1: the canonical design field is authoritative; the loose
+      // parameter remains only as a fallback for legacy callers.
+      ach: design.ach ?? ach,
+      occupants: Math.max(1, Math.round(occupants)),
       thermal_mass_enabled: design.thermalMassEnabled,
       thermal_mass_thickness_m: design.thermalMassEnabled ? design.thermalMassThickness / 100.0 : 0.0,
     },
     hours_to_simulate: hoursToSimulate,
-    substeps: 30,
-    initial_indoor_temp: 20.0,
+    substeps: CANONICAL_DIRECT_SIMULATION.substeps,
+    initial_indoor_temp: CANONICAL_DIRECT_SIMULATION.initial_indoor_temp,
     ...(climateProfile ? { climate: climateProfile.climate } : {}),
   };
 }
@@ -496,7 +530,7 @@ export function adaptCanonicalToUiResult(
     totalHeatLoss: Math.round(canon.total_heat_loss_kwh),
     netHeatBalance: Math.round((canon.energy_totals_kwh.solar_gain_kwh - canon.total_heat_loss_kwh) * 10) / 10,
     thermalComfortIndex: Math.round(canon.comfort_percentage),
-    energyEfficiency: Math.round(canon.comfort_percentage),
+    heatingDemandKwh: Math.round(canon.energy_totals_kwh.heating_demand_kwh),
     hourlyTemperatures: canon.indoor_temperatures.slice(0, 24).map(t => Math.round(t * 10) / 10),
     monthlyTemperatures,
     recommendedImprovements: recommendations,
@@ -515,8 +549,10 @@ export async function runSimulationViaApi(
   insulation?: MaterialProperties,
   hoursToSimulate: number = 168,
   climateProfile?: SimulationClimateProfile,
+  occupants: number = 2,
+  ach: number = DEFAULT_ACH,
 ): Promise<UiSimulationResult> {
-  const payload = buildCanonicalSimulationPayload(climate, design, material, insulation, hoursToSimulate, climateProfile);
+  const payload = buildCanonicalSimulationPayload(climate, design, material, insulation, hoursToSimulate, climateProfile, occupants, ach);
 
   let response: Response;
   try {

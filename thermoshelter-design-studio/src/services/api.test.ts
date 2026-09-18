@@ -46,6 +46,8 @@ const design: ShelterDesign = {
   windowGlazing: 'double',
   doorArea: 2,
   insulationType: 'EPS',
+  insulationThickness: 5,
+  ach: 0.5,
   thermalMassEnabled: true,
   thermalMassThickness: 20,
 };
@@ -111,6 +113,72 @@ describe('buildCanonicalSimulationPayload', () => {
     );
     expect(payload.design.roof_type).toBe('flat');
     expect(payload.design.pitch_angle_deg).toBe(0);
+  });
+});
+
+describe('D4-A WP1/WP2: mission & envelope input propagation', () => {
+  it('sends the mission occupancy into the direct-simulation payload (no hardcoded 2)', () => {
+    const payload = buildCanonicalSimulationPayload(
+      climate,
+      design,
+      wallMaterial,
+      insulation,
+      168,
+      undefined,
+      6,
+    );
+    expect(payload.design.occupants).toBe(6);
+  });
+
+  it('sends the design ACH state (no hardcoded 0.5)', () => {
+    const payload = buildCanonicalSimulationPayload(
+      climate,
+      { ...design, ach: 1.2 },
+      wallMaterial,
+      insulation,
+    );
+    expect(payload.design.ach).toBe(1.2);
+  });
+
+  it('sends the explicit insulation-thickness design state as SI metres (cm / 100)', () => {
+    const payload = buildCanonicalSimulationPayload(
+      climate,
+      { ...design, insulationType: 'XPS', insulationThickness: 12 },
+      wallMaterial,
+      insulation,
+    );
+    expect(payload.design.insulation_thickness_m).toBeCloseTo(0.12, 10);
+  });
+
+  it('sends zero insulation thickness for uninsulated designs or zero cm', () => {
+    const noneType = buildCanonicalSimulationPayload(
+      climate,
+      { ...design, insulationType: 'None', insulationThickness: 10 },
+      wallMaterial,
+      insulation,
+    );
+    expect(noneType.design.insulation_thickness_m).toBe(0);
+
+    const zeroCm = buildCanonicalSimulationPayload(
+      climate,
+      { ...design, insulationThickness: 0 },
+      wallMaterial,
+      insulation,
+    );
+    expect(zeroCm.design.insulation_thickness_m).toBe(0);
+  });
+
+  it('produces a deterministic payload: identical inputs yield identical JSON', () => {
+    const a = JSON.stringify(buildCanonicalSimulationPayload(climate, design, wallMaterial, insulation, 168, undefined, 4));
+    const b = JSON.stringify(buildCanonicalSimulationPayload(climate, design, wallMaterial, insulation, 168, undefined, 4));
+    expect(a).toBe(b);
+  });
+
+  it('keeps canonical solver configuration (backend SimulationInput defaults)', () => {
+    // services/contracts.py SimulationInput defaults: substeps=60, initial_indoor_temp=20.0
+    const payload = buildCanonicalSimulationPayload(climate, design, wallMaterial, insulation);
+    expect(payload.substeps).toBe(60);
+    expect(payload.initial_indoor_temp).toBe(20.0);
   });
 });
 

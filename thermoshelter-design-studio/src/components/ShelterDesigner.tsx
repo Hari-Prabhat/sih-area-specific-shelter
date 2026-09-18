@@ -20,6 +20,10 @@ interface ShelterDesignerProps {
   onNavigateToCompare?: () => void;
   /** D2: field-level design updates avoid rebuilding the whole design object. */
   updateDesignField?: <K extends keyof ShelterDesign>(field: K, value: ShelterDesign[K]) => void;
+  /** D4-A WP1: live mission occupancy (drives the simulation payload). */
+  missionOccupants?: number;
+  /** D4-A WP1: change mission occupancy from the design stage. */
+  onMissionOccupantsChange?: (occupants: number) => void;
 }
 
 export default function ShelterDesigner({
@@ -33,6 +37,8 @@ export default function ShelterDesigner({
   isOptimizing = false,
   onNavigateToCompare,
   updateDesignField,
+  missionOccupants,
+  onMissionOccupantsChange,
 }: ShelterDesignerProps) {
   const updateField = (field: keyof ShelterDesign, value: any) => {
     if (updateDesignField) {
@@ -275,6 +281,33 @@ export default function ShelterDesigner({
               </select>
             </div>
 
+            {/* D4-A WP2: explicit envelope insulation thickness (cm) — direct
+                simulation and the optimizer seed both bind to this state. */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-slate-400">Insulation Thickness</span>
+                <span className="text-emerald-400 font-bold">
+                  {shelterDesign.insulationType === 'None' ? '— (uninsulated)' : `${shelterDesign.insulationThickness} cm`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={15}
+                step={1}
+                disabled={shelterDesign.insulationType === 'None'}
+                value={shelterDesign.insulationType === 'None' ? 0 : shelterDesign.insulationThickness}
+                onChange={(e) => updateField('insulationThickness', Number(e.target.value))}
+                aria-label="Insulation thickness in centimetres"
+                className="w-full accent-emerald-500 disabled:opacity-40"
+              />
+              <p className="text-[10px] text-slate-500">
+                {shelterDesign.insulationType === 'None'
+                  ? 'Select an insulation layer to set its thickness.'
+                  : 'Sent to the Python engine as insulation_thickness_m; optimization starts from this value.'}
+              </p>
+            </div>
+
             <div className="pt-2 border-t border-slate-700/30 space-y-2">
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
@@ -313,20 +346,66 @@ export default function ShelterDesigner({
             <Wind className="w-4 h-4 text-blue-400" /> Ventilation & Occupancy
           </h3>
           <div className="space-y-3 text-xs">
-            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-700/50 flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-slate-300">
-                <Users className="w-4 h-4 text-indigo-400" />
-                <span>Internal Occupants</span>
+            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-slate-300">
+                  <Users className="w-4 h-4 text-indigo-400" />
+                  <label htmlFor="designer-occupants" className="text-xs">Internal Occupants</label>
+                </div>
+                {/* D4-A WP1: occupancy is editable here and bound to the same
+                    mission state the simulation payload consumes. Backend gain
+                    constant: 80 W sensible per person (formula_constants). */}
+                {onMissionOccupantsChange ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="designer-occupants"
+                      type="number"
+                      min={1}
+                      max={20}
+                      step={1}
+                      value={missionOccupants ?? 1}
+                      onChange={(e) => onMissionOccupantsChange(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)))}
+                      className="w-16 px-2 py-1 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm font-mono font-bold text-white text-right focus:outline-none focus:border-indigo-500"
+                      aria-label="Number of internal occupants"
+                    />
+                    <span className="text-[11px] text-slate-400">persons · {(missionOccupants ?? 1) * 80} W gain</span>
+                  </div>
+                ) : (
+                  <span className="font-mono font-bold text-white">{missionOccupants ?? '—'} persons</span>
+                )}
               </div>
-              <span className="font-mono font-bold text-white">2 Persons (140 W gain)</span>
+              {onMissionOccupantsChange && (
+                <p className="text-[10px] text-slate-500 mt-1.5">Set in Mission stage · 80 W sensible heat gain per person</p>
+              )}
             </div>
 
-            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-700/50 flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-slate-300">
-                <Wind className="w-4 h-4 text-sky-400" />
-                <span>Infiltration / ACH</span>
+            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-slate-300">
+                  <Wind className="w-4 h-4 text-sky-400" />
+                  <label htmlFor="designer-ach" className="text-xs">Infiltration / ACH</label>
+                </div>
+                {/* D4-A WP1: ACH is canonical design state (contracts.py
+                    ShelterDesign.ach) — editable, no longer a static 0.5. */}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id="designer-ach"
+                    type="number"
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    value={shelterDesign.ach}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!Number.isNaN(v)) updateField('ach', Math.max(0.1, Math.min(5, v)));
+                    }}
+                    className="w-20 px-2 py-1 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm font-mono font-bold text-white text-right focus:outline-none focus:border-sky-500"
+                    aria-label="Air changes per hour"
+                  />
+                  <span className="text-[11px] text-slate-400">h⁻¹</span>
+                </div>
               </div>
-              <span className="font-mono font-bold text-white">0.5 h⁻¹ (Air Changes)</span>
+              <p className="text-[10px] text-slate-500 mt-1.5">Air changes per hour · engine preset 0.5 (formula_constants.DEFAULT_ACH)</p>
             </div>
 
             <p className="text-[11px] text-slate-400 leading-relaxed pt-1">

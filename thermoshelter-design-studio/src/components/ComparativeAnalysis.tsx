@@ -42,9 +42,9 @@ import {
   ApiError,
   CanonicalOptimizationResult,
   CanonicalOptimizationCandidate,
-  CanonicalSimulationResult,
 } from '../services/api';
 import { materials, getMaterialByName } from '../data/materials';
+import { deriveBaselineMetrics } from '../services/baselineMetrics';
 import StageSuspense from './ui/StageSuspense';
 import Button from './ui/Button';
 import ProvenanceChip from './ui/ProvenanceChip';
@@ -122,20 +122,25 @@ export default function ComparativeAnalysis({
   const candidates: CanonicalOptimizationCandidate[] = optimizationResult?.ranked_designs || [];
   const activeCandidate = selectedCandidate || (candidates.length > 0 ? candidates[0] : null);
 
-  // Derive baseline metrics
-  const canonicalBaseline = (baselineResult as any)?.canonical as CanonicalSimulationResult | undefined;
-  const baselineComfortPct = canonicalBaseline
-    ? Math.round(canonicalBaseline.comfort_percentage)
-    : baselineResult?.thermalComfortIndex ?? 60;
-  const baselineHeatingDemandKwh = canonicalBaseline
-    ? Math.round(canonicalBaseline.energy_totals_kwh.heating_demand_kwh)
-    : Math.round((baselineResult?.totalHeatLoss ?? 500) * 0.7);
-  const baselineTotalHeatLossKwh = canonicalBaseline
-    ? Math.round(canonicalBaseline.total_heat_loss_kwh)
-    : Math.round(baselineResult?.totalHeatLoss ?? 600);
-  const baselineSolarGainKwh = canonicalBaseline
-    ? Math.round(canonicalBaseline.integrated_solar_energy_kwh)
-    : Math.round(baselineResult?.solarEnergyGain ?? 250);
+  // D4-A WP4: baseline metrics derive from a REAL simulation result only.
+  // The former fabricated fallbacks (60 / 500*0.7 / 600 / 250) are gone —
+  // without a baseline the UI renders a truthful empty state instead.
+  const baseline = deriveBaselineMetrics(baselineResult);
+
+  // Deltas vs the baseline — computed only when a real baseline exists.
+  const recommended = optimizationResult?.recommended_design;
+  const comfortDelta =
+    baseline.hasBaseline && recommended && baseline.comfortPct != null
+      ? recommended.comfort_percentage - baseline.comfortPct
+      : null;
+  const heatingDelta =
+    baseline.hasBaseline && recommended && baseline.heatingDemandKwh != null
+      ? baseline.heatingDemandKwh - recommended.heating_demand_kwh
+      : null;
+  const heatLossDelta =
+    baseline.hasBaseline && recommended && baseline.totalHeatLossKwh != null
+      ? baseline.totalHeatLossKwh - recommended.total_heat_loss_kwh
+      : null;
 
   // Update weights
   const handleWeightChange = (key: 'comfort' | 'efficiency' | 'solar', val: number) => {
@@ -243,15 +248,21 @@ export default function ComparativeAnalysis({
     }
   };
 
-  // Chart data for optimization candidate comparison
+  // Chart data for optimization candidate comparison. D4-A WP4: the
+  // Baseline series appears ONLY when a real baseline simulation exists —
+  // the fabricated baseline bar was removed.
   const candidateChartData = [
-    {
-      name: 'Baseline',
-      'Comfort (%)': baselineComfortPct,
-      'Heat Loss (kWh)': baselineTotalHeatLossKwh,
-      'Heating Demand (kWh)': baselineHeatingDemandKwh,
-      'Solar Gain (kWh)': baselineSolarGainKwh,
-    },
+    ...(baseline.hasBaseline
+      ? [
+          {
+            name: 'Baseline',
+            'Comfort (%)': baseline.comfortPct ?? 0,
+            'Heat Loss (kWh)': baseline.totalHeatLossKwh ?? 0,
+            'Heating Demand (kWh)': baseline.heatingDemandKwh ?? 0,
+            'Solar Gain (kWh)': baseline.solarGainKwh ?? 0,
+          },
+        ]
+      : []),
     ...candidates.slice(0, 4).map((c) => ({
       name: `#${c.rank} ${c.label}`,
       'Comfort (%)': Math.round(c.comfort_percentage),
@@ -261,30 +272,29 @@ export default function ComparativeAnalysis({
     })),
   ];
 
-  // Radar chart data for active candidate vs baseline
+  // D4-A WP4: the radar shows ONLY the optimizer's genuine sub-scores
+  // (backend-computed, normalized 0–100). The former "Baseline" series
+  // invented normalized values from heuristic formulas — baselines have no
+  // optimizer sub-scores, so none are plotted.
   const radarData = activeCandidate
     ? [
         {
-          subject: 'Thermal Comfort',
-          Baseline: baselineComfortPct,
-          Candidate: Math.round(activeCandidate.comfort_percentage),
+          subject: 'Comfort',
+          Candidate: Math.round(activeCandidate.sub_scores.comfort * 100),
           fullMark: 100,
         },
         {
-          subject: 'Efficiency Score',
-          Baseline: Math.max(10, Math.min(100, 100 - (baselineHeatingDemandKwh / 10))),
+          subject: 'Efficiency',
           Candidate: Math.round(activeCandidate.sub_scores.efficiency * 100),
           fullMark: 100,
         },
         {
-          subject: 'Solar Capture',
-          Baseline: Math.min(100, Math.round((baselineSolarGainKwh / 300) * 100)),
+          subject: 'Solar',
           Candidate: Math.round(activeCandidate.sub_scores.solar * 100),
           fullMark: 100,
         },
         {
-          subject: 'Overall Rating',
-          Baseline: Math.round((baselineComfortPct + 50) / 2),
+          subject: 'Overall',
           Candidate: Math.round(activeCandidate.overall_score * 100),
           fullMark: 100,
         },
@@ -525,6 +535,12 @@ export default function ComparativeAnalysis({
                   </div>
 
                   {/* Recommended Key Metrics Delta */}
+                  {!baseline.hasBaseline && (
+                    <p className="mt-4 flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                      <Info className="w-3.5 h-3.5 shrink-0" />
+                      Run a baseline simulation (Design stage → Run Simulation) to compare these results against your current design.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-indigo-500/20">
                     <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700/40">
                       <span className="text-[11px] text-slate-400 block mb-1">Comfort Improvement</span>
@@ -532,19 +548,21 @@ export default function ComparativeAnalysis({
                         <span className="text-xl font-bold text-emerald-400">
                           {Math.round(optimizationResult.recommended_design.comfort_percentage)}%
                         </span>
-                        {optimizationResult.recommended_design.comfort_percentage - baselineComfortPct >= 0 ? (
+                        {comfortDelta != null && (comfortDelta >= 0 ? (
                           <span className="text-xs font-semibold text-emerald-400 flex items-center">
                             <ArrowUpRight className="w-3 h-3" />
-                            +{(optimizationResult.recommended_design.comfort_percentage - baselineComfortPct).toFixed(0)}%
+                            +{comfortDelta.toFixed(0)}%
                           </span>
                         ) : (
                           <span className="text-xs font-semibold text-red-400 flex items-center">
                             <ArrowDownRight className="w-3 h-3" />
-                            {(optimizationResult.recommended_design.comfort_percentage - baselineComfortPct).toFixed(0)}%
+                            {comfortDelta.toFixed(0)}%
                           </span>
-                        )}
+                        ))}
                       </div>
-                      <span className="text-[10px] text-slate-500">Baseline: {baselineComfortPct}%</span>
+                      <span className="text-[10px] text-slate-500">
+                        {baseline.comfortPct != null ? `Baseline: ${baseline.comfortPct}%` : 'No baseline simulation yet'}
+                      </span>
                     </div>
 
                     <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700/40">
@@ -553,14 +571,16 @@ export default function ComparativeAnalysis({
                         <span className="text-xl font-bold text-blue-400">
                           {Math.round(optimizationResult.recommended_design.heating_demand_kwh)} kWh
                         </span>
-                        {baselineHeatingDemandKwh - optimizationResult.recommended_design.heating_demand_kwh >= 0 && (
+                        {heatingDelta != null && heatingDelta >= 0 && (
                           <span className="text-xs font-semibold text-blue-400 flex items-center">
                             <ArrowDownRight className="w-3 h-3" />
-                            -{(baselineHeatingDemandKwh - optimizationResult.recommended_design.heating_demand_kwh).toFixed(0)}
+                            -{heatingDelta.toFixed(0)}
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-500">Baseline: {baselineHeatingDemandKwh} kWh</span>
+                      <span className="text-[10px] text-slate-500">
+                        {baseline.heatingDemandKwh != null ? `Baseline: ${baseline.heatingDemandKwh} kWh` : 'No baseline simulation yet'}
+                      </span>
                     </div>
 
                     <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700/40">
@@ -569,14 +589,16 @@ export default function ComparativeAnalysis({
                         <span className="text-xl font-bold text-purple-400">
                           {Math.round(optimizationResult.recommended_design.total_heat_loss_kwh)} kWh
                         </span>
-                        {baselineTotalHeatLossKwh - optimizationResult.recommended_design.total_heat_loss_kwh >= 0 && (
+                        {heatLossDelta != null && heatLossDelta >= 0 && (
                           <span className="text-xs font-semibold text-purple-400 flex items-center">
                             <ArrowDownRight className="w-3 h-3" />
-                            -{(baselineTotalHeatLossKwh - optimizationResult.recommended_design.total_heat_loss_kwh).toFixed(0)}
+                            -{heatLossDelta.toFixed(0)}
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-500">Baseline: {baselineTotalHeatLossKwh} kWh</span>
+                      <span className="text-[10px] text-slate-500">
+                        {baseline.totalHeatLossKwh != null ? `Baseline: ${baseline.totalHeatLossKwh} kWh` : 'No baseline simulation yet'}
+                      </span>
                     </div>
 
                     <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700/40">
@@ -733,7 +755,9 @@ export default function ComparativeAnalysis({
                       <TrendingUp className="w-4 h-4 text-emerald-400" />
                       Thermal Comfort vs. Energy Demand
                     </h4>
-                    <span className="text-[11px] text-slate-400">Baseline vs Candidates</span>
+                    <span className="text-[11px] text-slate-400">
+                      {baseline.hasBaseline ? 'Baseline vs Candidates' : 'Candidates (no baseline simulation)'}
+                    </span>
                   </div>
 
                   <ResponsiveContainer width="100%" height={260}>
@@ -760,7 +784,7 @@ export default function ComparativeAnalysis({
                       Multi-Objective Trade-Off (Radar)
                     </h4>
                     <span className="text-[11px] text-indigo-300">
-                      Comparing: Baseline vs #{activeCandidate?.rank ?? 1}
+                      Comparing: {activeCandidate ? `#${activeCandidate.rank}` : '—'} (normalized sub-scores, not physical units)
                     </span>
                   </div>
 
@@ -770,7 +794,8 @@ export default function ComparativeAnalysis({
                         <PolarGrid stroke="#334155" />
                         <PolarAngleAxis dataKey="subject" stroke="#94a3b8" fontSize={10} />
                         <PolarRadiusAxis stroke="#475569" fontSize={9} domain={[0, 100]} />
-                        <Radar name="Baseline" dataKey="Baseline" stroke="#64748b" fill="#64748b" fillOpacity={0.2} />
+                        {/* D4-A WP4: candidate's genuine optimizer sub-scores only —
+                            the fabricated "Baseline" series was removed. */}
                         <Radar
                           name={`Candidate #${activeCandidate?.rank}`}
                           dataKey="Candidate"
@@ -902,7 +927,7 @@ export default function ComparativeAnalysis({
                     name: c.label.length > 15 ? c.label.substring(0, 15) + '...' : c.label,
                     'Avg Temp (°C)': c.result.avgInsideTemp,
                     Comfort: c.result.thermalComfortIndex,
-                    'Efficiency (%)': c.result.energyEfficiency,
+                    'Heating Demand (kWh)': c.result.heatingDemandKwh,
                   }))}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -914,7 +939,7 @@ export default function ComparativeAnalysis({
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
                   <Bar dataKey="Avg Temp (°C)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Comfort" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Efficiency (%)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Heating Demand (kWh)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

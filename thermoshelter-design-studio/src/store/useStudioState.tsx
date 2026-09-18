@@ -23,6 +23,7 @@ import { ClimateData, ShelterDesign, SimulationResult as UiSimulationResult } fr
 import {
   CanonicalOptimizationCandidate,
   CanonicalOptimizationResult,
+  DEFAULT_ACH,
   SimulationClimateProfile,
   checkApiHealth,
   describeApiError,
@@ -88,6 +89,37 @@ export function massLevelToDesignMass(level: string | null | undefined): {
 } {
   const cm = level ? THERMAL_MASS_LEVEL_THICKNESS_CM[level] ?? 0 : 0;
   return { thermalMassEnabled: cm > 0, thermalMassThickness: cm };
+}
+
+/**
+ * D4-A WP2: pure mapping from an optimization candidate onto the canonical
+ * ShelterDesign fields it governs. Extracted from applyCandidate so the
+ * candidate → design → simulation-payload contract is unit-testable:
+ * the applied design must reproduce the candidate's simulated envelope
+ * (window area, glazing, orientation, insulation thickness, thermal mass).
+ */
+export function candidateDesignPatch(
+  prev: ShelterDesign,
+  candidate: CanonicalOptimizationCandidate,
+): Partial<ShelterDesign> {
+  const mass = massLevelToDesignMass(candidate.thermal_mass_level);
+  return {
+    windowArea: candidate.window_area_m2,
+    windowGlazing: glazingToUi(candidate.glazing),
+    orientation: orientationToDegrees(candidate.orientation),
+    // Restore the candidate's actual insulation thickness (mm → cm) so the
+    // applied design reproduces the candidate's simulated U-values; keep the
+    // selected insulation product when the candidate carries insulation.
+    insulationThickness: Math.round(candidate.insulation_thickness_m * 100),
+    insulationType:
+      candidate.insulation_thickness_m <= 0
+        ? 'None'
+        : prev.insulationType === 'None'
+          ? 'EPS'
+          : prev.insulationType,
+    thermalMassEnabled: mass.thermalMassEnabled,
+    thermalMassThickness: mass.thermalMassThickness,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +257,14 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
     windowGlazing: 'double',
     doorArea: 2,
     insulationType: 'EPS',
+    // D4-A WP2: explicit envelope insulation thickness (cm) — previously a
+    // hardcoded 0.05 m inside the payload builders while the optimizer
+    // explored 0/50/100/150 mm, so applied candidates could not reproduce
+    // their simulated U-values.
+    insulationThickness: 5,
+    // D4-A WP1: canonical backend design field (services/contracts.py
+    // ShelterDesign.ach; preset DEFAULT_ACH = 0.5). Editable in the designer.
+    ach: DEFAULT_ACH,
     thermalMassEnabled: true,
     thermalMassThickness: 20,
   });
@@ -304,7 +344,19 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       // Authoritative Python thermal simulation via FastAPI. When a live/
       // forecast/design climate profile was fetched, its real hourly arrays
       // override the preset-city statistics (Phase B/C contract).
-      const result = await runSimulationViaApi(climate, design, material, insulation, 168, climateProfile ?? undefined);
+      // D4-A WP1: mission occupancy drives internal gains (backend per-occupant
+      // gain constant: services/formula_constants.py DEFAULT_OCCUPANT_HEAT_GAIN);
+      // ACH comes from the design's canonical ach field.
+      const result = await runSimulationViaApi(
+        climate,
+        design,
+        material,
+        insulation,
+        168,
+        climateProfile ?? undefined,
+        mission.occupants,
+        design.ach,
+      );
       setSimulation({ result, loading: false, error: null });
       setStage('simulation');
     } catch (err) {
@@ -314,7 +366,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
         error: describeApiError(err),
       }));
     }
-  }, [climate, climateProfile, design, wallMaterial]);
+  }, [climate, climateProfile, design, wallMaterial, mission.occupants]);
 
   const runOptimization = useCallback(
     async (
@@ -324,9 +376,13 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
     ) => {
       setOptimization((prev) => ({ ...prev, loading: true, error: null }));
       try {
-        const cityName = climate.location.split(',')[0].toLowerCase().trim();
+        const cityName = climateProfile?.climate?.city
+          ?? climate.location.split(',')[0].toLowerCase().trim();
         const insulation = getMaterialByName(design.insulationType);
-        const insThick = insulation && insulation.name !== 'None' ? 0.05 : 0.0;
+        // D4-A WP2: the optimizer seeds its search from the design's explicit
+        // insulation thickness (cm → m) — not a hardcoded 0.05 m.
+        const insThick =
+          insulation && insulation.name !== 'None' ? design.insulationThickness / 100.0 : 0.0;
 
         const result = await runOptimizationViaApi({
           city: cityName,
@@ -345,10 +401,14 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
             orientation: design.orientation,
             roof_type: design.roofAngle && design.roofAngle > 0 ? 'pitched' : 'flat',
             pitch_angle_deg: design.roofAngle || 0.0,
-            ach: 0.5,
+            // D4-A WP1/WP2: bind to explicit design/mission state.
+            ach: design.ach,
             occupants: mission.occupants,
           },
           n_trials: nTrials || 20,
+          // Optimizer search fidelity (backend default, optimize.py:90). The
+          // backend re-verifies the best design at substeps=60 — do not raise
+          // this to 60; trial evaluation at 15 is deliberate for performance.
           substeps: 15,
           hours_to_simulate: 168,
           weights: weights || { comfort: 0.5, efficiency: 0.3, solar: 0.2 },
@@ -391,24 +451,10 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
    */
   const applyCandidate = useCallback(
     (candidate: CanonicalOptimizationCandidate) => {
-      const mass = massLevelToDesignMass(candidate.thermal_mass_level);
-
       setWallMaterial(candidate.wall_material_name);
       setDesign((prev) => ({
         ...prev,
-        windowArea: candidate.window_area_m2,
-        windowGlazing: glazingToUi(candidate.glazing),
-        orientation: orientationToDegrees(candidate.orientation),
-        // Preserve the candidate's insulation intent; keep the selected
-        // insulation product when the candidate carries insulation.
-        insulationType:
-          candidate.insulation_thickness_m <= 0
-            ? 'None'
-            : prev.insulationType === 'None'
-              ? 'EPS'
-              : prev.insulationType,
-        thermalMassEnabled: mass.thermalMassEnabled,
-        thermalMassThickness: mass.thermalMassThickness,
+        ...candidateDesignPatch(prev, candidate),
       }));
 
       // Clear the stale simulation result so the user re-runs on the new design.

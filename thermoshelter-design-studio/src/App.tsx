@@ -78,11 +78,13 @@ function ShelterDesignerStage() {
   const {
     design,
     wallMaterial,
+    mission,
     simulation,
     optimization,
     setDesignField,
     replaceDesign,
     setWallMaterial,
+    setMissionField,
     runSimulation,
     setStage,
   } = useStudioState();
@@ -99,6 +101,8 @@ function ShelterDesignerStage() {
       isOptimizing={optimization.loading}
       onNavigateToCompare={() => setStage('optimization')}
       updateDesignField={setDesignField}
+      missionOccupants={mission.occupants}
+      onMissionOccupantsChange={(n) => setMissionField('occupants', n)}
     />
   );
 }

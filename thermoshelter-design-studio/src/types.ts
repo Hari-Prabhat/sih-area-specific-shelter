@@ -32,6 +32,14 @@ export interface ShelterDesign {
   windowGlazing: 'single' | 'double' | 'triple';
   doorArea: number;
   insulationType: string;
+  /** D4-A: explicit envelope insulation thickness in cm (0 = uninsulated).
+   *  Sent to the backend as insulation_thickness_m; optimizer candidates
+   *  restore this value on Apply so applied designs reproduce the
+   *  candidate's simulated U-values. */
+  insulationThickness: number;
+  /** D4-A WP1: air changes per hour — canonical backend design field
+   *  (services/contracts.py ShelterDesign.ach, preset DEFAULT_ACH = 0.5). */
+  ach: number;
   thermalMassEnabled: boolean;
   thermalMassThickness: number;
 }
@@ -61,7 +69,10 @@ export interface SimulationResult {
   totalHeatLoss: number;
   netHeatBalance: number;
   thermalComfortIndex: number;
-  energyEfficiency: number;
+  /** D4-A: genuine backend energy metric (heating demand, kWh) — replaces the
+   *  former energyEfficiency field that mislabelled comfort percentage as an
+   *  independent energy-efficiency metric. */
+  heatingDemandKwh: number;
   hourlyTemperatures: number[];
   monthlyTemperatures: number[];
   recommendedImprovements: string[];

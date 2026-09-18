@@ -37,6 +37,7 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
     doorArea = 2.0,
     shape = 'rectangular',
     insulationType,
+    insulationThickness,
     thermalMassEnabled,
     thermalMassThickness,
   } = design;
@@ -53,7 +54,9 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
 
   // Envelope thickness calculations in mm
   const wallThickMm = Math.round(wallThickness * 1000);
-  const insThickMm = insulationType && insulationType !== 'None' ? 50 : 0;
+  // D4-A: bind the actual design-state insulation thickness (cm → mm).
+  // Previously a hardcoded 50 mm that contradicted the applied design.
+  const insThickMm = insulationType && insulationType !== 'None' ? Math.round(insulationThickness * 10) : 0;
   const massThickMm = thermalMassEnabled ? thermalMassThickness * 10 : 0;
 
   // Title Block Metadata

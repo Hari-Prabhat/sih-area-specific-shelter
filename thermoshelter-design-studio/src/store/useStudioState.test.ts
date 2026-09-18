@@ -9,9 +9,15 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { massLevelToDesignMass, orientationToDegrees, glazingToUi } from './useStudioState';
+import {
+  massLevelToDesignMass,
+  orientationToDegrees,
+  glazingToUi,
+  candidateDesignPatch,
+} from './useStudioState';
 import { activeWeatherProvenance } from './useStudioState';
-import type { SimulationClimateProfile } from '../services/api';
+import type { CanonicalOptimizationCandidate, SimulationClimateProfile } from '../services/api';
+import type { ShelterDesign } from '../types';
 
 describe('candidate thermal-mass preservation (D2 bug fix)', () => {
   it('maps optimizer mass levels onto canonical ShelterDesign semantics', () => {
@@ -52,6 +58,94 @@ describe('candidate field mapping helpers', () => {
     expect(glazingToUi('double_clear')).toBe('double');
     expect(glazingToUi('double_low_e')).toBe('double');
     expect(glazingToUi('triple_low_e')).toBe('triple');
+  });
+});
+
+describe('D4-A WP2: candidate → design insulation-thickness restoration', () => {
+  const baseDesign: ShelterDesign = {
+    length: 6,
+    width: 4,
+    height: 3,
+    shape: 'rectangular',
+    orientation: 180,
+    roofAngle: 30,
+    wallThickness: 0.3,
+    windowArea: 3,
+    windowGlazing: 'double',
+    doorArea: 2,
+    insulationType: 'XPS',
+    insulationThickness: 4,
+    ach: 0.5,
+    thermalMassEnabled: true,
+    thermalMassThickness: 10,
+  };
+
+  const candidate = (overrides: Partial<CanonicalOptimizationCandidate>): CanonicalOptimizationCandidate =>
+    ({
+      rank: 1,
+      label: 'Test Candidate',
+      rationale: 'test',
+      overall_score: 0.8,
+      sub_scores: { comfort: 0.8, efficiency: 0.7, solar: 0.6 },
+      insulation_mm: 120,
+      insulation_thickness_m: 0.12,
+      window_area_m2: 5.5,
+      wall_material: 'mud',
+      wall_material_name: 'Rammed Earth (Stabilized)',
+      glazing: 'triple_low_e',
+      glazing_name: 'Triple Glazed Low-E',
+      orientation: 'south',
+      comfort_hours: 100,
+      comfort_percentage: 80,
+      discomfort_dh: 20,
+      total_heat_loss_kwh: 100,
+      solar_gain_kwh: 50,
+      u_values: { wall_u: 0.2, roof_u: 0.3, floor_u: 0.4, window_u: 0.8 },
+      heating_demand_kwh: 40,
+      cooling_demand_kwh: 0,
+      total_conditioning_demand_kwh: 40,
+      effective_thermal_capacity_j_k: 2.5e7,
+      thermal_mass_level: 'high',
+      ...overrides,
+    }) as CanonicalOptimizationCandidate;
+
+  it('restores the candidate insulation thickness (mm → cm) on apply', () => {
+    const patch = candidateDesignPatch(baseDesign, candidate({}));
+    expect(patch.insulationThickness).toBe(12);
+  });
+
+  it('keeps an uninsulated candidate uninsulated and zeroes the thickness', () => {
+    const patch = candidateDesignPatch(baseDesign, candidate({ insulation_thickness_m: 0, insulation_mm: 0 }));
+    expect(patch.insulationType).toBe('None');
+    expect(patch.insulationThickness).toBe(0);
+  });
+
+  it('selects a real insulation product when the previous design had none', () => {
+    const patch = candidateDesignPatch(
+      { ...baseDesign, insulationType: 'None' },
+      candidate({}),
+    );
+    expect(patch.insulationType).toBe('EPS');
+  });
+
+  it('round-trips the applied design back into the canonical SI payload', () => {
+    // Applied design must reproduce the candidate's envelope semantics —
+    // the same 0.12 m thickness the optimizer evaluated.
+    const patch = candidateDesignPatch(baseDesign, candidate({}));
+    const applied: ShelterDesign = { ...baseDesign, ...patch };
+    const thicknessM =
+      applied.insulationType !== 'None' && applied.insulationThickness > 0
+        ? applied.insulationThickness / 100.0
+        : 0.0;
+    expect(thicknessM).toBeCloseTo(0.12, 10);
+    expect(applied.windowArea).toBeCloseTo(5.5, 10);
+    expect(applied.orientation).toBe(180);
+  });
+
+  it('preserves thermal-mass restoration through the shared patch', () => {
+    const patch = candidateDesignPatch(baseDesign, candidate({ thermal_mass_level: 'medium' }));
+    expect(patch.thermalMassEnabled).toBe(true);
+    expect(patch.thermalMassThickness).toBe(10);
   });
 });
 
