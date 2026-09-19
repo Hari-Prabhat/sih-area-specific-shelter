@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { buildBlueprintSimulationOverlay } from './services/blueprintOverlay';
+// D4-D: Engineering Report stage (eager-light; artifact sources lazy inside).
+const ReportStage = lazy(() => import('./components/ReportStage'));
 import { CircleDashed, Mountain } from 'lucide-react';
 import { StudioStateProvider, useStudioState, activeWeatherProvenance, fallbackUsed } from './store/useStudioState';
 import ClimateInput from './components/ClimateInput';
@@ -39,8 +41,10 @@ function StageRouter() {
     case 'passive-strategy':
       return <PassiveStrategyStage />;
     case 'digital-twin':
-    case 'report':
       return <DeferredStage stage={stage} />;
+    // D4-D: the Engineering Report is a real stage composed from canonical state.
+    case 'report':
+      return <ReportStage />;
     case 'simulation':
       return simulation.result ? (
         <SimulationResultsStage />

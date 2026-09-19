@@ -24,12 +24,21 @@ interface BlueprintProps {
   locationName?: string;
   /** D4-C1 optional overlay: REAL canonical simulation evidence (U-values, losses). Never fabricated. */
   simulation?: BlueprintSimulationOverlay | null;
+  /** D4-D3: initial drawing view (defaults to 'plan') — lets the report stage
+   *  mount one instance per view for artifact capture without duplicating logic. */
+  initialView?: BlueprintView;
 }
 
 type BlueprintView = 'plan' | 'section' | 'elevation' | 'envelope';
 
-export default function EngineeringBlueprint({ design, materialName, locationName, simulation = null }: BlueprintProps) {
-  const [activeView, setActiveView] = useState<BlueprintView>('plan');
+export default function EngineeringBlueprint({
+  design,
+  materialName,
+  locationName,
+  simulation = null,
+  initialView = 'plan',
+}: BlueprintProps) {
+  const [activeView, setActiveView] = useState<BlueprintView>(initialView);
 
   const {
     length,
@@ -157,7 +166,8 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
               <span>AZIMUTH: {orientation}° FROM NORTH</span>
             </div>
 
-            <svg viewBox="0 0 800 500" className="w-full h-auto max-h-[500px]">
+            {/* D4-D3: stable capture hook — serialized verbatim for the report artifact. */}
+            <svg viewBox="0 0 800 500" className="w-full h-auto max-h-[500px]" data-blueprint-svg data-blueprint-view="plan">
               <defs>
                 <marker id="dim-arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
                   <path d="M0,0 L6,3 L0,6 Z" fill="#00f2fe" />
@@ -370,7 +380,8 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
               <span>ROOF PITCH: {roofAngle}°</span>
             </div>
 
-            <svg viewBox="0 0 800 500" className="w-full h-auto max-h-[500px]">
+            {/* D4-D3: stable capture hook — serialized verbatim for the report artifact. */}
+            <svg viewBox="0 0 800 500" className="w-full h-auto max-h-[500px]" data-blueprint-svg data-blueprint-view="section">
               <defs>
                 <marker id="dim-arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
                   <path d="M0,0 L6,3 L0,6 Z" fill="#00f2fe" />
@@ -484,7 +495,8 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
               <span>SOLAR APERTURE FACADE</span>
             </div>
 
-            <svg viewBox="0 0 800 500" className="w-full h-auto max-h-[500px]">
+            {/* D4-D3: stable capture hook — serialized verbatim for the report artifact. */}
+            <svg viewBox="0 0 800 500" className="w-full h-auto max-h-[500px]" data-blueprint-svg data-blueprint-view="elevation">
               <defs>
                 <marker id="dim-arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
                   <path d="M0,0 L6,3 L0,6 Z" fill="#00f2fe" />

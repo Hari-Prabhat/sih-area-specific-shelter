@@ -931,12 +931,17 @@ export default function ShelterModel3D({ design, materialName, comfortIndex, avg
           </div>
         </div>
 
-        {/* 3D Canvas */}
-        <div className={isFullscreen ? 'h-[calc(100vh-45px)]' : 'h-[360px]'}>
+        {/* 3D Canvas — data-twin-root is the D4-D report snapshot hook; the
+            preserveDrawingBuffer flag is the only permitted renderer config
+            change (report artifact capture, no logic touched). */}
+        <div
+          className={isFullscreen ? 'h-[calc(100vh-45px)]' : 'h-[360px]'}
+          data-twin-root
+        >
           <Canvas
             camera={{ position: cameraPos, fov: 45 }}
             shadows
-            gl={{ antialias: true, alpha: false }}
+            gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
           >
             <ShelterScene
               design={design}

@@ -1,0 +1,151 @@
+/*
+ * THERMOSHELTER — Engineering Report print stylesheet (D4-D4)
+ * ==========================================================
+ * Targets A4 via the browser's native print-to-PDF. The application shell
+ * (header, context strip, stepper, toolbars, artifact sources) is hidden;
+ * the report document prints as a continuous engineering record.
+ *
+ * Charts (Recharts SVG), the captured Blueprint SVG and report headings are
+ * preserved; page breaks avoid splitting rows and section blocks where the
+ * browser honours break-inside.
+ */
+
+@media print {
+  /* Application chrome — never printed. */
+  header,
+  footer,
+  .no-print,
+  nav {
+    display: none !important;
+  }
+
+  /* Neutralize the dark app shell for a paper-friendly document. */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  /* The report document is the only printed content. */
+  .report-document {
+    display: block !important;
+    color: #0f172a;
+    font-size: 11px;
+  }
+
+  /* Shell containers must not clip or pad the printed flow. */
+  main,
+  body > div,
+  #root,
+  #root > div {
+    background: #ffffff !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Report sections become clean bordered blocks. */
+  .report-section {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+    padding: 10px 12px !important;
+    margin-bottom: 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-section h2 {
+    color: #92400e !important;
+    font-size: 14px !important;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+    margin-bottom: 8px !important;
+  }
+
+  .report-section h3 {
+    color: #334155 !important;
+  }
+
+  /* Rows and tables stay readable on paper. */
+  .report-row {
+    border-bottom-color: #e2e8f0 !important;
+  }
+
+  .report-row .text-slate-400,
+  .report-empty {
+    color: #475569 !important;
+  }
+
+  .report-row .text-slate-200,
+  .report-row .text-slate-300,
+  .report-section .text-slate-200,
+  .report-section .text-slate-300,
+  li {
+    color: #0f172a !important;
+  }
+
+  .report-empty {
+    font-style: italic;
+  }
+
+  .report-table th {
+    color: #334155 !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  .report-table td,
+  .report-table th {
+    color: #0f172a !important;
+  }
+
+  /* Avoid awkward table splits. */
+  .report-table tr,
+  figure.report-figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Captured Blueprint SVG: white plate, no app chrome. */
+  .report-figure > div {
+    background: #ffffff !important;
+    border: 1px solid #94a3b8 !important;
+  }
+
+  /* 3D snapshot keeps its natural aspect on paper. */
+  .report-twin-img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Stat tiles become simple bordered stats on paper. */
+  .report-section [class*='rounded-xl'] {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Provenance chips keep their semantic colour but print-legibly. */
+  .report-section [class*='border-emerald'],
+  .report-section [class*='border-sky'],
+  .report-section [class*='border-violet'],
+  .report-section [class*='border-amber'],
+  .report-section [class*='border-orange'],
+  .report-section [class*='border-cyan'] {
+    color: #0f172a !important;
+    border-color: #64748b !important;
+    background: #f8fafc !important;
+  }
+
+  /* Long URL/period strings must not overflow the page. */
+  .report-document * {
+    overflow-wrap: anywhere;
+  }
+}

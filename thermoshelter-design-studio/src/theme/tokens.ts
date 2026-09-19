@@ -48,7 +48,8 @@ export const WORKFLOW_STAGES: StageDefinition[] = [
   { id: 'optimization', shortLabel: 'Optimization', fullLabel: 'Optimization', available: true },
   { id: 'blueprint', shortLabel: 'Blueprint', fullLabel: 'Engineering Blueprint', available: true },
   { id: 'digital-twin', shortLabel: '3D', fullLabel: '3D Digital Twin', available: false },
-  { id: 'report', shortLabel: 'Report', fullLabel: 'Engineering Report', available: false },
+  // D4-D: the Engineering Report is a live stage composed from canonical state.
+  { id: 'report', shortLabel: 'Report', fullLabel: 'Engineering Report', available: true },
 ];
 
 /** Canonical provenance vocabulary (Phase C). Never invent new categories. */
