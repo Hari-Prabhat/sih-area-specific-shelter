@@ -273,8 +273,8 @@ export default function ShelterDesigner({
                 className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
               >
                 <option value="None">None (Uninsulated)</option>
-                <option value="EPS">Expanded Polystyrene (EPS, k=0.038)</option>
-                <option value="XPS">Extruded Polystyrene (XPS, k=0.030)</option>
+                <option value="EPS">Expanded Polystyrene (EPS, k=0.036)</option>
+                <option value="XPS">Extruded Polystyrene (XPS, k=0.029)</option>
                 <option value="PUF Board">Rigid Polyurethane Foam (PUF, k=0.024)</option>
                 <option value="Glass Wool">Glass Wool (k=0.040)</option>
                 <option value="Rock Wool">Rock Wool (k=0.038)</option>

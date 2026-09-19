@@ -1,11 +1,14 @@
 import { lazy, Suspense } from 'react';
+import { buildBlueprintSimulationOverlay } from './services/blueprintOverlay';
 import { CircleDashed, Mountain } from 'lucide-react';
 import { StudioStateProvider, useStudioState, activeWeatherProvenance, fallbackUsed } from './store/useStudioState';
 import ClimateInput from './components/ClimateInput';
 import MissionStage from './components/MissionStage';
 import ShelterDesigner from './components/ShelterDesigner';
+import PassiveStrategyStage from './components/PassiveStrategyStage';
 import ContextStrip from './components/ui/ContextStrip';
 import Stepper from './components/ui/Stepper';
+import { mapStrategyDto } from './services/passiveStrategy';
 import Button from './components/ui/Button';
 import StageSuspense from './components/ui/StageSuspense';
 import { WORKFLOW_STAGES, WorkflowStage } from './theme/tokens';
@@ -34,6 +37,7 @@ function StageRouter() {
     case 'design':
       return <ShelterDesignerStage />;
     case 'passive-strategy':
+      return <PassiveStrategyStage />;
     case 'digital-twin':
     case 'report':
       return <DeferredStage stage={stage} />;
@@ -109,13 +113,14 @@ function ShelterDesignerStage() {
 
 /** Simulation stage content. */
 function SimulationResultsStage() {
-  const { simulation, climate, design, wallMaterial } = useStudioState();
+  const { simulation, climate, design, wallMaterial, climateProfile } = useStudioState();
   return (
     <SimulationResults
       result={simulation.result!}
       climateData={climate}
       shelterDesign={design}
       materialName={wallMaterial}
+      climateProfile={climateProfile}
     />
   );
 }
@@ -141,12 +146,18 @@ function ComparativeStage() {
 
 /** Blueprint stage content. */
 function BlueprintStage() {
-  const { design, wallMaterial, climate } = useStudioState();
+  const { design, wallMaterial, climate, simulation } = useStudioState();
+  // D4-C1: pass the REAL canonical result as optional evidence overlay. The
+  // Blueprint displays only genuine engine outputs and only when they belong
+  // to the current design run; otherwise the overlay is absent — never fabricated.
+  const canonical = (simulation.result as { canonical?: import('./services/api').CanonicalSimulationResult } | null)?.canonical;
+  const overlay = buildBlueprintSimulationOverlay(canonical ?? null);
   return (
     <EngineeringBlueprint
       design={design}
       materialName={wallMaterial}
       locationName={climate.location}
+      simulation={overlay}
     />
   );
 }
@@ -190,13 +201,21 @@ function ContextStripBinding() {
   } = useStudioState();
 
   const provenance = activeWeatherProvenance(climateProfile);
-  const zone = (climateProfile?.climate as { climate_zone?: string } | undefined)?.climate_zone ?? null;
+
+  // Authoritative classification: the backend strategy's climate_mode (annual
+  // climatological profile). The climate dict's coarse climate_zone is a
+  // provenance-only description of the current weather window — rendered with
+  // an explicit scope label so the two concepts are never conflated.
+  const strategyMode = mapStrategyDto(climateProfile?.strategy)?.climateMode ?? null;
+  const windowZone =
+    (climateProfile?.climate as { climate_zone?: string } | undefined)?.climate_zone ?? null;
 
   return (
     <ContextStrip
       data={{
         location: climate.location,
-        climateZone: zone,
+        climateZone: strategyMode,
+        windowZoneLabel: windowZone,
         provenance,
         fallbackUsed: fallbackUsed(climateProfile),
         windowHours: climateProfile ? climateProfile.series.air_temperature_C.length : null,

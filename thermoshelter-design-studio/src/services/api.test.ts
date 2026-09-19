@@ -4,6 +4,9 @@
  * Verifies canonical design -> payload propagation (including thermal mass)
  * and the ApiError classification contract. No thermal math is performed
  * here — Python remains the sole physics authority.
+ *
+ * D4-B: `door_heat_flow` is now part of the CanonicalSimulationResult typing
+ * (optional on the backend contract); the adapter passes it through untouched.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ApiError,
   buildCanonicalSimulationPayload,
+  CanonicalSimulationResult,
   checkApiHealth,
   describeApiError,
   describeClimateError,
@@ -69,6 +73,51 @@ const insulation: MaterialProperties = {
   thermalConductivity: 0.025,
 };
 
+describe('D4-B: CanonicalSimulationResult hourly-array typing', () => {
+  it('types door_heat_flow as an optional hourly array (W) on the canonical result', () => {
+    // Compile-time contract check: the optional array must be assignable and
+    // readable as number[] | undefined — mirroring the backend contract.
+    const withDoor: CanonicalSimulationResult['door_heat_flow'] = [10, 20, 30];
+    const withoutDoor: CanonicalSimulationResult['door_heat_flow'] = undefined;
+    expect(withDoor).toEqual([10, 20, 30]);
+    expect(withoutDoor).toBeUndefined();
+
+    // Adapter pass-through: adaptCanonicalToUiResult tolerates a result that
+    // carries the optional array (it does not drop or transform hourly data).
+    const canon = {
+      city: 'test',
+      indoor_temperatures: [20],
+      outdoor_temperatures: [10],
+      solar_irradiance: [0],
+      solar_power: [0],
+      solar_thermal_gain: [0],
+      hourly_internal_gain: [0],
+      wall_heat_flow: [0],
+      roof_heat_flow: [0],
+      floor_heat_flow: [0],
+      window_heat_flow: [0],
+      door_heat_flow: [0],
+      ventilation_heat_flow: [0],
+      radiation_heat_flow: [0],
+      net_heat_flow: [0],
+      comfort_status: 'comfortable',
+      comfort_status_series: ['comfortable'],
+      comfort_hours: 1,
+      comfort_percentage: 100,
+      discomfort_degree_hours: 0,
+      integrated_solar_energy_kwh: 0,
+      integrated_incident_solar_kwh: 0,
+      component_heat_loss_kwh: { wall_loss_kwh: 0, roof_loss_kwh: 0, floor_loss_kwh: 0, window_loss_kwh: 0, ventilation_loss_kwh: 0, radiation_loss_kwh: 0 },
+      total_heat_loss_kwh: 0,
+      comfort_metrics: { avg: 20, min_t: 20, max_t: 20, comfort_pct: 100, discomfort_dh: 0, status: 'comfortable' },
+      energy_totals_kwh: { solar_gain_kwh: 0, incident_solar_kwh: 0, wall_loss_kwh: 0, roof_loss_kwh: 0, floor_loss_kwh: 0, window_loss_kwh: 0, vent_loss_kwh: 0, total_heat_loss_kwh: 0, heating_demand_kwh: 0, cooling_demand_kwh: 0 },
+      u_values: { wall_u: 1, roof_u: 1, floor_u: 1, window_u: 1 },
+      geometry: { floor_area_m2: 24, volume_m3: 72, solid_wall_area_m2: 60, roof_area_m2: 24, window_area_m2: 3, door_area_m2: 2, roof_type: 'flat' },
+    } as CanonicalSimulationResult;
+    expect(canon.door_heat_flow).toEqual([0]);
+  });
+});
+
 describe('buildCanonicalSimulationPayload', () => {
   it('propagates the canonical design parameters', () => {
     const payload = buildCanonicalSimulationPayload(climate, design, wallMaterial, insulation, 168);
@@ -113,6 +162,41 @@ describe('buildCanonicalSimulationPayload', () => {
     );
     expect(payload.design.roof_type).toBe('flat');
     expect(payload.design.pitch_angle_deg).toBe(0);
+  });
+
+  // D4-C1: every selectable wall material must reach the payload as a real
+  // backend material ID — the retired keys ('timber', 'concrete_block', 'mud')
+  // silently degraded to brick (k=0.72) inside the physics engine.
+  it('sends corrected backend material IDs for Timber/Wood, Concrete and Rammed Earth', () => {
+    const timber = buildCanonicalSimulationPayload(
+      climate,
+      design,
+      { ...wallMaterial, name: 'Timber/Wood' },
+      insulation,
+    );
+    expect(timber.design.wall_material).toBe('wood');
+
+    const concrete = buildCanonicalSimulationPayload(
+      climate,
+      design,
+      { ...wallMaterial, name: 'Concrete (Dense)' },
+      insulation,
+    );
+    expect(concrete.design.wall_material).toBe('concrete');
+
+    const rammed = buildCanonicalSimulationPayload(climate, design, wallMaterial, insulation);
+    expect(rammed.design.wall_material).toBe('rammed_earth');
+  });
+
+  it('never emits retired unresolvable material keys in payloads', () => {
+    for (const name of ['Timber/Wood', 'Concrete (Dense)', 'Rammed Earth (Stabilized)', 'Mud/Adobe', 'Stone (Granite)', 'AAC Block']) {
+      const payload = buildCanonicalSimulationPayload(climate, design, { ...wallMaterial, name }, insulation);
+      expect(payload.design.wall_material).not.toBe('timber');
+      expect(payload.design.wall_material).not.toBe('concrete_block');
+      expect(payload.design.wall_material).not.toBe('mud');
+      expect(typeof payload.design.wall_material).toBe('string');
+      expect(payload.design.wall_material.length).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -13,16 +13,22 @@
 import React, { useState } from 'react';
 import { Compass, Layers, Maximize2, Ruler, Eye } from 'lucide-react';
 import { ShelterDesign } from '../types';
+import { deriveOpeningLayout } from '../services/openingLayout';
+import { getMaterialByName } from '../data/materials';
+import { buildBlueprintSimulationOverlay, formatOverlayValue } from '../services/blueprintOverlay';
+import type { BlueprintSimulationOverlay } from '../services/blueprintOverlay';
 
 interface BlueprintProps {
   design: ShelterDesign;
   materialName: string;
   locationName?: string;
+  /** D4-C1 optional overlay: REAL canonical simulation evidence (U-values, losses). Never fabricated. */
+  simulation?: BlueprintSimulationOverlay | null;
 }
 
 type BlueprintView = 'plan' | 'section' | 'elevation' | 'envelope';
 
-export default function EngineeringBlueprint({ design, materialName, locationName = 'Leh, Ladakh' }: BlueprintProps) {
+export default function EngineeringBlueprint({ design, materialName, locationName, simulation = null }: BlueprintProps) {
   const [activeView, setActiveView] = useState<BlueprintView>('plan');
 
   const {
@@ -42,15 +48,21 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
     thermalMassThickness,
   } = design;
 
-  // Derive dynamic opening dimensions from windowArea
-  const numWindows = 2;
-  const singleWinArea = windowArea / numWindows;
-  const winWidth = Math.max(0.6, Math.min(2.5, Math.round(Math.sqrt(singleWinArea * 1.2) * 100) / 100));
-  const winHeight = Math.max(0.6, Math.min(2.0, Math.round((singleWinArea / winWidth) * 100) / 100));
+  // D4-C1: THE shared deterministic opening layout — identical to the 3D twin
+  // (2 south windows @ 70% glazing, 1 north window @ 30%, south door).
+  const openings = deriveOpeningLayout(windowArea, doorArea);
+  const { door: { width: derivedDoorWidth, height: derivedDoorHeight } } = openings;
 
-  // Derive dynamic door dimensions from doorArea
-  const derivedDoorWidth = Math.max(0.8, Math.min(1.8, Math.round(Math.sqrt(doorArea / 2.2) * 100) / 100));
-  const derivedDoorHeight = Math.max(1.9, Math.min(2.5, Math.round((doorArea / derivedDoorWidth) * 100) / 100));
+  // D4-C1: actual selected insulation product data (no hardcoded k). When the
+  // selection cannot be resolved the label honestly reports that instead of
+  // displaying an invented conductivity.
+  const insMaterial = insulationType && insulationType !== 'None' ? getMaterialByName(insulationType) : undefined;
+  const insLabel = insulationType && insulationType !== 'None'
+    ? insMaterial
+      ? `${insulationType} (k = ${insMaterial.thermalConductivity} W/m·K)`
+      : `${insulationType} (k from backend DB)`
+    : 'None';
+  const overlay = simulation; // already built by the caller via buildBlueprintSimulationOverlay()
 
   // Envelope thickness calculations in mm
   const wallThickMm = Math.round(wallThickness * 1000);
@@ -239,39 +251,59 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                         </g>
                       )}
 
-                      {/* Front Window Openings (South side) */}
+                      {/* South Window Openings (shared openingLayout — W1/W2/W3) */}
                       <g>
-                        {/* Window 1 */}
-                        <rect
-                          x={-wSvg / 3 - (winWidth * scale) / 2}
-                          y={hSvg / 2 - tSvg - 2}
-                          width={winWidth * scale}
-                          height={tSvg + 4}
-                          fill="#38bdf8"
-                          fillOpacity="0.8"
-                          stroke="#ffffff"
-                          strokeWidth="1.5"
-                        />
-                        {/* Window 2 */}
-                        <rect
-                          x={wSvg / 3 - (winWidth * scale) / 2}
-                          y={hSvg / 2 - tSvg - 2}
-                          width={winWidth * scale}
-                          height={tSvg + 4}
-                          fill="#38bdf8"
-                          fillOpacity="0.8"
-                          stroke="#ffffff"
-                          strokeWidth="1.5"
-                        />
-                        <text x={-wSvg / 3} y={hSvg / 2 + 18} fill="#38bdf8" fontSize="9" fontFamily="monospace" textAnchor="middle">
-                          W1 ({winWidth}m)
-                        </text>
-                        <text x={wSvg / 3} y={hSvg / 2 + 18} fill="#38bdf8" fontSize="9" fontFamily="monospace" textAnchor="middle">
-                          W2 ({winWidth}m)
-                        </text>
+                        {openings.south.windows.map((w, i) => (
+                          <g key={`win-s${i}`}>
+                            <rect
+                              x={(w.centerX * scale) - (openings.south.width * scale) / 2}
+                              y={hSvg / 2 - tSvg - 2}
+                              width={openings.south.width * scale}
+                              height={tSvg + 4}
+                              fill="#38bdf8"
+                              fillOpacity="0.8"
+                              stroke="#ffffff"
+                              strokeWidth="1.5"
+                            />
+                            <text
+                              x={w.centerX * scale}
+                              y={hSvg / 2 + 18}
+                              fill="#38bdf8"
+                              fontSize="9"
+                              fontFamily="monospace"
+                              textAnchor="middle"
+                            >
+                              W{i + 1} ({openings.south.width}m × {openings.south.height}m)
+                            </text>
+                          </g>
+                        ))}
+                        {openings.north.windows.map((w, i) => (
+                          <g key={`win-n${i}`}>
+                            <rect
+                              x={(w.centerX * scale) - (openings.north.width * scale) / 2}
+                              y={-hSvg / 2 - 2}
+                              width={openings.north.width * scale}
+                              height={tSvg + 4}
+                              fill="#38bdf8"
+                              fillOpacity="0.55"
+                              stroke="#ffffff"
+                              strokeWidth="1.2"
+                            />
+                            <text
+                              x={w.centerX * scale}
+                              y={-hSvg / 2 - 8}
+                              fill="#38bdf8"
+                              fontSize="9"
+                              fontFamily="monospace"
+                              textAnchor="middle"
+                            >
+                              W{openings.south.count + i + 1} ({openings.north.width}m × {openings.north.height}m)
+                            </text>
+                          </g>
+                        ))}
                       </g>
 
-                      {/* Main Entry Door */}
+                      {/* Main Entry Door (South facade — matches the 3D twin) */}
                       <rect
                         x={-(derivedDoorWidth * scale) / 2}
                         y={-hSvg / 2 - 2}
@@ -366,7 +398,7 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                       {/* Concrete Foundation & Floor Slab */}
                       <rect x={-wSvg / 2 - 10} y="0" width={wSvg + 20} height="20" fill="#1e293b" stroke="#00f2fe" strokeWidth="1.5" />
                       <text x="0" y="14" fill="#94a3b8" fontSize="9" fontFamily="monospace" textAnchor="middle">
-                        REINFORCED CONCRETE GROUND SLAB (150mm)
+                        GROUND SLAB (indicative engine-default floor build-up, not user-selected)
                       </text>
 
                       {/* Left Wall Section */}
@@ -494,27 +526,20 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                         strokeWidth="1.5"
                       />
 
-                      {/* Windows */}
-                      <rect
-                        x={-lSvg / 3 - (winWidth * scale) / 2}
-                        y={-hSvg / 2 - (winHeight * scale) / 2}
-                        width={winWidth * scale}
-                        height={winHeight * scale}
-                        fill="#38bdf8"
-                        fillOpacity="0.4"
-                        stroke="#00f2fe"
-                        strokeWidth="1.5"
-                      />
-                      <rect
-                        x={lSvg / 3 - (winWidth * scale) / 2}
-                        y={-hSvg / 2 - (winHeight * scale) / 2}
-                        width={winWidth * scale}
-                        height={winHeight * scale}
-                        fill="#38bdf8"
-                        fillOpacity="0.4"
-                        stroke="#00f2fe"
-                        strokeWidth="1.5"
-                      />
+                      {/* Windows (south facade, shared openingLayout) */}
+                      {openings.south.windows.map((w, i) => (
+                        <rect
+                          key={`elev-win-${i}`}
+                          x={(w.centerX * scale) - (openings.south.width * scale) / 2}
+                          y={-hSvg / 2 - (openings.south.height * scale) / 2}
+                          width={openings.south.width * scale}
+                          height={openings.south.height * scale}
+                          fill="#38bdf8"
+                          fillOpacity="0.4"
+                          stroke="#00f2fe"
+                          strokeWidth="1.5"
+                        />
+                      ))}
 
                       {/* Door */}
                       <rect
@@ -583,8 +608,8 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                 </div>
                 <div className="bg-yellow-950/40 p-3 rounded border border-yellow-600/40">
                   <span className="text-yellow-400 block text-[10px] uppercase">3. Thermal Insulation</span>
-                  <span className="text-white font-bold block mt-1">{insulationType || 'None'}</span>
-                  <span className="text-yellow-300 text-[10px]">{insThickMm} mm (k ≈ 0.025)</span>
+                  <span className="text-white font-bold block mt-1">{insLabel}</span>
+                  <span className="text-yellow-300 text-[10px]">{insThickMm} mm</span>
                 </div>
                 <div className="bg-blue-950/40 p-3 rounded border border-blue-600/40">
                   <span className="text-blue-400 block text-[10px] uppercase">4. Thermal Mass Layer</span>
@@ -609,7 +634,7 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                 </div>
                 {insThickMm > 0 && (
                   <div className="w-[20%] bg-yellow-500/80 flex flex-col items-center justify-center text-[10px] text-slate-950 border-r border-slate-700 font-bold">
-                    <span>PUF / EPS</span>
+                    <span>{insulationType || 'INS'}</span>
                     <span className="text-[9px] font-normal">{insThickMm} mm</span>
                   </div>
                 )}
@@ -623,6 +648,23 @@ export default function EngineeringBlueprint({ design, materialName, locationNam
                   INT AIR
                 </div>
               </div>
+
+              {/* D4-C1 optional simulation evidence overlay — REAL canonical values only. */}
+              {overlay && (
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                  {overlay.items.map((item) => (
+                    <div key={item.label} className="bg-slate-900/60 p-3 rounded border border-cyan-500/20">
+                      <span className="text-slate-400 block text-[10px] uppercase">{item.label}</span>
+                      <span className="text-cyan-300 font-bold block mt-1">{formatOverlayValue(item.value)}</span>
+                      <span className="text-slate-500 text-[10px]">{item.unit}</span>
+                    </div>
+                  ))}
+                  <p className="col-span-full text-[10px] text-slate-500 text-left">
+                    Evidence from the current canonical simulation run — displayed values are engine outputs,
+                    never fabricated. Run a new simulation after design changes to refresh.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

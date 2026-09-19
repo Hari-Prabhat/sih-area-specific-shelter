@@ -4,7 +4,12 @@ import { ProvenanceValue } from '../../theme/tokens';
 
 export interface ContextStripData {
   location?: string | null;
+  /** Authoritative site classification (strategy.climate_mode) — the primary climate label. */
   climateZone?: string | null;
+  /** Provenance-only coarse zone of the current weather window (climate dict climate_zone).
+   *  Rendered with an explicit scope label so it can never be confused with the
+ *  authoritative classification above. */
+  windowZoneLabel?: string | null;
   provenance?: ProvenanceValue | string | null;
   fallbackUsed?: boolean;
   windowHours?: number | null;
@@ -34,6 +39,7 @@ const HEALTH_STYLES: Record<NonNullable<ContextStripData['backendHealth']>, { do
 export default function ContextStrip({ data }: ContextStripProps) {
   const health = data.backendHealth ? HEALTH_STYLES[data.backendHealth] : null;
   const zone = data.climateZone ? data.climateZone.replace(/_/g, ' ').toUpperCase() : null;
+  const windowZone = data.windowZoneLabel ? data.windowZoneLabel.replace(/_/g, ' ').toUpperCase() : null;
 
   return (
     <div
@@ -47,7 +53,22 @@ export default function ContextStrip({ data }: ContextStripProps) {
           {data.location}
         </span>
       )}
-      {zone && <span className="text-sky-300 font-medium">{zone}</span>}
+      {zone && (
+        <span
+          className="text-sky-300 font-medium"
+          title="Authoritative site climate classification (annual climatological profile)"
+        >
+          {zone}
+        </span>
+      )}
+      {windowZone && (
+        <span
+          className="text-slate-500"
+          title="Coarse zone of the current weather window only — provenance context, NOT the site classification"
+        >
+          ({windowZone} window)
+        </span>
+      )}
       {data.provenance && (
         <ProvenanceChip value={data.provenance} fallbackUsed={data.fallbackUsed} compact />
       )}

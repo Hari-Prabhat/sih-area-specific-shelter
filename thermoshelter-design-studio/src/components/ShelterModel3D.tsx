@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Float, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { ShelterDesign } from '../types';
+import { deriveOpeningLayout } from '../services/openingLayout';
 
 /* ─── colour palette for materials ─── */
 const MATERIAL_COLORS: Record<string, { wall: string; accent: string }> = {
@@ -235,7 +236,9 @@ function RectangularShelter({ design, wallColor, accentColor }: {
     windowArea = 3.0,
     doorArea = 2.0,
     insulationType,
+    insulationThickness = 0.05,
     thermalMassEnabled,
+    thermalMassThickness = 0.2,
   } = design;
 
   const roofRad = ((roofAngle || 0) * Math.PI) / 180;
@@ -247,17 +250,14 @@ function RectangularShelter({ design, wallColor, accentColor }: {
   const overhang = 0.22;
   const roofThick = 0.12;
 
-  // Window geometry rule:
-  // Allocate total window area across 2 front windows (South / +Z) and 1 rear window (North / -Z)
-  // Front gets 70% of glazing, rear gets 30%
-  const frontGlazingTotal = windowArea * 0.7;
-  const rearGlazingTotal = windowArea * 0.3;
-  const singleFrontArea = Math.max(0.3, frontGlazingTotal / 2);
-  const winW = Math.max(0.6, Math.min(2.4, Math.round(Math.sqrt(singleFrontArea * 1.3) * 100) / 100));
-  const winH = Math.max(0.6, Math.min(2.0, Math.round((singleFrontArea / winW) * 100) / 100));
-
-  const rearW = Math.max(0.5, Math.min(1.8, Math.round(Math.sqrt(rearGlazingTotal * 1.2) * 100) / 100));
-  const rearH = Math.max(0.5, Math.min(1.6, Math.round((rearGlazingTotal / rearW) * 100) / 100));
+  // D4-C2: THE shared deterministic opening layout — identical to the 2D
+  // Engineering Blueprint (2 south windows @ 70% glazing, 1 north window @
+  // 30%, south door). No local window derivation remains in this component.
+  const openings = deriveOpeningLayout(windowArea, doorArea);
+  const winW = openings.south.width;
+  const winH = openings.south.height;
+  const rearW = openings.north.width;
+  const rearH = openings.north.height;
 
   const hasInsulation = Boolean(insulationType && insulationType !== 'None');
 
@@ -468,12 +468,34 @@ function RectangularShelter({ design, wallColor, accentColor }: {
         </mesh>
       )}
 
-      {/* ── 4. INSULATION LAYER VISUALIZATION ── */}
+      {/* ── 4. INSULATION LAYER VISUALIZATION (D4-C2: actual design thickness) ── */}
       {hasInsulation && (
-        <mesh position={[0, height / 2, 0]}>
-          <boxGeometry args={[length + 0.15, height + 0.05, width + 0.15]} />
-          <meshStandardMaterial color="#eab308" transparent opacity={0.12} wireframe />
-        </mesh>
+        <>
+          <mesh position={[0, height / 2, 0]}>
+            <boxGeometry args={[length + 0.15, height + 0.05, width + 0.15]}
+            />
+            <meshStandardMaterial color="#eab308" transparent opacity={0.12} wireframe />
+          </mesh>
+          <Html
+            position={[0, height + 0.55, 0]}
+            center
+            transform={false}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{
+              background: 'rgba(15,23,42,0.92)',
+              border: '1px solid rgba(234,179,8,0.55)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              color: '#fbbf24',
+              fontSize: '11px',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              whiteSpace: 'nowrap',
+            }}>
+              {insulationType} — {Math.round(insulationThickness * 10)} mm
+            </div>
+          </Html>
+        </>
       )}
 
       {/* ── 5. STRUCTURAL FLOOR SLAB ── */}
@@ -482,12 +504,33 @@ function RectangularShelter({ design, wallColor, accentColor }: {
         <meshStandardMaterial color="#334155" roughness={0.9} />
       </mesh>
 
-      {/* ── 6. THERMAL MASS INTERNAL STORAGE CORE ── */}
+      {/* ── 6. THERMAL MASS INTERNAL STORAGE CORE (D4-C2: actual design thickness) ── */}
       {thermalMassEnabled && (
-        <mesh position={[0, 0.11, 0]} receiveShadow>
-          <boxGeometry args={[length * 0.75, 0.05, width * 0.75]} />
-          <meshStandardMaterial color="#2563eb" roughness={0.4} opacity={0.8} transparent />
-        </mesh>
+        <>
+          <mesh position={[0, 0.11, 0]} receiveShadow>
+            <boxGeometry args={[length * 0.75, thermalMassThickness / 100, width * 0.75]} />
+            <meshStandardMaterial color="#2563eb" roughness={0.4} opacity={0.8} transparent />
+          </mesh>
+          <Html
+            position={[length * 0.38, 0.3, 0]}
+            center
+            transform={false}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{
+              background: 'rgba(15,23,42,0.92)',
+              border: '1px solid rgba(96,165,250,0.5)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              color: '#93c5fd',
+              fontSize: '11px',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              whiteSpace: 'nowrap',
+            }}>
+              Thermal mass — {Math.round(thermalMassThickness * 10)} mm
+            </div>
+          </Html>
+        </>
       )}
 
       {/* ── 7. PARAMETRIC SOLAR WINDOWS (SOUTH FACADE +Z) ── */}
@@ -800,6 +843,22 @@ function ShelterScene({ design, materialName, comfortIndex, avgTemp }: {
       {/* 1. FIXED GEOGRAPHIC COMPASS & GROUND (Does NOT rotate with building) */}
       <StaticCompass />
       <GroundGrid />
+
+      {/* D4-C2: honesty label for the animated sun — illustrative only. */}
+      <Html position={[0, 13.8, 0]} center transform={false} style={{ pointerEvents: 'none' }}>
+        <div style={{
+          background: 'rgba(15,23,42,0.85)',
+          border: '1px solid rgba(148,163,184,0.4)',
+          borderRadius: '9999px',
+          padding: '3px 12px',
+          color: '#cbd5e1',
+          fontSize: '11px',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          whiteSpace: 'nowrap',
+        }}>
+          Illustrative solar direction
+        </div>
+      </Html>
 
       {/* 2. ROTATING SHELTER ASSEMBLY (Rotates to true solar azimuth) */}
       <group ref={shelterGroupRef} rotation={[0, shelterRotationY, 0]}>

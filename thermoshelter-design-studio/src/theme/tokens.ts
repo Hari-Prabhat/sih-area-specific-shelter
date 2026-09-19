@@ -43,7 +43,7 @@ export const WORKFLOW_STAGES: StageDefinition[] = [
   { id: 'site-climate', shortLabel: 'Site & Climate', fullLabel: 'Site & Climate', available: true },
   { id: 'mission', shortLabel: 'Mission', fullLabel: 'Mission', available: true },
   { id: 'design', shortLabel: 'Design', fullLabel: 'Geometry & Envelope', available: true },
-  { id: 'passive-strategy', shortLabel: 'Passive', fullLabel: 'Passive Strategy', available: false },
+  { id: 'passive-strategy', shortLabel: 'Passive', fullLabel: 'Passive Strategy', available: true },
   { id: 'simulation', shortLabel: 'Simulation', fullLabel: 'Thermal Simulation', available: true },
   { id: 'optimization', shortLabel: 'Optimization', fullLabel: 'Optimization', available: true },
   { id: 'blueprint', shortLabel: 'Blueprint', fullLabel: 'Engineering Blueprint', available: true },

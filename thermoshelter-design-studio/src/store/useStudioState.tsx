@@ -31,7 +31,7 @@ import {
   runSimulationViaApi,
 } from '../services/api';
 import { climatePresets } from '../data/climatePresets';
-import { getMaterialByName } from '../data/materials';
+import { getMaterialByName, wallMaterialKey } from '../data/materials';
 import { DATA_MODE_PROVENANCE, ProvenanceValue, WORKFLOW_STAGES, WorkflowStage } from '../theme/tokens';
 
 // ---------------------------------------------------------------------------
@@ -195,17 +195,6 @@ const StudioContext = createContext<StudioStore | null>(null);
 // ---------------------------------------------------------------------------
 // Helpers (moved verbatim from App.tsx — identical payloads, same endpoints)
 // ---------------------------------------------------------------------------
-
-function mapWallMaterialKey(selectedMaterial: string): string {
-  const matName = selectedMaterial.toLowerCase();
-  if (matName.includes('mud') || matName.includes('adobe')) return 'mud';
-  if (matName.includes('earth')) return 'mud';
-  if (matName.includes('stone')) return 'stone';
-  if (matName.includes('timber') || matName.includes('wood')) return 'timber';
-  if (matName.includes('concrete') || matName.includes('aac')) return 'concrete_block';
-  if (matName.includes('puf') || matName.includes('panel')) return 'puf_insulation';
-  return 'brick';
-}
 
 function mapGlazingKey(glazing: ShelterDesign['windowGlazing']): string {
   if (glazing === 'single') return 'single_clear';
@@ -391,7 +380,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
             length: design.length,
             width: design.width,
             height: design.height,
-            wall_material: mapWallMaterialKey(wallMaterial),
+            wall_material: wallMaterialKey(wallMaterial),
             wall_thickness_m: design.wallThickness,
             insulation_thickness_m: insThick,
             insulation_conductivity: insulation ? insulation.thermalConductivity : 0.025,

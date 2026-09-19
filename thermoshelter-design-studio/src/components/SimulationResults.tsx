@@ -30,8 +30,17 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { SimulationResult, ClimateData, ShelterDesign } from '../types';
-import { CanonicalSimulationResult } from '../services/api';
+import { CanonicalSimulationResult, SimulationClimateProfile } from '../services/api';
+import {
+  HEAT_FLOW_SERIES,
+  buildHeatFlowChartData,
+  buildSolarChartData,
+  buildGainsChartData,
+  buildThermalStorageChartData,
+} from '../services/heatFlowChart';
+import ProvenancePanel from './ProvenancePanel';
 import StageSuspense from './ui/StageSuspense';
+import { DISPLAY_COMFORT_BOUNDS } from '../theme/tokens';
 
 // D3: lazy three.js digital twin — see ShelterDesigner.
 const ShelterModel3D = lazy(() => import('./ShelterModel3D'));
@@ -41,6 +50,10 @@ interface SimulationResultsProps {
   climateData: ClimateData;
   shelterDesign: ShelterDesign;
   materialName: string;
+  /** D4-B: the Phase B/C climate profile — drives the provenance detail panel. */
+  climateProfile?: SimulationClimateProfile | null;
+  /** D4-C3: dead-gate for the legacy synthetic ambient profile (see below). */
+  legacyDemoAmbient?: boolean;
 }
 
 export default function SimulationResults({
@@ -48,9 +61,42 @@ export default function SimulationResults({
   climateData,
   shelterDesign,
   materialName,
+  climateProfile = null,
+
+  /**
+   * D4-C3 legacy/demo dead-gate: set true ONLY by explicit legacy/demo callers.
+   * When false (all canonical production paths), the synthetic 24-hour ambient
+   * sine fallback is disabled and the ambient series is honestly omitted for
+   * non-canonical results instead of fabricating outdoor temperatures.
+   */
+  legacyDemoAmbient = false,
 }: SimulationResultsProps) {
+  // Module-scope-style flag for the timeseries builder closure.
+  const LEGACY_DEMO = legacyDemoAmbient;
   const [timeframeView, setTimeframeView] = useState<'7days' | '48h'>('7days');
   const canonical = (result as any).canonical as CanonicalSimulationResult | undefined;
+
+  // D4-B WP4: hourly component heat flows — REAL backend arrays only. The
+  // builder validates, aligns to the shortest common length, and reports
+  // honest absence; series visibility is user-toggleable.
+  const heatFlow = (() => {
+    if (!canonical) return null;
+    return buildHeatFlowChartData(canonical);
+  })();
+  const [hiddenFlows, setHiddenFlows] = useState<Record<string, boolean>>({});
+  const visibleFlows = heatFlow?.availableSeries.filter((s) => !hiddenFlows[s.key]) ?? [];
+
+  // D4-B WP4: solar chart — incident vs useful thermal gain from real arrays.
+  const solarChart = canonical ? buildSolarChartData(canonical) : null;
+  const [showSolarOverlay, setShowSolarOverlay] = useState(false);
+
+  // Optional thermal-storage flow, clearly labelled as storage (not loss).
+  const storageChart =
+    canonical && heatFlow?.hasData ? buildThermalStorageChartData(canonical, heatFlow.hourCount) : null;
+  const [showStorage, setShowStorage] = useState(false);
+
+  // D4-C3: Internal Gains & Auxiliary Energy — REAL backend arrays only.
+  const gainsChart = canonical ? buildGainsChartData(canonical) : null;
 
   // Multi-day timeseries when canonical data is available
   const timeseriesData = (() => {
@@ -70,17 +116,21 @@ export default function SimulationResults({
       }
       return points;
     }
-    // Fallback 24-hour profile
+    // D4-C3: the legacy synthetic 24-hour sine profile is DEAD-GATED — it can
+    // no longer appear in the normal canonical flow. It renders only behind an
+    // explicit legacy/demo result flag, and is labelled as synthetic so it can
+    // never be mistaken for real weather or a real simulation.
     return result.hourlyTemperatures.map((temp, hour) => ({
       time: `${hour}:00`,
       inside: temp,
-      ambient:
+      ambient: LEGACY_DEMO ?
         Math.round(
           (climateData.avgAmbientTemp +
             ((climateData.ambientTempMax - climateData.ambientTempMin) / 2) * Math.sin(((hour - 9) * Math.PI) / 12)) *
             10
-        ) / 10,
+        ) / 10 : null,
       solar: 0,
+      synthetic: !LEGACY_DEMO || undefined,
     }));
   })();
 
@@ -139,6 +189,9 @@ export default function SimulationResults({
           </div>
         </div>
       </div>
+
+      {/* D4-B WP5: collapsible provenance detail (weather + result provenance) */}
+      <ProvenancePanel climateProfile={climateProfile} simulated={!!canonical} />
 
       {/* Row 1: Key Performance Indicators */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -254,6 +307,11 @@ export default function SimulationResults({
             <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
               <Activity className="w-4 h-4 text-amber-400" />
               {canonical ? 'Multi-Day Temperature Dynamics' : '24-Hour Temperature Profile'}
+              {!canonical && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-700/50 font-mono uppercase">
+                  Synthetic legacy profile — not real weather
+                </span>
+              )}
             </h3>
             {canonical && (
               <div className="flex gap-1 bg-slate-900/60 p-0.5 rounded border border-slate-700 text-[10px]">
@@ -280,8 +338,8 @@ export default function SimulationResults({
               <Tooltip
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
               />
-              <ReferenceLine y={18} stroke="#22c55e" strokeDasharray="3 3" label={{ value: '18°C Comfort Min', fill: '#22c55e', fontSize: 10 }} />
-              <ReferenceLine y={24} stroke="#10b981" strokeDasharray="3 3" label={{ value: '24°C Comfort Max', fill: '#10b981', fontSize: 10 }} />
+              <ReferenceLine y={DISPLAY_COMFORT_BOUNDS.min} stroke="#22c55e" strokeDasharray="3 3" label={{ value: `${DISPLAY_COMFORT_BOUNDS.min}°C Comfort Min`, fill: '#22c55e', fontSize: 10 }} />
+              <ReferenceLine y={DISPLAY_COMFORT_BOUNDS.max} stroke="#10b981" strokeDasharray="3 3" label={{ value: `${DISPLAY_COMFORT_BOUNDS.max}°C Comfort Max`, fill: '#10b981', fontSize: 10 }} />
               <Area type="monotone" dataKey="inside" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.25} name="Indoor Temp (°C)" />
               <Area type="monotone" dataKey="ambient" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} name="Ambient Temp (°C)" />
             </AreaChart>
@@ -323,6 +381,230 @@ export default function SimulationResults({
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* D4-B WP4: Hourly Component Heat Flows (REAL backend arrays, W) */}
+      {heatFlow && heatFlow.hasData && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-amber-400" />
+              Hourly Component Heat Flows
+            </h3>
+            <span className="text-[10px] text-slate-400 font-mono">
+              Units: W (hourly average power) · {heatFlow.hourCount} h · actual simulation output
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-3">
+            Real per-component conduction/ventilation/radiation flows returned by the Python engine —
+            no interpolated or synthetic points.
+          </p>
+          {/* Series visibility toggles (do not rely on color alone) */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {heatFlow.availableSeries.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setHiddenFlows((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
+                aria-pressed={!hiddenFlows[s.key]}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                  hiddenFlows[s.key]
+                    ? 'bg-slate-900/60 text-slate-500 border-slate-700/50 line-through'
+                    : 'bg-slate-700/50 text-slate-200 border-slate-600/50 hover:bg-slate-700'
+                }`}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
+                  style={{ backgroundColor: s.color }}
+                  aria-hidden="true"
+                />
+                {s.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setShowStorage((v) => !v)}
+              aria-pressed={showStorage}
+              className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                showStorage
+                  ? 'bg-slate-700/50 text-slate-200 border-slate-600/50'
+                  : 'bg-slate-900/60 text-slate-500 border-slate-700/50'
+              } ${storageChart?.hasData ? '' : 'hidden'}`}
+            >
+              Thermal storage flow
+            </button>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={heatFlow.points}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="time" stroke="#64748b" fontSize={10} interval={11} />
+              <YAxis stroke="#64748b" fontSize={10} unit=" W" width={52} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                formatter={(value: number, name: string) => [`${Math.round(value * 10) / 10} W`, name]}
+                labelFormatter={(label: string) => `Hour: ${label}`}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              {visibleFlows.map((s) => (
+                <Area
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.label}
+                  stroke={s.color}
+                  fill={s.color}
+                  fillOpacity={0.08}
+                  strokeWidth={1.5}
+                  stackId="components"
+                  connectNulls={false}
+                />
+              ))}
+              {showStorage && storageChart?.hasData && (
+                <Area
+                  type="monotone"
+                  dataKey="storage"
+                  name="Thermal storage flow (+ stored / − released)"
+                  stroke="#94a3b8"
+                  fill="#94a3b8"
+                  fillOpacity={0.06}
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  connectNulls={false}
+                />
+              )}
+              <Area
+                type="monotone"
+                dataKey="net_heat_flow"
+                name="Net heat flow"
+                stroke="#ffffff"
+                fill="none"
+                strokeWidth={2}
+                dot={false}
+                connectNulls={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          {showStorage && (
+            <p className="text-[10px] text-slate-500 mt-2">
+              Thermal storage flow shows energy absorbed/released by the thermal mass
+              (positive = energy stored in the mass as indoor temperature rises; negative =
+              energy released from the mass as temperature falls). It is internal energy
+              redistribution, not a heat loss.
+            </p>
+          )}
+        </div>
+      )}
+      {heatFlow && !heatFlow.hasData && canonical && (
+        <div className="bg-slate-800/50 rounded-xl border border-dashed border-slate-700/60 p-8 text-center">
+          <p className="text-sm font-medium text-slate-300 mb-1">Hourly heat-flow series unavailable</p>
+          <p className="text-xs text-slate-500">
+            The backend did not return component heat-flow arrays for this result, so no flow chart is
+            shown — values are never synthesized.
+          </p>
+        </div>
+      )}
+
+      {/* D4-B WP4: Hourly solar profile — incident vs useful thermal gain (REAL arrays) */}
+      {solarChart?.hasData && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <Sun className="w-4 h-4 text-yellow-400" />
+              Hourly Solar Profile
+            </h3>
+            <span className="text-[10px] text-slate-400 font-mono">Units: W · actual simulation output</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-3">
+            Incident solar power on the glazing versus the useful SHGC-filtered thermal gain — real
+            hourly values from the same simulation run.
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={solarChart.points}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="time" stroke="#64748b" fontSize={10} interval={11} />
+              <YAxis stroke="#64748b" fontSize={10} unit=" W" width={52} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                formatter={(value: number, name: string) => [`${Math.round(value * 10) / 10} W`, name]}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              {solarChart.hasIncident && (
+                <Area
+                  type="monotone"
+                  dataKey="incident"
+                  name="Incident solar on glazing"
+                  stroke="#facc15"
+                  fill="#facc15"
+                  fillOpacity={0.15}
+                  strokeWidth={1.5}
+                  connectNulls={false}
+                />
+              )}
+              {solarChart.hasThermalGain && (
+                <Area
+                  type="monotone"
+                  dataKey="thermalGain"
+                  name="Useful solar thermal gain (SHGC-filtered)"
+                  stroke="#f97316"
+                  fill="#f97316"
+                  fillOpacity={0.25}
+                  strokeWidth={1.5}
+                  connectNulls={false}
+                />
+              )}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* D4-C3: Internal Gains & Auxiliary Energy (REAL backend arrays, W) */}
+      {gainsChart?.hasData && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <Flame className="w-4 h-4 text-orange-400" />
+              Internal Gains & Auxiliary Energy
+            </h3>
+            <span className="text-[10px] text-slate-400 font-mono">Units: W · actual simulation output</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-3">
+            Sensible internal gains (occupants × per-person heat) and the auxiliary heating/cooling power the
+            engine computed per hour — real arrays, never synthesized.
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={gainsChart.points}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="time" stroke="#64748b" fontSize={10} interval={11} />
+              <YAxis stroke="#64748b" fontSize={10} unit=" W" width={52} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                formatter={(value: number, name: string) => [`${Math.round(value * 10) / 10} W`, name]}
+                labelFormatter={(label: string) => `Hour: ${label}`}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              {gainsChart.hasInternalGain && (
+                <Area type="monotone" dataKey="internalGain" name="Internal gains" stroke="#22c55e" fill="#22c55e" fillOpacity={0.2} strokeWidth={1.5} connectNulls={false} />
+              )}
+              {gainsChart.hasHeatingDemand && (
+                <Area type="monotone" dataKey="heatingDemand" name="Auxiliary heating" stroke="#f97316" fill="#f97316" fillOpacity={0.15} strokeWidth={1.5} connectNulls={false} />
+              )}
+              {gainsChart.hasCoolingDemand && (
+                <Area type="monotone" dataKey="coolingDemand" name="Auxiliary cooling" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.15} strokeWidth={1.5} connectNulls={false} />
+              )}
+              {gainsChart.hasNetLoad && (
+                <Area type="monotone" dataKey="netLoad" name="Net load (heat − cool)" stroke="#94a3b8" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls={false} />
+              )}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {canonical && gainsChart && !gainsChart.hasData && (
+        <div className="bg-slate-800/50 rounded-xl border border-dashed border-slate-700/60 p-6 text-center">
+          <p className="text-sm font-medium text-slate-300 mb-1">Internal gains / auxiliary-energy series unavailable</p>
+          <p className="text-xs text-slate-500">
+            The backend did not return hourly gain/demand arrays for this result — values are never synthesized.
+          </p>
+        </div>
+      )}
 
       {/* Row 3: Solar & Energy Balance (When Canonical is Available) */}
       {canonical && canonical.energy_totals_kwh && (
@@ -386,7 +668,7 @@ export default function SimulationResults({
                 <span className="text-xl font-bold font-mono text-orange-400">
                   {Math.round(canonical.energy_totals_kwh.heating_demand_kwh)} kWh
                 </span>
-                <span className="text-[10px] text-slate-500 block mt-1">To sustain 18°C setpoint</span>
+                <span className="text-[10px] text-slate-500 block mt-1">To sustain {DISPLAY_COMFORT_BOUNDS.min}°C setpoint</span>
               </div>
               <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50">
                 <span className="text-xs text-slate-400 block mb-1">Cooling Energy Required</span>

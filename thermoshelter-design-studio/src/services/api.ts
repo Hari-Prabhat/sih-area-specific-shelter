@@ -7,6 +7,13 @@
  */
 
 import { ClimateData, ShelterDesign, MaterialProperties, SimulationResult as UiSimulationResult } from '../types';
+import { wallMaterialKey } from '../data/materials';
+// D4-B: re-export the typed passive-strategy contract so consumers can import
+// the whole climate/strategy surface from the single API module.
+export type { PassiveStrategyDto, PassiveStrategyModel, StrategyComparisonPair } from './passiveStrategy';
+// D4-C1: canonical backend material-ID mapping — the single authority for
+// UI selection -> backend-resolvable material keys (physics integrity).
+export { MATERIAL_BACKEND_MAP, resolveBackendMaterialId, wallMaterialKey } from '../data/materials';
 
 const API_BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) || '';
 
@@ -20,15 +27,24 @@ export interface CanonicalSimulationResult {
   solar_irradiance: number[];
   solar_power: number[];
   solar_thermal_gain: number[];
-  hourly_internal_gain: number[];
   wall_heat_flow: number[];
   roof_heat_flow: number[];
   floor_heat_flow: number[];
   window_heat_flow: number[];
+  /** Optional on the backend contract (services/contracts.py SimulationResult.door_heat_flow). */
+  door_heat_flow?: number[];
   ventilation_heat_flow: number[];
   radiation_heat_flow: number[];
   net_heat_flow: number[];
   thermal_storage_flow?: number[];
+  /** D4-C3: backend hourly arrays (services/contracts.py SimulationResult).
+   * hourly_internal_gain: W sensible internal gain (occupants × per-person W).
+   * hourly_heating/cooling_demand & hourly_net_load: auxiliary conditioning
+   * power per hour (W); hourly_net_load = heating − cooling per hour. */
+  hourly_internal_gain: number[];
+  hourly_heating_demand?: number[];
+  hourly_cooling_demand?: number[];
+  hourly_net_load?: number[];
   comfort_status: string;
   comfort_status_series: string[];
   comfort_hours: number;
@@ -423,16 +439,6 @@ export function buildCanonicalSimulationPayload(
   /** D4-A WP1: air changes per hour — explicit design state (DEFAULT_ACH preset). */
   ach: number = DEFAULT_ACH,
 ) {
-  // Map wall material name to standardized key
-  const matName = material ? material.name.toLowerCase() : 'brick';
-  let wallMat = 'brick';
-  if (matName.includes('mud') || matName.includes('adobe')) wallMat = 'mud';
-  else if (matName.includes('earth')) wallMat = 'mud';
-  else if (matName.includes('stone')) wallMat = 'stone';
-  else if (matName.includes('timber') || matName.includes('wood')) wallMat = 'timber';
-  else if (matName.includes('concrete') || matName.includes('aac')) wallMat = 'concrete_block';
-  else if (matName.includes('puf') || matName.includes('panel')) wallMat = 'puf_insulation';
-
   // Map glazing
   let glazingKey = 'double_clear';
   if (design.windowGlazing === 'single') glazingKey = 'single_clear';
@@ -457,7 +463,7 @@ export function buildCanonicalSimulationPayload(
       length: design.length,
       width: design.width,
       height: design.height,
-      wall_material: wallMat,
+      wall_material: wallMaterialKey(material?.name),
       wall_thickness_m: design.wallThickness,
       insulation_thickness_m: insThick,
       insulation_conductivity: insulation ? insulation.thermalConductivity : 0.025,
