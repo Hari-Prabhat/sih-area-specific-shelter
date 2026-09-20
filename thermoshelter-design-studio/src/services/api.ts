@@ -626,12 +626,21 @@ export interface CanonicalOptimizationCandidate {
   climate_provenance?: string | null;
   climate_data_mode?: string | null;
   climate_fallback_used?: boolean | null;
+  // ------------------------------------------------------------------
+  // D5-A geometry contract (optional; populated by the backend from its
+  // own engine-reported values). When absent (legacy candidates) consumers
+  // MUST NOT invent geometry - Apply keeps the current design dimensions.
+  // ------------------------------------------------------------------
+  length_m?: number | null;
+  width_m?: number | null;
+  height_m?: number | null;
+  floor_area_m2?: number | null;
+  /** Thermal-relevant gross envelope area / enclosed volume (1/m). */
+  surface_to_volume_ratio?: number | null;
   canonical_design?: any;
-}
-
-/**
- * Optimization Result structure from /api/optimization/run
- */
+}  /**
+   * Optimization Result structure from /api/optimization/run
+   */
 export interface CanonicalOptimizationResult {
   city: string;
   home_type: string;
@@ -647,6 +656,8 @@ export interface CanonicalOptimizationResult {
   ranked_designs: CanonicalOptimizationCandidate[];
   recommended_design?: CanonicalOptimizationCandidate;
   n_trials: number;
+  /** D5-B: candidates rejected by pre-simulation geometry feasibility. */
+  n_pruned?: number;
   explanation?: string;
   /** Phase C provenance of the climate scenario the optimization ran against. */
   climate_provenance?: string | null;
@@ -665,6 +676,19 @@ export async function runOptimizationViaApi(payload: {
   substeps?: number;
   hours_to_simulate?: number;
   weights?: { comfort: number; efficiency: number; solar: number };
+  // D5-A/D5-B geometry optimization. Undefined/absent keeps current
+  // fixed-geometry behaviour end-to-end. All bounds are PROPOSED PROTOTYPE
+  // ENGINEERING ASSUMPTIONS supplied by the caller - never invented here.
+  optimize_geometry?: boolean;
+  min_length_m?: number;
+  max_length_m?: number;
+  min_width_m?: number;
+  max_width_m?: number;
+  min_height_m?: number;
+  max_height_m?: number;
+  /** Orientation-independent aspect ratio max(L/W, W/L) bounds (optional). */
+  min_aspect_ratio?: number;
+  max_aspect_ratio?: number;
 }): Promise<CanonicalOptimizationResult> {
   let response: Response;
   try {

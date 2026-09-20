@@ -117,6 +117,60 @@ class OptimizationRunRequest(BaseModel):
         None,
         description="Deterministic design-week selection over the supplied climate scenario: 'cold', 'hot', or 'typical' (default: use the scenario's own defined window)"
     )
+    # ------------------------------------------------------------------
+    # D5-A geometry-optimization foundation (contract preparation only).
+    # D5-B will enable the search; today optimize_geometry=False keeps the
+    # legacy fixed-geometry behaviour bit-for-bit. No default bounds exist:
+    # enabling optimization without supplying all six bounds fails validation
+    # in OptimizationInput rather than inventing engineering limits.
+    # ------------------------------------------------------------------
+    optimize_geometry: bool = Field(
+        False,
+        description="Enable rectangular geometry (length/width/height) optimization. Requires explicit min/max bounds for all three dimensions."
+    )
+    min_length_m: Optional[float] = Field(
+        None,
+        gt=0.0,
+        description="Minimum shelter length in meters (required when optimize_geometry=true)"
+    )
+    max_length_m: Optional[float] = Field(
+        None,
+        gt=0.0,
+        description="Maximum shelter length in meters (required when optimize_geometry=true)"
+    )
+    min_width_m: Optional[float] = Field(
+        None,
+        gt=0.0,
+        description="Minimum shelter width in meters (required when optimize_geometry=true)"
+    )
+    max_width_m: Optional[float] = Field(
+        None,
+        gt=0.0,
+        description="Maximum shelter width in meters (required when optimize_geometry=true)"
+    )
+    min_height_m: Optional[float] = Field(
+        None,
+        gt=0.0,
+        description="Minimum clear interior height in meters (required when optimize_geometry=true)"
+    )
+    max_height_m: Optional[float] = Field(
+        None,
+        gt=0.0,
+        description="Maximum clear interior height in meters (required when optimize_geometry=true)"
+    )
+    # D5-B: orientation-independent aspect-ratio bounds (aspect_ratio =
+    # max(L/W, W/L)). PROPOSED PROTOTYPE ENGINEERING ASSUMPTIONS when
+    # supplied - not DRDO/regulatory/ISO/field-validated limits.
+    min_aspect_ratio: Optional[float] = Field(
+        None,
+        ge=1.0,
+        description="Orientation-independent minimum aspect ratio max(L/W, W/L) (optional)"
+    )
+    max_aspect_ratio: Optional[float] = Field(
+        None,
+        ge=1.0,
+        description="Orientation-independent maximum aspect ratio max(L/W, W/L) (optional)"
+    )
 
 
 # =====================================================================
@@ -207,7 +261,12 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
                     "min_window_area", "max_window_area",
                     "allowed_wall_materials", "allowed_glazings",
                     "allowed_orientations", "weights", "substeps",
-                    "hours_to_simulate"
+                    "hours_to_simulate",
+                    # D5-A/D5-B geometry bounds (validated in OptimizationInput)
+                    "optimize_geometry", "min_length_m", "max_length_m",
+                    "min_width_m", "max_width_m",
+                    "min_height_m", "max_height_m",
+                    "min_aspect_ratio", "max_aspect_ratio"
                 }
             }
 

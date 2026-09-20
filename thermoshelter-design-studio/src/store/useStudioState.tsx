@@ -103,7 +103,7 @@ export function candidateDesignPatch(
   candidate: CanonicalOptimizationCandidate,
 ): Partial<ShelterDesign> {
   const mass = massLevelToDesignMass(candidate.thermal_mass_level);
-  return {
+  const patch: Partial<ShelterDesign> = {
     windowArea: candidate.window_area_m2,
     windowGlazing: glazingToUi(candidate.glazing),
     orientation: orientationToDegrees(candidate.orientation),
@@ -120,6 +120,19 @@ export function candidateDesignPatch(
     thermalMassEnabled: mass.thermalMassEnabled,
     thermalMassThickness: mass.thermalMassThickness,
   };
+  // D5-A: geometry is carried ONLY when the candidate actually reports it
+  // (the backend populates these from engine-measured values). Legacy
+  // candidates without geometry must not touch the design dimensions.
+  if (
+    typeof candidate.length_m === 'number' &&
+    typeof candidate.width_m === 'number' &&
+    typeof candidate.height_m === 'number'
+  ) {
+    patch.length = candidate.length_m;
+    patch.width = candidate.width_m;
+    patch.height = candidate.height_m;
+  }
+  return patch;
 }
 
 // ---------------------------------------------------------------------------

@@ -300,6 +300,11 @@ class OptimizationAdapter:
             "glazing": glaze_raw,
             "orientation": orient_raw,
             "occupants": kwargs.get("occupants", sd.occupants),
+            # D5-B door fidelity: the canonical design's door_area is the
+            # single authoritative opening value - carried into the optimizer
+            # so feasibility and every candidate simulation evaluate against
+            # the SAME door the resulting applied design represents.
+            "door_area_m2": kwargs.get("door_area_m2", sd.door_area),
             "min_insulation_m": kwargs.get("min_insulation_m", 0.0),
             "max_insulation_m": kwargs.get("max_insulation_m", 0.20),
             "min_window_area": kwargs.get("min_window_area", 0.5),
@@ -312,6 +317,18 @@ class OptimizationAdapter:
             "hours_to_simulate": kwargs.get("hours_to_simulate", 168),
             "weights": kwargs.get("weights"),
             "climate_scenario": kwargs.get("climate_scenario", scenario),
+            # D5-A/D5-B geometry-optimization configuration: pass-through of
+            # the optional bounds. When optimize_geometry is False (default)
+            # these are ignored and behaviour is unchanged.
+            "optimize_geometry": kwargs.get("optimize_geometry", False),
+            "min_length_m": kwargs.get("min_length_m"),
+            "max_length_m": kwargs.get("max_length_m"),
+            "min_width_m": kwargs.get("min_width_m"),
+            "max_width_m": kwargs.get("max_width_m"),
+            "min_height_m": kwargs.get("min_height_m"),
+            "max_height_m": kwargs.get("max_height_m"),
+            "min_aspect_ratio": kwargs.get("min_aspect_ratio"),
+            "max_aspect_ratio": kwargs.get("max_aspect_ratio"),
         }
 
         return adapt_to_optimization_input(payload)

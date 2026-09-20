@@ -206,3 +206,92 @@ describe('weather provenance selector', () => {
     expect(activeWeatherProvenance(null)).toBeNull();
   });
 });
+
+describe('D5-A: candidate geometry carry-through', () => {
+  const baseDesign: ShelterDesign = {
+    length: 6,
+    width: 4,
+    height: 3,
+    shape: 'rectangular',
+    orientation: 180,
+    roofAngle: 30,
+    wallThickness: 0.3,
+    windowArea: 3,
+    windowGlazing: 'double',
+    doorArea: 2,
+    insulationType: 'XPS',
+    insulationThickness: 8,
+    ach: 0.5,
+    thermalMassEnabled: false,
+    thermalMassThickness: 0,
+  };
+
+  const candidate = (overrides: Partial<CanonicalOptimizationCandidate>): CanonicalOptimizationCandidate =>
+    ({
+      rank: 1,
+      label: 'Geometry Candidate',
+      rationale: 'test',
+      overall_score: 0.8,
+      sub_scores: { comfort: 0.8, efficiency: 0.7, solar: 0.6 },
+      insulation_mm: 80,
+      insulation_thickness_m: 0.08,
+      window_area_m2: 4.0,
+      wall_material: 'brick',
+      wall_material_name: 'Brick',
+      glazing: 'double_clear',
+      glazing_name: 'Double Glazed',
+      orientation: 'south',
+      comfort_hours: 90,
+      comfort_percentage: 53.6,
+      discomfort_dh: 700,
+      total_heat_loss_kwh: 80,
+      solar_gain_kwh: 30,
+      u_values: { wall_u: 0.35, roof_u: 0.3, floor_u: 0.4, window_u: 2.8 },
+      heating_demand_kwh: 40,
+      cooling_demand_kwh: 0,
+      total_conditioning_demand_kwh: 40,
+      effective_thermal_capacity_j_k: 1.5e7,
+      thermal_mass_level: 'medium',
+      ...overrides,
+    }) as CanonicalOptimizationCandidate;
+
+  it('carries candidate geometry into the design patch when present', () => {
+    const patch = candidateDesignPatch(
+      baseDesign,
+      candidate({ length_m: 5.2, width_m: 3.4, height_m: 2.6 })
+    );
+    expect(patch.length).toBe(5.2);
+    expect(patch.width).toBe(3.4);
+    expect(patch.height).toBe(2.6);
+  });
+
+  it('does NOT touch design dimensions for legacy candidates without geometry', () => {
+    const patch = candidateDesignPatch(baseDesign, candidate({ length_m: null }));
+    expect(patch.length).toBeUndefined();
+    expect(patch.width).toBeUndefined();
+    expect(patch.height).toBeUndefined();
+  });
+
+  it('preserves all existing candidate fields alongside geometry carry', () => {
+    const patch = candidateDesignPatch(
+      baseDesign,
+      candidate({ length_m: 5.0, width_m: 3.0, height_m: 2.5, insulation_thickness_m: 0.1 })
+    );
+    expect(patch.windowArea).toBe(4.0);
+    expect(patch.insulationThickness).toBe(10);
+    expect(patch.thermalMassEnabled).toBe(true);
+    expect(patch.thermalMassThickness).toBe(10);
+  });
+
+  it('D5-B: applied design equals the candidate geometry end-to-end', () => {
+    // The D5-B fidelity contract, mirrored frontend-side: composing the
+    // candidate patch onto the design yields the candidate's exact geometry
+    // (what the next simulation payload, Blueprint, 3D and Report will show).
+    const geom = { length_m: 8.3, width_m: 3.0, height_m: 4.0 };
+    const patch = candidateDesignPatch(baseDesign, candidate(geom));
+    const applied: ShelterDesign = { ...baseDesign, ...patch };
+    expect(applied.length).toBe(8.3);
+    expect(applied.width).toBe(3.0);
+    expect(applied.height).toBe(4.0);
+  });
+});

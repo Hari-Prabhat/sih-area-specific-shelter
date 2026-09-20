@@ -691,6 +691,20 @@ export default function ComparativeAnalysis({
                             <span className="text-slate-400">Window Area:</span>
                             <span className="font-medium text-amber-300">{c.window_area_m2.toFixed(1)} m²</span>
                           </div>
+                          {/* D5-B: candidate geometry (engine-reported). Rendered
+                              only when the candidate carries geometry values. */}
+                          {typeof c.length_m === 'number' && typeof c.width_m === 'number' && typeof c.height_m === 'number' && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Geometry:</span>
+                              <span className="font-medium text-white">{c.length_m.toFixed(1)} × {c.width_m.toFixed(1)} × {c.height_m.toFixed(1)} m</span>
+                            </div>
+                          )}
+                          {typeof c.floor_area_m2 === 'number' && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Floor Area:</span>
+                              <span className="font-medium text-white">{c.floor_area_m2.toFixed(1)} m²</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Card Metrics Mini-Grid */}

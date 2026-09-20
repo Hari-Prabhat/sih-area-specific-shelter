@@ -511,6 +511,16 @@ class OptimizationInput:
     glazing: Optional[str] = None
     orientation: Optional[str] = None
     occupants: int = 2
+    # ------------------------------------------------------------------
+    # D5-B door-area fidelity: the canonical ShelterDesign's door_area is
+    # the SINGLE authoritative opening value. It is NOT an optimization
+    # variable - it is carried here only so that feasibility checks and
+    # every candidate/best simulation evaluate against the SAME door area
+    # the resulting canonical design represents. Default 2.0 m2 is the
+    # pre-existing canonical/engine default (shelter/models.py and
+    # simulation_service.py), not a newly invented value.
+    # ------------------------------------------------------------------
+    door_area_m2: float = 2.0
     min_insulation_m: float = 0.0
     max_insulation_m: float = 0.20
     min_window_area: float = 0.5
@@ -527,6 +537,45 @@ class OptimizationInput:
     # When supplied, the optimizer evaluates against THESE hourly vectors and
     # never falls back to city-key statistics.
     climate_scenario: Optional[Dict[str, Any]] = None
+    # ------------------------------------------------------------------
+    # D5-A geometry-optimization FOUNDATION (contract only).
+    #
+    # When optimize_geometry is False (default), the optimizer behaves
+    # exactly as in Phase C: geometry stays fixed at length/width/height
+    # and these bounds are ignored.
+    #
+    # When optimize_geometry is True, ALL SIX bound fields are REQUIRED and
+    # validated here. There are deliberately NO default engineering limits:
+    # minimum areas, aspect ratios, clear heights, etc. require explicit
+    # engineering/product decisions and are not invented by this contract.
+    # The optimizer must fail loudly rather than silently assume bounds.
+    #
+    # NOTE (D5-A): only rectangular-footprint dimensions (length/width/height)
+    # are contract-covered. Shape (cylindrical/dome/pyramid) is NOT safe to
+    # optimize - the thermal engine simulates rectangular envelopes only.
+    # ------------------------------------------------------------------
+    optimize_geometry: bool = False
+    min_length_m: Optional[float] = None
+    max_length_m: Optional[float] = None
+    min_width_m: Optional[float] = None
+    max_width_m: Optional[float] = None
+    min_height_m: Optional[float] = None
+    max_height_m: Optional[float] = None
+    # ------------------------------------------------------------------
+    # D5-B: orientation-independent aspect-ratio bounds.
+    #
+    # aspect_ratio = max(length/width, width/length)
+    #
+    # This is deliberately orientation-independent: 6x4 and 4x6 both give
+    # 1.5, so a geometry must never be rejected merely because the length
+    # and width labels are swapped. Like every geometry limit here these
+    # bounds are PROPOSED PROTOTYPE ENGINEERING ASSUMPTIONS - not DRDO,
+    # regulatory, ISO, or field-validated requirements. Optional: validated
+    # only when supplied. NO floor-area bounds are added - the L/W bounds
+    # already imply the area envelope, and redundant fields invite drift.
+    # ------------------------------------------------------------------
+    min_aspect_ratio: Optional[float] = None
+    max_aspect_ratio: Optional[float] = None
 
     def __post_init__(self) -> None:
         self.validate()
@@ -539,6 +588,18 @@ class OptimizationInput:
         if self.length <= 0.0 or self.width <= 0.0 or self.height <= 0.0:
             raise ValueError("Shelter dimensions must be strictly positive (> 0).")
 
+        # D5-B: door area must be a finite, non-negative area (0 = door-less
+        # design is legitimate; the engine clamps negatives to 0).
+        if not math.isfinite(self.door_area_m2) or self.door_area_m2 < 0.0:
+            raise ValueError(
+                f"door_area_m2 must be a finite non-negative area (m2), got {self.door_area_m2}"
+            )
+
+        self.validate_geometry_bounds()
+        self.validate_search_bounds()
+
+    def validate_search_bounds(self) -> None:
+        """Validates insulation, window-area, trial, and weight consistency."""
         if self.min_insulation_m < 0.0:
             raise ValueError(f"min_insulation_m cannot be negative, got {self.min_insulation_m}")
         if self.max_insulation_m < self.min_insulation_m:
@@ -568,6 +629,80 @@ class OptimizationInput:
             if not (0.95 <= w_sum <= 1.05):
                 raise ValueError(f"Optimization weights must sum to 1.0, got {w_sum}")
 
+    def validate_geometry_bounds(self) -> None:
+        """
+        Validates the D5-A optional geometry-optimization bounds.
+
+        Mathematical constraints only (positivity, finiteness, min <= max,
+        base dimension within bounds). No arbitrary engineering minima or
+        maxima are introduced here.
+
+        Raises:
+            ValueError: On any invalid or incomplete geometry configuration.
+        """
+        if not self.optimize_geometry:
+            return
+
+        bounds = (
+            ("length", self.min_length_m, self.max_length_m),
+            ("width", self.min_width_m, self.max_width_m),
+            ("height", self.min_height_m, self.max_height_m),
+        )
+        base = {"length": self.length, "width": self.width, "height": self.height}
+
+        for dim, lo, hi in bounds:
+            if lo is None or hi is None:
+                raise ValueError(
+                    f"optimize_geometry=True requires explicit min_{dim}_m and "
+                    f"max_{dim}_m bounds; none are invented by default."
+                )
+            for name, value in ((f"min_{dim}_m", lo), (f"max_{dim}_m", hi)):
+                if not math.isfinite(value):
+                    raise ValueError(f"{name} must be finite, got {value}")
+                if value <= 0.0:
+                    raise ValueError(f"{name} must be strictly positive (> 0), got {value}")
+            if hi < lo:
+                raise ValueError(
+                    f"max_{dim}_m ({hi}) cannot be less than min_{dim}_m ({lo})"
+                )
+            # The optimizer evaluates candidates between the supplied bounds;
+            # the baseline geometry must lie inside the search space it defines.
+            if not (lo <= base[dim] <= hi):
+                raise ValueError(
+                    f"Base {dim} ({base[dim]} m) lies outside the geometry "
+                    f"bounds [{lo}, {hi}] m."
+                )
+
+        for name, value in (
+            ("min_aspect_ratio", self.min_aspect_ratio),
+            ("max_aspect_ratio", self.max_aspect_ratio),
+        ):
+            if value is None:
+                continue
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+            if value < 1.0:
+                raise ValueError(
+                    f"{name} must be >= 1.0 (aspect_ratio = max(L/W, W/L) is "
+                    f"orientation-independent and cannot be below 1), got {value}"
+                )
+        if (
+            self.min_aspect_ratio is not None
+            and self.max_aspect_ratio is not None
+            and self.max_aspect_ratio < self.min_aspect_ratio
+        ):
+            raise ValueError(
+                f"max_aspect_ratio ({self.max_aspect_ratio}) cannot be less than "
+                f"min_aspect_ratio ({self.min_aspect_ratio})"
+            )
+        if self.max_aspect_ratio is not None and self.optimize_geometry:
+            base_ar = max(self.length / self.width, self.width / self.length)
+            if base_ar > self.max_aspect_ratio:
+                raise ValueError(
+                    f"Base geometry aspect ratio ({base_ar:.3f}) exceeds "
+                    f"max_aspect_ratio ({self.max_aspect_ratio})."
+                )
+
     def to_dict(self) -> Dict[str, Any]:
         """Serializes OptimizationInput to standard dictionary."""
         return asdict(self)
@@ -585,6 +720,9 @@ class OptimizationInput:
             glazing=data.get("glazing"),
             orientation=data.get("orientation"),
             occupants=int(data.get("occupants", 2)),
+            # D5-B: accept the canonical design's door area (flat legacy key
+            # "door_area" tolerated for direct dict callers).
+            door_area_m2=float(data.get("door_area_m2", data.get("door_area", 2.0))),
             min_insulation_m=float(data.get("min_insulation_m", 0.0)),
             max_insulation_m=float(data.get("max_insulation_m", 0.20)),
             min_window_area=float(data.get("min_window_area", 0.5)),
@@ -597,6 +735,15 @@ class OptimizationInput:
             hours_to_simulate=int(data.get("hours_to_simulate", 168)),
             weights=data.get("weights"),
             climate_scenario=data.get("climate_scenario"),
+            optimize_geometry=bool(data.get("optimize_geometry", False)),
+            min_length_m=data.get("min_length_m"),
+            max_length_m=data.get("max_length_m"),
+            min_width_m=data.get("min_width_m"),
+            max_width_m=data.get("max_width_m"),
+            min_height_m=data.get("min_height_m"),
+            max_height_m=data.get("max_height_m"),
+            min_aspect_ratio=data.get("min_aspect_ratio"),
+            max_aspect_ratio=data.get("max_aspect_ratio"),
         )
 
 
@@ -639,6 +786,24 @@ class OptimizationCandidate:
     climate_data_mode: Optional[str] = None
     climate_fallback_used: Optional[bool] = None
     thermal_mass_level: Optional[str] = None
+    # ------------------------------------------------------------------
+    # D5-A: candidate geometry contract (prepared, not yet optimized).
+    #
+    # These fields are populated by the optimizer ONLY from the canonical
+    # geometry engine / the engine's own reported result - never recomputed
+    # by a second geometry implementation. When geometry is not optimized
+    # they report the candidate's BASE geometry so every consumer (Apply,
+    # Blueprint, 3D, Report) sees the same truth.
+    #
+    # surface_to_volume_ratio is the thermal-relevant envelope-to-volume
+    # ratio: gross envelope area / enclosed volume. It stays None when the
+    # engine does not report both values (e.g. roof type not applicable).
+    # ------------------------------------------------------------------
+    length_m: Optional[float] = None
+    width_m: Optional[float] = None
+    height_m: Optional[float] = None
+    floor_area_m2: Optional[float] = None
+    surface_to_volume_ratio: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -647,14 +812,42 @@ class OptimizationCandidate:
         """Constructs a canonical ShelterDesign digital twin from this optimization candidate."""
         if self.canonical_design:
             return ShelterDesign.from_dict(self.canonical_design)
-        b_len = base_design.length if base_design and hasattr(base_design, "length") else 4.0
-        b_wid = base_design.width if base_design and hasattr(base_design, "width") else 3.0
-        b_hgt = base_design.height if base_design and hasattr(base_design, "height") else 2.8
+        # ------------------------------------------------------------------
+        # D5-B geometry fidelity: when the candidate carries optimized trial
+        # geometry, that geometry is AUTHORITATIVE and must reach the applied
+        # ShelterDesign unchanged. The base design's dimensions are only the
+        # fallback for legacy candidates (no geometry search).
+        # ------------------------------------------------------------------
+        b_len = self.length_m if self.length_m is not None else (
+            base_design.length if base_design and hasattr(base_design, "length") else 4.0
+        )
+        b_wid = self.width_m if self.width_m is not None else (
+            base_design.width if base_design and hasattr(base_design, "width") else 3.0
+        )
+        b_hgt = self.height_m if self.height_m is not None else (
+            base_design.height if base_design and hasattr(base_design, "height") else 2.8
+        )
         b_occ = base_design.occupants if base_design and hasattr(base_design, "occupants") else 2
         b_type = base_design.shelter_type if base_design and hasattr(base_design, "shelter_type") else "Permanent"
         b_roof = base_design.roof_type if base_design and hasattr(base_design, "roof_type") else "flat"
         b_pitch = base_design.pitch_angle_deg if base_design and hasattr(base_design, "pitch_angle_deg") else 0.0
         b_ach = base_design.ach if base_design and hasattr(base_design, "ach") else DEFAULT_ACH
+
+        # D5-B door fidelity: the door is NOT an optimization variable, so the
+        # base design's authoritative door_area must reach the applied design
+        # instead of silently resetting to the ShelterDesign constructor
+        # default. (The live route path sets candidate.canonical_design from
+        # the base design, which already preserves the door; this guards the
+        # constructed fallback path used by direct callers.)
+        b_door: Optional[float] = None
+        if base_design is not None and hasattr(base_design, "door_area"):
+            try:
+                base_door = float(base_design.door_area)
+            except (TypeError, ValueError):
+                base_door = -1.0
+            if math.isfinite(base_door) and base_door >= 0.0:
+                b_door = base_door
+        door_kwargs: Dict[str, Any] = {"door_area": b_door} if b_door is not None else {}
 
         return ShelterDesign(
             design_id=f"optimized_candidate_{self.rank}",
@@ -672,6 +865,7 @@ class OptimizationCandidate:
             roof_type=b_roof,
             pitch_angle_deg=b_pitch,
             ach=b_ach,
+            **door_kwargs,
             provenance=DataProvenance.OPTIMIZED,
         )
 
@@ -706,6 +900,11 @@ class OptimizationCandidate:
             climate_data_mode=data.get("climate_data_mode"),
             climate_fallback_used=data.get("climate_fallback_used"),
             thermal_mass_level=data.get("thermal_mass_level"),
+            length_m=data.get("length_m"),
+            width_m=data.get("width_m"),
+            height_m=data.get("height_m"),
+            floor_area_m2=data.get("floor_area_m2"),
+            surface_to_volume_ratio=data.get("surface_to_volume_ratio"),
         )
 
 
@@ -736,6 +935,10 @@ class OptimizationResult:
     climate_provenance: Optional[str] = None
     climate_data_mode: Optional[str] = None
     climate_fallback_used: bool = False
+    # D5-B: number of trials pruned by pre-simulation geometry feasibility
+    # rejection. Reported for transparency - the search space actually
+    # explored is trials minus pruned, and silent clamping is never used.
+    n_pruned: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes OptimizationResult to dictionary."""
@@ -743,6 +946,7 @@ class OptimizationResult:
         d = {
             "city": self.city,
             "home_type": self.home_type,
+            "n_pruned": self.n_pruned,
             "insulation_thickness_m": self.insulation_thickness_m,
             "insulation_mm": self.insulation_mm,
             "window_area_m2": self.window_area_m2,
@@ -790,6 +994,7 @@ class OptimizationResult:
             climate_provenance=data.get("climate_provenance"),
             climate_data_mode=data.get("climate_data_mode"),
             climate_fallback_used=bool(data.get("climate_fallback_used", False)),
+            n_pruned=int(data.get("n_pruned", 0)),
         )
 
 
