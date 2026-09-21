@@ -3,9 +3,9 @@
 
 > **Explore climate-specific shelter designs before building them.**
 
-ThermoShelter AI is a **Python + Streamlit prototype** for early-stage passive shelter design exploration. It combines local climate data, a reduced-order thermal model, material comparison, rule-based recommendations, Optuna optimization, and interactive 2D/3D visualization.
+ThermoShelter AI is an **engineering design studio prototype** for early-stage passive shelter design exploration. It combines a climate/weather intelligence pipeline, a reduced-order thermal simulation engine, rule-based passive-strategy guidance, Optuna optimization, parametric 2D blueprint drawings, an illustrative 3D digital twin, and an auto-generated engineering report — presented through a React design studio backed by a FastAPI physics service.
 
-> **Important:** The current repository does **not** contain a trained AI/ML model or live EnergyPlus, ANSYS, NASA, or IMD API integration. The name “AI” refers to the intended intelligent design workflow; the current recommendation system is rule-based and optimization-driven.
+> **Important:** The current repository does **not** contain a trained AI/ML model, physical sensor validation, or ANSYS/CFD integration. The name "AI" refers to the intended intelligent design workflow; the current recommendation system is rule-based and optimization-driven. ANSYS (or other high-fidelity FEA/CFD verification) is a **future validation pathway**, not a current feature.
 
 ---
 
@@ -15,87 +15,28 @@ Shelters can behave very differently under different climates. Choosing the righ
 
 ThermoShelter AI addresses this early-stage design problem by connecting:
 
-**Climate → Shelter Design → Thermal Simulation → Optimization → Comparison → Visualization**
-
----
-
-## 💡 Our Solution
-
-The platform lets users explore climate-specific shelter concepts and understand their modeled thermal performance before moving to detailed engineering.
-
-```text
-User Inputs
-    ↓
-Climate + Weather Data
-    ↓
-Auto-Sizing + Climate Rules
-    ↓
-Material / Geometry / Glazing
-    ↓
-Reduced-Order Thermal Simulation
-    ↓
-Comfort + Heat-Loss Metrics
-    ↓
-Optuna Optimization / Comparison
-    ↓
-2D Floor Plan + 3D Visualization
-```
+**Climate → Shelter Design → Passive Strategy → Thermal Simulation → Optimization → Blueprint / 3D / Report**
 
 ---
 
 ## 🚀 Key Features
 
-- 🌍 **5 active climate locations:** Leh, Jaisalmer, Delhi, Chennai, Bengaluru
-- 🏠 **Shelter auto-sizing** based on occupants and temporary/permanent use
-- 🌡️ **168-hour transient thermal simulation**
-- 🧱 **Material database and comparison**
-- 🪟 **Glazing and window-area exploration**
-- ☀️ **Solar-gain and heat-flow analysis**
-- 🧭 **Orientation comparison**
-- 🤖 **Optuna TPE optimization** for reduced discomfort degree-hours
-- 📊 **Baseline vs optimized design comparison**
-- 🏗️ **Flat, pitched, compact, elongated and custom shelter models**
-- 📐 **Interactive 2D floor plan**
-- 🧊 **Interactive Plotly 3D shelter visualization**
-- 🧪 **Automated tests and dataset validation**
-
----
-
-## 🧾 User Inputs
-
-| Workflow | Inputs |
-|---|---|
-| Design a Shelter | Location, occupants, temporary/permanent |
-| Improve a Shelter | Location, occupants, temporary/permanent |
-| Choose Materials | Climate, insulation thickness, window area, occupants |
-| Compare Shelter Types | Climate, shelter type, occupants, dimensions/roof for custom model |
-
----
-
-## 📊 Simulation Outputs
-
-The application provides:
-
-- Indoor/outdoor temperature profiles
-- Average, minimum and maximum indoor temperature
-- Comfort hours and comfort percentage
-- Discomfort degree-hours
-- Wall, roof, floor and window heat flow
-- Ventilation and radiation heat flow
-- Solar irradiance and useful solar gain
-- Integrated modeled thermal energy
-- Envelope U-values
-- Floor area, volume and other geometry metrics
-
-These are **modeled results**, not measured field energy consumption.
+- 🌍 **Location-resolved climate profiles** via the Open-Meteo pipeline (live / forecast / historical-reanalysis modes) with honest provenance labelling (`MODEL ANALYSIS`, `FORECAST`, `HISTORICAL REANALYSIS`, `DESIGN`, `FALLBACK` — never "measured")
+- 🧭 **Climate-derived passive strategy** (e.g. EXTREME COLD solar-capture strategy for Leh, HOT DRY thermal-mass/nocturnal-flush strategy for Jaisalmer) with an annual-classification basis and read-only design comparison
+- 🏠 **Parametric shelter design**: rectangular/cylindrical/dome/pyramid geometry (rectangular is physics-backed; other shapes are visualization-only), orientation, roof pitch, envelope layers, openings, glazing
+- 🌡️ **168-hour transient thermal simulation** (Python 1D Forward Euler + ISO 6946 envelope U-values, authoritative backend)
+- ☀️ **Solar-gain and heat-flow breakdown** (wall/roof/floor/window/door/ventilation/radiation, incident vs useful solar energy)
+- 🤖 **Optuna TPE optimization** over a weighted multi-objective score (comfort / envelope efficiency / solar) across insulation, window area, wall material, glazing, orientation and thermal mass — plus optional **geometry + envelope search** with explicit prototype bounds and deterministic pre-simulation feasibility rejection
+- 📊 **Real baseline vs candidate comparison** (the baseline is an actual simulation of the current canonical design, auto-run when missing or stale)
+- 📐 **ISO 6946-style engineering blueprint** (floor plan, section, elevation, envelope detail — parametric SVG from the canonical design)
+- 🧊 **Illustrative 3D digital twin** (Three.js / react-three-fiber, parameter-driven — an engineering visualization, not CFD/FEM output)
+- 📄 **Auto-generated engineering report** with provenance, simulated/predicted labelling, honesty limitations section, and native print-to-PDF (A4)
 
 ---
 
 ## 🧮 Thermal Model
 
-The current engine is a **reduced-order, single-zone thermal model**. The shelter is represented as one thermal node with heat entering and leaving through simplified pathways.
-
-Conceptually:
+The engine is a **reduced-order, single-zone thermal model** (`services/simulation_service.py`). The shelter is one thermal node with heat entering and leaving through simplified pathways:
 
 ```text
 Net Heat = Solar Gain + Internal Heat
@@ -103,117 +44,42 @@ Net Heat = Solar Gain + Internal Heat
 
 Indoor Temperature
         ↓
-   updated over time
+   updated over time (forward Euler)
 ```
 
-The implementation uses thermal resistance/U-values, conduction, simplified solar glazing gain, ventilation heat exchange, internal gains, longwave radiation and lumped thermal capacitance with forward-Euler time stepping.
+The implementation uses thermal resistance/U-values (ISO 6946 layer methodology), conduction, simplified solar glazing gain, ventilation heat exchange (ACH), internal gains, longwave radiation and lumped thermal capacitance with forward-Euler time stepping.
 
-The comfort model is a simple **18–24 °C temperature band**. It is not PMV/PPD, CFD, or a full humidity-coupled comfort model.
+The comfort model is a simple **18–24 °C temperature band**. It is not PMV/PPD, CFD, or a humidity-coupled comfort model.
 
----
-
-## 🧱 Materials & Climate Data
-
-### Materials
-
-`data/materials/materials.json` stores properties such as:
-
-- thermal conductivity
-- density
-- specific heat
-- emissivity
-- solar absorptivity
-- indicative cost
-- source/notes
-
-`data/materials/glazing.json` contains glazing metadata. The active simulation also defines its runtime glazing presets in `services/simulation_service.py`.
-
-### Climate
-
-The active simulation reads local EPW files:
-
-```text
-data/weather/
-├── leh.epw
-├── chennai.epw
-├── delhi.epw
-├── jaisalmer.epw
-└── bengaluru.epw
-```
-
-Weather is therefore **bundled/local**, not fetched from a live API.
-
----
-
-## 🧠 Optimization & Recommendations
-
-The current optimization system uses **Optuna's TPE sampler**.
-
-It searches combinations of:
-
-- insulation thickness
-- window area
-- wall material
-- glazing
-- orientation
-
-The objective is to minimize simulated **discomfort degree-hours** for the selected scenario.
-
-The recommendation layer in `services/recommender.py` uses **deterministic climate rules** and then integrates optimization results. It is not a trained machine-learning model.
-
----
-
-## ⭐ USP
-
-ThermoShelter AI combines several early-stage design tasks in one workflow:
-
-> **Climate-aware recommendation + physics-based screening + optimization + material comparison + 2D/3D visualization**
-
-The emphasis is on **fast and explainable design exploration**, rather than replacing professional engineering tools.
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Technology |
-|---|---|
-| UI | Streamlit |
-| Language | Python |
-| Visualization | Plotly |
-| Numerical computing | NumPy |
-| Data handling | Pandas |
-| Weather parsing | pvlib |
-| Optimization | Optuna |
-| Testing | pytest |
-| Data | JSON, CSV, EPW |
+**All thermal outputs are simulated/predicted values — none are field measurements.**
 
 ---
 
 ## 🏛️ Architecture
 
+Two-process architecture:
+
 ```text
-                    Streamlit UI
-                         │
-        ┌────────────────┼────────────────┐
-        ↓                ↓                ↓
-   Climate/Data     Recommender      Optimizer
-        │                │                │
-        └────────────────┼────────────────┘
-                         ↓
-                Thermal Simulation
-                         │
-          ┌──────────────┼──────────────┐
-          ↓              ↓              ↓
-       Thermal         Solar        Ventilation
-          │              │              │
-          └──────────────┼──────────────┘
-                         ↓
-                 Results & Metrics
-                         │
-                 ┌───────┴───────┐
-                 ↓               ↓
-             Plotly 2D        Plotly 3D
+React Design Studio (thermoshelter-design-studio, Vite dev server, port 5173)
+        │  /api proxy (vite.config.js → http://127.0.0.1:8000)
+        ↓
+FastAPI Backend (backend/main.py, port 8000)
+        │
+        ├── backend/climate_routes.py        → location → weather → ClimateProfile → passive strategy
+        ├── backend/simulation_routes.py     → canonical simulation (Forward Euler + ISO 6946)
+        └── backend/optimization_routes.py   → Optuna TPE search + candidate feasibility
+        │
+        └── services/ (physics, climate, geometry, contracts, optimization engines)
 ```
+
+Canonical data flow (single source of truth — the `ShelterDesign` contract):
+
+```text
+ShelterDesign → Simulation → Optimization → Candidate → Apply
+             → Blueprint → 3D Twin → Engineering Report
+```
+
+Every stage renders from the same canonical design object; no stage invents conflicting geometry, material, or opening values.
 
 ---
 
@@ -221,72 +87,97 @@ The emphasis is on **fast and explainable design exploration**, rather than repl
 
 ```text
 sih-area-specific-shelter/
-├── app.py
-├── data_loader.py
+├── backend/                  # FastAPI application and route modules
+├── services/                 # Physics/climate/geometry/optimization engines
 ├── data/
 │   ├── climate/
-│   ├── materials/
+│   ├── materials/            # materials.json, glazing.json
 │   ├── shelters/
-│   └── weather/
-├── services/
-│   ├── climate_service.py
-│   ├── comfort.py
-│   ├── formulas.py
-│   ├── geometry.py
-│   ├── material_service.py
-│   ├── optimize.py
-│   ├── recommender.py
-│   ├── simulation_service.py
-│   ├── solar.py
-│   ├── thermal.py
-│   ├── ventilation.py
-│   ├── visual3d.py
-│   └── tests/
-├── docs/
+│   └── weather/              # bundled EPW benchmark files (leh, jaisalmer, delhi, …)
+├── tests/                    # pytest suite (backend + contracts)
 ├── scripts/
-└── README.md
+│   ├── start-dev.ps1         # two-process dev launcher (Windows)
+│   └── validate_data.py
+├── docs/                     # equations.md, data_dictionary.md, engine specs
+└── thermoshelter-design-studio/   # React + TypeScript + Vite + Tailwind frontend
+    └── src/
+        ├── components/       # stage UIs (design, simulation, blueprint, 3D, report…)
+        ├── services/         # typed API client, report model, artifact capture
+        ├── store/            # canonical studio state
+        └── report/           # A4 print stylesheet
 ```
 
 ---
 
 ## 💻 Installation & Run
 
-Create a virtual environment:
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+
+### 1. Backend dependencies
 
 ```bash
-python -m venv .venv
+pip install -r requirements.txt
 ```
 
-Activate it, then install the current dependencies:
+### 2. Frontend dependencies
 
 ```bash
-python -m pip install streamlit plotly numpy pandas pvlib optuna pytest
+cd thermoshelter-design-studio
+npm install
 ```
 
-Run the application:
+### 3. Start the backend
 
 ```bash
-streamlit run app.py
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
+
+### 4. Start the frontend (in a second terminal)
+
+```bash
+cd thermoshelter-design-studio
+npm run dev
+```
+
+Then open **http://localhost:5173**.
+
+### One-command launcher (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start-dev.ps1
+```
+
+### 5. API health check
+
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+The frontend also shows live backend status in its context strip ("Backend" indicator).
 
 ---
 
-## 🧪 Validation & Testing
+## 🧪 Testing
 
-The repository includes:
-
-- formula unit tests
-- thermal simulation tests
-- 3D visualization tests
-- dataset validation through `scripts/validate_data.py`
-
-Run tests:
+Backend (pytest, from the repository root):
 
 ```bash
-python -m pytest services/tests
+python -m pytest
 ```
 
-Validate datasets:
+Frontend (Vitest + TypeScript check + production build):
+
+```bash
+cd thermoshelter-design-studio
+npm test
+npx tsc --noEmit
+npm run build
+```
+
+Dataset validation:
 
 ```bash
 python scripts/validate_data.py
@@ -296,19 +187,20 @@ No unsupported accuracy or performance percentage is claimed here.
 
 ---
 
-## ⚠️ Limitations
+## ⚠️ Current Limitations
 
 The current prototype is intentionally simplified:
 
-- single-zone reduced-order thermal model
-- 168-hour simulation horizon in the main UI workflows
-- simplified radiation and solar modelling
-- simplified ventilation/infiltration treatment
-- simple 18–24 °C comfort band
-- bundled weather data only
-- limited active location coverage
+- single-zone reduced-order thermal model (1D Forward Euler)
+- 168-hour simulation horizon in the main workflows
+- simplified radiation, solar and ventilation/infiltration modelling
+- simple 18–24 °C comfort band (not PMV/PPD)
+- rectangular shape is physics-backed; cylindrical/dome/pyramid shapes are **visualization-only** (they do not reach the thermal engine)
+- geometry search uses **proposed prototype optimization bounds** (4–10 m length, 3–6 m width, 2.4–4.0 m clear height, aspect ratio ≤ 3.0) — these are prototype assumptions, not DRDO/regulatory/ISO requirements
+- shape optimization and continuous geometry optimization are **not currently implemented**
+- weather is model-derived (Open-Meteo NWP analysis / forecast / historical reanalysis / bundled design data) — **not measured on-site sensor data**
+- **no ANSYS/CFD/FEM integration** and no physical sensor validation; ANSYS-class high-fidelity verification remains a future pathway
 - no field calibration
-- no high-fidelity CFD/building simulation
 
 Therefore, ThermoShelter AI is for **early-stage design exploration and decision support**, not final engineering certification or construction approval.
 
@@ -322,23 +214,10 @@ Planned upgrades include:
 - more climate locations
 - improved solar and thermal-mass modelling
 - humidity and adaptive comfort modelling
-- multi-objective optimization
-- measured-field calibration
-- high-fidelity simulation verification
-- live climate-data integrations
-- CAD/BIM and report export
+- high-fidelity verification (e.g. ANSYS/CFD) and measured-field calibration
+- CAD/BIM export
 
 These are **future capabilities**, not current features.
-
----
-
-## 🌱 Sustainability Impact
-
-The project aims to support more climate-responsive shelter design by making passive alternatives easier to compare before construction.
-
-Potential benefits include better envelope decisions, greater use of passive strategies, fewer early design iterations, and improved climate resilience.
-
-No measured carbon or energy-savings percentage is claimed by the current prototype.
 
 ---
 
@@ -385,14 +264,6 @@ Project-specific equations and data definitions are documented in `docs/equation
 ## ⚖️ Disclaimer
 
 ThermoShelter AI provides **simulation-based estimates for early-stage design exploration**. Results depend on model assumptions and supplied data and should not be treated as structural, HVAC, fire-safety, building-code, or professional engineering certification.
-
----
-
-## 🔭 Long-Term Vision
-
-Build an evidence-backed platform that moves from:
-
-**Climate Data → Rapid Screening → Optimization → High-Fidelity Verification → Field Validation → Climate-Specific Shelter Design Guidance**
 
 ---
 
