@@ -669,7 +669,7 @@ export default function ReportStage() {
                 </div>
               ) : (
                 <p className="mt-3 text-xs text-slate-500 italic">
-                  Run a baseline simulation to compare this design — no baseline metrics are shown.
+                  No baseline metrics yet — a real baseline simulation of the current design runs automatically with the next optimization.
                 </p>
               )}
               <div className="mt-4 border-t border-slate-800 pt-3">

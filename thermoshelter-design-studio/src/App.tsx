@@ -210,6 +210,10 @@ function ContextStripBinding() {
 
   const provenance = activeWeatherProvenance(climateProfile);
 
+  // Session 2: when a resolved climate profile is active, its canonical city
+  // is the authoritative location label — not the preset dropdown selection.
+  const resolvedLocation = climateProfile?.climate?.city ?? climate.location;
+
   // Authoritative classification: the backend strategy's climate_mode (annual
   // climatological profile). The climate dict's coarse climate_zone is a
   // provenance-only description of the current weather window — rendered with
@@ -221,7 +225,7 @@ function ContextStripBinding() {
   return (
     <ContextStrip
       data={{
-        location: climate.location,
+        location: resolvedLocation,
         climateZone: strategyMode,
         windowZoneLabel: windowZone,
         provenance,

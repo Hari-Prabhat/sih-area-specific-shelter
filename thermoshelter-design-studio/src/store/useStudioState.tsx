@@ -160,6 +160,10 @@ export interface SimulationState {
   result: UiSimulationResult | null;
   loading: boolean;
   error: string | null;
+  /** Batch 2A: the design/climate this result was computed from — used to
+   *  detect a stale baseline before offering candidate comparisons. */
+  design?: unknown;
+  climateProfile?: unknown;
 }
 
 export interface OptimizationState {
@@ -259,6 +263,18 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
   // Site & climate
   const [climate, setClimate] = useState<ClimateData>(climatePresets[0]);
   const [climateProfile, setClimateProfile] = useState<SimulationClimateProfile | null>(null);
+  // Session 2 stale-result hardening: a different climate profile invalidates
+  // simulation/optimization results computed against the previous weather.
+  // Wrapped in a useCallback so every consumer (ClimateInput, presets, tests)
+  // gets the invalidation for free instead of each caller remembering it.
+  const applyClimateProfile = useCallback(
+    (profile: SimulationClimateProfile | null) => {
+      setSimulation((prev) => ({ ...prev, result: null }));
+      setOptimization((prev) => ({ ...prev, result: null }));
+      setClimateProfile(profile);
+    },
+    [],
+  );
 
   // Mission
   const [mission, setMission] = useState<MissionConfig>(DEFAULT_MISSION);
@@ -385,7 +401,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
         mission.occupants,
         design.ach,
       );
-      setSimulation({ result, loading: false, error: null });
+      setSimulation({ result, loading: false, error: null, design, climateProfile });
       setStage('simulation');
     } catch (err) {
       setSimulation((prev) => ({
@@ -414,6 +430,39 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
         // insulation thickness (cm → m) — not a hardcoded 0.05 m.
         const insThick =
           insulation && insulation.name !== 'None' ? design.insulationThickness / 100.0 : 0.0;
+
+        const material = getMaterialByName(wallMaterial);
+        if (!material) {
+          throw new Error(
+            `Wall material "${wallMaterial}" is not resolvable to a simulation material. Select a wall material in the Design stage.`,
+          );
+        }
+
+        // Batch 2A: the comparison baseline is a REAL simulation of the
+        // current canonical design on the SAME climate profile and simulation
+        // path the candidates use — never synthetic values. Run it here when
+        // missing or stale (design/climate changed since the last run), so
+        // "Baseline: …" deltas are always physically comparable.
+        const baselineIsStale = baselineIsOutOfDate(
+          simulation.result,
+          design,
+          climateProfile,
+        );
+        let baselineResult = simulation.result;
+        if (baselineIsStale) {
+          const baseline = await runSimulationViaApi(
+            climate,
+            design,
+            material,
+            insulation,
+            168,
+            climateProfile ?? undefined,
+            mission.occupants,
+            design.ach,
+          );
+          baselineResult = baseline;
+          setSimulation({ result: baseline, loading: false, error: null, design, climateProfile });
+        }
 
         const result = await runOptimizationViaApi({
           city: cityName,
@@ -525,7 +574,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       setStage,
       setExpertMode,
       setClimate,
-      setClimateProfile,
+      setClimateProfile: applyClimateProfile,
       setMissionField,
       togglePriority,
       setDesignField,
@@ -574,6 +623,23 @@ export function useStudioState(): StudioStore {
 // ---------------------------------------------------------------------------
 // Derived selectors
 // ---------------------------------------------------------------------------
+
+/**
+ * Batch 2A: pure staleness contract for the optimization comparison baseline.
+ * A stored simulation result is a valid baseline ONLY when it was computed
+ * from the exact same canonical ShelterDesign object and ClimateProfile that
+ * optimization is about to run on. Any new design object (geometry, envelope,
+ * material, glazing, orientation, thermal mass, ACH, door — any design edit)
+ * or a different climate profile invalidates the baseline. Identity comparison
+ * is sufficient because every design edit produces a new canonical object.
+ */
+export function baselineIsOutOfDate(
+  result: { design?: unknown; climateProfile?: unknown } | null | undefined,
+  design: unknown,
+  climateProfile: unknown,
+): boolean {
+  return !result || result.design !== design || result.climateProfile !== climateProfile;
+}
 
 /** Provenance of the active weather dataset (or null when using presets only). */
 export function activeWeatherProvenance(profile: SimulationClimateProfile | null): ProvenanceValue | null {

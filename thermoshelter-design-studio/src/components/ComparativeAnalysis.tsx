@@ -611,7 +611,7 @@ export default function ComparativeAnalysis({
                   {!baseline.hasBaseline && (
                     <p className="mt-4 flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                       <Info className="w-3.5 h-3.5 shrink-0" />
-                      Run a baseline simulation (Design stage → Run Simulation) to compare these results against your current design.
+                      No baseline comparison yet — a real simulation of the current design runs automatically with your next optimization, or run one now from the Design stage.
                     </p>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-indigo-500/20">

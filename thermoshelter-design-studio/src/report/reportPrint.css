@@ -114,6 +114,21 @@
     page-break-inside: avoid;
   }
 
+  /* Keep headings with the content that follows them (no orphaned titles). */
+  .report-section h2,
+  .report-section h3,
+  .report-section h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Charts/figures scale to the printable width without clipping. */
+  .report-figure svg,
+  .report-section svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
   /* Captured Blueprint SVG: white plate, no app chrome. */
   .report-figure > div {
     background: #ffffff !important;

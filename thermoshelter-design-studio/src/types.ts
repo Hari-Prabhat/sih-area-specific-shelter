@@ -76,4 +76,9 @@ export interface SimulationResult {
   hourlyTemperatures: number[];
   monthlyTemperatures: number[];
   recommendedImprovements: string[];
+  /** Batch 2A: provenance of THIS result — the exact design/climate objects
+   *  it was computed from, so consumers can detect staleness. Set by the
+   *  store when a result arrives; not part of the API payload. */
+  design?: unknown;
+  climateProfile?: unknown;
 }

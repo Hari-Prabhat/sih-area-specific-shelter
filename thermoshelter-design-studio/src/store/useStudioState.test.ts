@@ -15,6 +15,7 @@ import {
   glazingToUi,
   candidateDesignPatch,
   PROTOTYPE_GEOMETRY_BOUNDS,
+  baselineIsOutOfDate,
 } from './useStudioState';
 import { activeWeatherProvenance } from './useStudioState';
 import type { CanonicalOptimizationCandidate, SimulationClimateProfile } from '../services/api';
@@ -147,6 +148,35 @@ describe('D4-A WP2: candidate → design insulation-thickness restoration', () =
     const patch = candidateDesignPatch(baseDesign, candidate({ thermal_mass_level: 'medium' }));
     expect(patch.thermalMassEnabled).toBe(true);
     expect(patch.thermalMassThickness).toBe(10);
+  });
+});
+
+describe('Batch 2A: baseline staleness contract', () => {
+  const designA = { length: 6, width: 4, height: 3 };
+  const designB = { length: 4.7, width: 3, height: 3.1 };
+  const climateA = { climate: { city: 'leh' } };
+  const climateB = { climate: { city: 'jaisalmer' } };
+  const result = { design: designA, climateProfile: climateA };
+
+  it('treats a missing result as stale (nothing to compare against)', () => {
+    expect(baselineIsOutOfDate(null, designA, climateA)).toBe(true);
+    expect(baselineIsOutOfDate(undefined, designA, climateA)).toBe(true);
+  });
+
+  it('accepts a result from the exact same design and climate objects', () => {
+    expect(baselineIsOutOfDate(result, designA, climateA)).toBe(false);
+  });
+
+  it('invalidates when the design changed (geometry/envelope/material/glazing/orientation/mass/ACH/door)', () => {
+    expect(baselineIsOutOfDate(result, designB, climateA)).toBe(true);
+  });
+
+  it('invalidates when the climate profile changed (location/mode/provenance)', () => {
+    expect(baselineIsOutOfDate(result, designA, climateB)).toBe(true);
+  });
+
+  it('invalidates when provenance is absent from an older result', () => {
+    expect(baselineIsOutOfDate({ design: designA }, designA, climateA)).toBe(true);
   });
 });
 

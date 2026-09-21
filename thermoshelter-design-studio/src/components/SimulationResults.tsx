@@ -184,7 +184,9 @@ export default function SimulationResults({
               )}
             </div>
             <p className="text-sm text-slate-400">
-              {climateData.location} | {materialName} | {shelterDesign.shape} ({shelterDesign.length}×{shelterDesign.width}×{shelterDesign.height}m)
+              {/* Batch 2B/Session 2: when a resolved climate profile is active,
+                  its canonical location is authoritative over the preset label. */}
+              {climateProfile?.climate?.city ?? climateData.location} | {materialName} | {shelterDesign.shape} ({shelterDesign.length}×{shelterDesign.width}×{shelterDesign.height}m)
             </p>
           </div>
         </div>

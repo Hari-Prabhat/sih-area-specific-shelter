@@ -97,7 +97,13 @@ export default function ClimateInput({ climateData, setClimateData, climateProfi
           {climatePresets.map((preset) => (
             <button
               key={preset.location}
-              onClick={() => setClimateData({ ...preset })}
+              onClick={() => {
+                // Session 2: switching to a design preset invalidates any live
+                // climate profile AND the results computed from it — the
+                // preset path must stay honestly labelled as preset-only.
+                if (climateProfile) onProfileChange?.(null);
+                setClimateData({ ...preset });
+              }}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
                 climateData.location === preset.location
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
