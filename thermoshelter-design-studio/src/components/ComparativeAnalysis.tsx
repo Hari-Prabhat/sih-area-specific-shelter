@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Loader2,
   AlertCircle,
+  Ruler,
 } from 'lucide-react';
 import {
   BarChart,
@@ -78,7 +79,9 @@ interface ComparativeAnalysisProps {
   onRunOptimization?: (
     weights?: { comfort: number; efficiency: number; solar: number },
     nTrials?: number,
-    homeType?: string
+    homeType?: string,
+    // Batch 1-A: progressive-disclosure geometry search (fixed prototype bounds).
+    optimizeGeometry?: boolean
   ) => Promise<void>;
   onApplyCandidate?: (candidate: CanonicalOptimizationCandidate) => void;
   onNavigateToDesign?: () => void;
@@ -108,6 +111,9 @@ export default function ComparativeAnalysis({
   const [weights, setWeights] = useState({ comfort: 0.5, efficiency: 0.3, solar: 0.2 });
   const [nTrials, setNTrials] = useState<number>(20);
   const [homeType, setHomeType] = useState<'Permanent' | 'Temporary'>('Permanent');
+  // Batch 1-A: geometry+envelope search is OPT-IN. Default preserves the
+  // pre-D5 fixed-geometry workflow exactly (no geometry fields sent).
+  const [optimizeGeometry, setOptimizeGeometry] = useState<boolean>(false);
   const [selectedCandidate, setSelectedCandidate] = useState<CanonicalOptimizationCandidate | null>(null);
   const [previewCandidateDesign, setPreviewCandidateDesign] = useState<ShelterDesign | null>(null);
   const [appliedCandidateRank, setAppliedCandidateRank] = useState<number | null>(null);
@@ -151,7 +157,7 @@ export default function ComparativeAnalysis({
   const handleTriggerOptimization = async () => {
     if (onRunOptimization) {
       setAppliedCandidateRank(null);
-      await onRunOptimization(weights, nTrials, homeType);
+      await onRunOptimization(weights, nTrials, homeType, optimizeGeometry);
     }
   };
 
@@ -169,6 +175,13 @@ export default function ComparativeAnalysis({
     // Build a ShelterDesign representation for previewing
     const previewDesign: ShelterDesign = {
       ...shelterDesign,
+      // Batch 1-B: carry the candidate's own geometry when it reports one,
+      // so the preview reflects the simulated envelope.
+      ...(typeof candidate.length_m === 'number' &&
+      typeof candidate.width_m === 'number' &&
+      typeof candidate.height_m === 'number'
+        ? { length: candidate.length_m, width: candidate.width_m, height: candidate.height_m }
+        : {}),
       wallThickness: candidate.insulation_thickness_m > 0 ? shelterDesign.wallThickness : 0.3,
       windowArea: candidate.window_area_m2,
       windowGlazing: (candidate.glazing.includes('triple')
@@ -452,11 +465,61 @@ export default function ComparativeAnalysis({
               </div>
             </div>
 
+            {/* Batch 1-A: geometry + envelope search (progressive disclosure, opt-in) */}
+            <div className="border border-slate-700/40 rounded-xl bg-slate-900/40">
+              <label className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 cursor-pointer">
+                <span className="flex items-center gap-2.5">
+                  <Ruler className="w-4 h-4 text-violet-400" aria-hidden="true" />
+                  <span>
+                    <span className="text-sm font-semibold text-white">Optimize Geometry + Envelope</span>
+                    <span className="block text-[11px] text-slate-400">
+                      Adds length, width and clear height to the search alongside the six envelope dimensions.
+                    </span>
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={optimizeGeometry}
+                  onChange={(e) => setOptimizeGeometry(e.target.checked)}
+                  aria-label="Optimize geometry and envelope"
+                  className="w-4 h-4 accent-violet-500 focus-visible:ring-2 focus-visible:ring-violet-400"
+                />
+              </label>
+              {optimizeGeometry && (
+                <div className="px-4 pb-3 pt-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    <span className="text-slate-400">Length:</span>
+                    <span className="font-mono text-slate-200">4.0–10.0 m</span>
+                    <span className="text-slate-400">Width:</span>
+                    <span className="font-mono text-slate-200">3.0–6.0 m</span>
+                    <span className="text-slate-400">Height:</span>
+                    <span className="font-mono text-slate-200">2.4–4.0 m</span>
+                    <span className="text-slate-400">Aspect ratio:</span>
+                    <span className="font-mono text-slate-200">≤ 3.0</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/30 text-[10px] font-semibold text-violet-300 uppercase tracking-wider">
+                      Prototype optimization bounds
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Engineering assumptions for this prototype — not DRDO, regulatory or ISO requirements.
+                    </span>
+                  </div>
+                  {nTrials < 30 && (
+                    <p className="text-[11px] text-amber-300/90 flex items-center gap-1.5" role="note">
+                      <Info className="w-3.5 h-3.5" aria-hidden="true" />
+                      Geometry search benefits from 30+ trials.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Launch CTA */}
             <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <Info className="w-4 h-4 text-indigo-400" />
-                <span>Runs Python TPE sampler across insulation thickness (0–200mm), fenestration (1–12m²), wall substrates, & orientation.</span>
+                <span>Runs Python TPE sampler across insulation thickness (0–200mm), fenestration (1–12m²), wall substrates, & orientation{optimizeGeometry ? ', plus shelter geometry (L×W×H within the prototype bounds)' : ''}.</span>
               </div>
 
               <Button
@@ -506,6 +569,16 @@ export default function ComparativeAnalysis({
                       <h3 className="text-2xl font-bold text-white">
                         {optimizationResult.recommended_design.wall_material_name} + {optimizationResult.recommended_design.insulation_mm}mm Insulation
                       </h3>
+                      {typeof optimizationResult.recommended_design.length_m === 'number' &&
+                        typeof optimizationResult.recommended_design.width_m === 'number' &&
+                        typeof optimizationResult.recommended_design.height_m === 'number' && (
+                          <p className="text-xs text-violet-300 font-medium">
+                            Geometry: {optimizationResult.recommended_design.length_m.toFixed(1)} × {optimizationResult.recommended_design.width_m.toFixed(1)} × {optimizationResult.recommended_design.height_m.toFixed(1)} m
+                            {typeof optimizationResult.recommended_design.floor_area_m2 === 'number'
+                              ? ` · ${optimizationResult.recommended_design.floor_area_m2.toFixed(1)} m² floor`
+                              : ''}
+                          </p>
+                        )}
                       <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
                         {optimizationResult.recommended_design.rationale}
                       </p>
@@ -628,6 +701,12 @@ export default function ComparativeAnalysis({
                   </h3>
                   <span className="text-xs text-slate-400">
                     Evaluated over {optimizationResult.n_trials} trials via 168-hour forward Euler model
+                    {/* Batch 1-B: honest disclosure of pre-simulation feasibility rejections. */}
+                    {typeof optimizationResult.n_pruned === 'number' && optimizationResult.n_pruned > 0 && (
+                      <span className="text-slate-500">
+                        {' '}· {optimizationResult.n_pruned} infeasible candidate{optimizationResult.n_pruned === 1 ? '' : 's'} rejected before simulation
+                      </span>
+                    )}
                   </span>
                 </div>
 
@@ -705,6 +784,18 @@ export default function ComparativeAnalysis({
                               <span className="font-medium text-white">{c.floor_area_m2.toFixed(1)} m²</span>
                             </div>
                           )}
+                          {typeof c.surface_to_volume_ratio === 'number' && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Surface / Volume:</span>
+                              <span className="font-medium text-white">{c.surface_to_volume_ratio.toFixed(2)} 1/m</span>
+                            </div>
+                          )}
+                          {c.thermal_mass_level && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Thermal Mass:</span>
+                              <span className="font-medium text-orange-300 capitalize">{c.thermal_mass_level}</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Card Metrics Mini-Grid */}
@@ -716,6 +807,16 @@ export default function ComparativeAnalysis({
                           <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-700/30">
                             <span className="text-[10px] text-slate-400 block">Heating Demand</span>
                             <span className="text-sm font-bold text-blue-400">{Math.round(c.heating_demand_kwh)} kWh</span>
+                          </div>
+                          {typeof c.cooling_demand_kwh === 'number' && (
+                            <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-700/30">
+                              <span className="text-[10px] text-slate-400 block">Cooling Demand</span>
+                              <span className="text-sm font-bold text-rose-400">{Math.round(c.cooling_demand_kwh)} kWh</span>
+                            </div>
+                          )}
+                          <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-700/30">
+                            <span className="text-[10px] text-slate-400 block">Solar Gain</span>
+                            <span className="text-sm font-bold text-amber-400">{Math.round(c.solar_gain_kwh)} kWh</span>
                           </div>
                         </div>
 

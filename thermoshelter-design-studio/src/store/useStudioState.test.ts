@@ -14,6 +14,7 @@ import {
   orientationToDegrees,
   glazingToUi,
   candidateDesignPatch,
+  PROTOTYPE_GEOMETRY_BOUNDS,
 } from './useStudioState';
 import { activeWeatherProvenance } from './useStudioState';
 import type { CanonicalOptimizationCandidate, SimulationClimateProfile } from '../services/api';
@@ -293,5 +294,30 @@ describe('D5-A: candidate geometry carry-through', () => {
     expect(applied.length).toBe(8.3);
     expect(applied.width).toBe(3.0);
     expect(applied.height).toBe(4.0);
+  });
+});
+
+describe('prototype geometry bounds (Batch 1-A)', () => {
+  it('exposes exactly the approved D5-B prototype bounds', () => {
+    // These are the approved PROPOSED PROTOTYPE OPTIMIZATION BOUNDS — the UI
+    // presents them read-only and the store sends them only when geometry
+    // search is explicitly enabled. Changing them requires re-approval.
+    expect(PROTOTYPE_GEOMETRY_BOUNDS).toEqual({
+      min_length_m: 4.0,
+      max_length_m: 10.0,
+      min_width_m: 3.0,
+      max_width_m: 6.0,
+      min_height_m: 2.4,
+      max_height_m: 4.0,
+      max_aspect_ratio: 3.0,
+    });
+    // Every bound is finite and positive; min <= max per dimension.
+    for (const [k, v] of Object.entries(PROTOTYPE_GEOMETRY_BOUNDS)) {
+      expect(Number.isFinite(v), k).toBe(true);
+      expect(v).toBeGreaterThan(0);
+    }
+    expect(PROTOTYPE_GEOMETRY_BOUNDS.min_length_m).toBeLessThanOrEqual(PROTOTYPE_GEOMETRY_BOUNDS.max_length_m);
+    expect(PROTOTYPE_GEOMETRY_BOUNDS.min_width_m).toBeLessThanOrEqual(PROTOTYPE_GEOMETRY_BOUNDS.max_width_m);
+    expect(PROTOTYPE_GEOMETRY_BOUNDS.min_height_m).toBeLessThanOrEqual(PROTOTYPE_GEOMETRY_BOUNDS.max_height_m);
   });
 });

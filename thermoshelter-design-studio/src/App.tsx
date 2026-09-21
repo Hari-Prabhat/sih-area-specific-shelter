@@ -22,6 +22,10 @@ import { WORKFLOW_STAGES, WorkflowStage } from './theme/tokens';
 const SimulationResults = lazy(() => import('./components/SimulationResults'));
 const ComparativeAnalysis = lazy(() => import('./components/ComparativeAnalysis'));
 const EngineeringBlueprint = lazy(() => import('./components/EngineeringBlueprint'));
+// D5 batch 1: the dedicated 3D stage renders the real digital twin (same
+// component the Design stage hosts) from canonical state — no duplicate 3D.
+const ShelterModel3D = lazy(() => import('./components/ShelterModel3D'));
+const TwinStage = lazy(() => import('./components/TwinStage'));
 
 /** Renders the stage's working content, or an honest placeholder for later phases. */
 function StageRouter() {
@@ -41,7 +45,7 @@ function StageRouter() {
     case 'passive-strategy':
       return <PassiveStrategyStage />;
     case 'digital-twin':
-      return <DeferredStage stage={stage} />;
+      return <TwinStage />;
     // D4-D: the Engineering Report is a real stage composed from canonical state.
     case 'report':
       return <ReportStage />;

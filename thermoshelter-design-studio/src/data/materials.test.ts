@@ -27,6 +27,7 @@ import {
   MATERIAL_BACKEND_MAP,
   CANONICAL_ALIASES,
   getMaterialByName,
+  getUiNameByBackendId,
   resolveBackendMaterialId,
   wallMaterialKey,
 } from './materials';
@@ -176,5 +177,37 @@ describe('getMaterialByName canonical aliases', () => {
 
   it('returns undefined for unknown names (honest failure, no invention)', () => {
     expect(getMaterialByName('Unobtanium')).toBeUndefined();
+  });
+
+  it('Batch 1-B: backend material keys round-trip back to a UI option', () => {
+    // Apply Candidate stores the candidate's material as a UI name. The
+    // round-trip key -> UI name -> key must be identity for every backend ID
+    // the optimizer can echo (wall_material), otherwise the applied design
+    // silently breaks the next Run Simulation (Batch 1-G regression).
+    const backendIds = new Set(
+      materials
+        .filter((m) => m.category !== 'Insulation')
+        .map((m) => resolveBackendMaterialId(m.name))
+        .filter((id): id is string => !!id),
+    );
+    expect(backendIds.size).toBeGreaterThan(5);
+    for (const id of backendIds) {
+      const uiName = getUiNameByBackendId(id);
+      expect(uiName, `backend id ${id}`).not.toBeNull();
+      expect(resolveBackendMaterialId(uiName!), `round trip ${id}`).toBe(id);
+      // And the restored name must resolve through getMaterialByName (the
+      // exact lookup runSimulation performs before every payload).
+      expect(getMaterialByName(uiName!), `lookup for ${uiName}`).toBeDefined();
+    }
+  });
+
+  it('Batch 1-B: the optimizer echo name maps to a resolvable UI material', () => {
+    // "Rammed Earth (Stabilized / Unstabilized)" is the backend display name
+    // echoed by wall_material_name — NOT a UI option. The candidate's
+    // wall_material KEY ('rammed_earth') must restore 'Rammed Earth (Stabilized)'.
+    expect(getUiNameByBackendId('rammed_earth')).toBe('Rammed Earth (Stabilized)');
+    expect(getMaterialByName(getUiNameByBackendId('rammed_earth')!)).toBeDefined();
+    expect(getUiNameByBackendId('brick')).toBe('Brick (Solid)');
+    expect(getUiNameByBackendId('not_a_real_id')).toBeNull();
   });
 });

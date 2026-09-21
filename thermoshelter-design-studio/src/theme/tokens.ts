@@ -47,7 +47,7 @@ export const WORKFLOW_STAGES: StageDefinition[] = [
   { id: 'simulation', shortLabel: 'Simulation', fullLabel: 'Thermal Simulation', available: true },
   { id: 'optimization', shortLabel: 'Optimization', fullLabel: 'Optimization', available: true },
   { id: 'blueprint', shortLabel: 'Blueprint', fullLabel: 'Engineering Blueprint', available: true },
-  { id: 'digital-twin', shortLabel: '3D', fullLabel: '3D Digital Twin', available: false },
+  { id: 'digital-twin', shortLabel: '3D', fullLabel: '3D Digital Twin', available: true },
   // D4-D: the Engineering Report is a live stage composed from canonical state.
   { id: 'report', shortLabel: 'Report', fullLabel: 'Engineering Report', available: true },
 ];

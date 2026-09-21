@@ -31,7 +31,7 @@ import {
   runSimulationViaApi,
 } from '../services/api';
 import { climatePresets } from '../data/climatePresets';
-import { getMaterialByName, wallMaterialKey } from '../data/materials';
+import { getMaterialByName, getUiNameByBackendId, wallMaterialKey } from '../data/materials';
 import { DATA_MODE_PROVENANCE, ProvenanceValue, WORKFLOW_STAGES, WorkflowStage } from '../theme/tokens';
 
 // ---------------------------------------------------------------------------
@@ -82,6 +82,23 @@ const THERMAL_MASS_LEVEL_THICKNESS_CM: Record<string, number> = {
   medium: 10,
   high: 20,
 };
+
+/**
+ * Batch 1-A: the approved D5-B prototype geometry-search bounds. These are
+ * PROPOSED PROTOTYPE OPTIMIZATION BOUNDS - engineering assumptions supplied
+ * for the demo, NOT DRDO/regulatory/ISO requirements. The UI presents them
+ * read-only; the backend re-validates every value.
+ */
+export const PROTOTYPE_GEOMETRY_BOUNDS = {
+  min_length_m: 4.0,
+  max_length_m: 10.0,
+  min_width_m: 3.0,
+  max_width_m: 6.0,
+  min_height_m: 2.4,
+  max_height_m: 4.0,
+  // Orientation-independent aspect ratio max(L/W, W/L) cap.
+  max_aspect_ratio: 3.0,
+} as const;
 
 export function massLevelToDesignMass(level: string | null | undefined): {
   thermalMassEnabled: boolean;
@@ -340,7 +357,16 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
   const runSimulation = useCallback(async () => {
     const material = getMaterialByName(wallMaterial);
     const insulation = getMaterialByName(design.insulationType);
-    if (!material) return;
+    // Batch 1-G: an unresolvable wall material is an honest error, never a
+    // silent no-op (previously the button appeared dead with no feedback).
+    if (!material) {
+      setSimulation((prev) => ({
+        ...prev,
+        loading: false,
+        error: `Wall material "${wallMaterial}" is not resolvable to a simulation material. Select a wall material in the Design stage.`,
+      }));
+      return;
+    }
     setSimulation((prev) => ({ ...prev, loading: true, error: null }));
     try {
       // Authoritative Python thermal simulation via FastAPI. When a live/
@@ -375,6 +401,9 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       weights?: { comfort: number; efficiency: number; solar: number },
       nTrials?: number,
       homeType?: string,
+      // Batch 1-A: progressive-disclosure geometry search. Undefined/false
+      // keeps the exact pre-D5 fixed-geometry request (no geometry fields).
+      optimizeGeometry?: boolean,
     ) => {
       setOptimization((prev) => ({ ...prev, loading: true, error: null }));
       try {
@@ -418,6 +447,9 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
           // fetched, the optimizer evaluates candidates against the SAME real
           // weather the direct simulation uses (one climate source of truth).
           ...(climateProfile ? { climate: climateProfile.climate } : {}),
+          // Batch 1-A: only when the user explicitly enables geometry search.
+          // Bounds are the approved prototype bounds (PROTOTYPE_GEOMETRY_BOUNDS).
+          ...(optimizeGeometry ? { optimize_geometry: true, ...PROTOTYPE_GEOMETRY_BOUNDS } : {}),
         });
 
         setOptimization((prev) => ({
@@ -453,7 +485,11 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
    */
   const applyCandidate = useCallback(
     (candidate: CanonicalOptimizationCandidate) => {
-      setWallMaterial(candidate.wall_material_name);
+      // Batch 1-B/1-G: restore the UI material from the candidate's backend
+      // KEY (authoritative payload value) — the display name
+      // ("Rammed Earth (Stabilized / Unstabilized)") is not a UI option and
+      // left runSimulation's material lookup silently unresolved.
+      setWallMaterial(getUiNameByBackendId(candidate.wall_material) ?? candidate.wall_material_name);
       setDesign((prev) => ({
         ...prev,
         ...candidateDesignPatch(prev, candidate),

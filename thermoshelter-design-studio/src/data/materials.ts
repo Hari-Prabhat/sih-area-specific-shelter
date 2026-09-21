@@ -128,6 +128,22 @@ export const materials: MaterialProperties[] = [
   { name: 'Rock Wool', thermalConductivity: 0.038, density: 60, specificHeat: 1030, emissivity: 0.9, solarAbsorptance: 0.5, cost: 350, category: 'Insulation' },
 ];
 
+/**
+ * Batch 1-B: inverse mapping from a backend material ID (e.g. the optimizer's
+ * `wall_material` key, echoed in `wall_material_name`) back to the designer's
+ * UI selection. Apply Candidate must restore the canonical UI material the
+ * payload will re-send; a backend display name that is not a UI option
+ * (e.g. "Rammed Earth (Stabilized / Unstabilized)") previously left the store
+ * holding an unresolvable name, silently breaking the next Run Simulation.
+ */
+export function getUiNameByBackendId(backendId: string | null | undefined): string | null {
+  if (!backendId) return null;
+  for (const [uiName, entry] of Object.entries(MATERIAL_BACKEND_MAP)) {
+    if (entry.backendId === backendId) return uiName;
+  }
+  return null;
+}
+
 export function getMaterialByName(name: string): MaterialProperties | undefined {
   if (!name) return undefined;
   const canonical = CANONICAL_ALIASES[name] ?? name;
