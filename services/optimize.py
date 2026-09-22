@@ -912,6 +912,176 @@ def run_optimization(
     }
 
 
+# =====================================================================
+# DUAL-OPTIMIZATION OUTPUT: COMFORT-FIRST RECOMMENDATION PASS
+# =====================================================================
+
+def run_comfort_first_recommendation(
+    city: Optional[Union[str, OptimizationInput, Dict[str, Any]]] = None,
+    home_type: str = "Permanent",
+    length: float = 4.0,
+    width: float = 3.0,
+    height: float = 2.8,
+    wall_material: Optional[str] = None,
+    glazing: Optional[str] = None,
+    orientation: Optional[str] = None,
+    occupants: int = 2,
+    door_area: float = 2.0,
+    min_insulation_m: float = 0.0,
+    max_insulation_m: float = 0.20,
+    min_window_area: float = 0.5,
+    max_window_area: Optional[float] = None,
+    allowed_wall_materials: Optional[List[str]] = None,
+    allowed_glazings: Optional[List[str]] = None,
+    allowed_orientations: Optional[List[str]] = None,
+    n_trials: int = 20,
+    substeps: int = 15,
+    hours_to_simulate: int = 168,
+    climate_scenario: Optional[Dict[str, Any]] = None,
+    scenario_kind: Optional[str] = None,
+    optimize_geometry: bool = False,
+    min_length_m: Optional[float] = None,
+    max_length_m: Optional[float] = None,
+    min_width_m: Optional[float] = None,
+    max_width_m: Optional[float] = None,
+    min_height_m: Optional[float] = None,
+    max_height_m: Optional[float] = None,
+    min_aspect_ratio: Optional[float] = None,
+    max_aspect_ratio: Optional[float] = None,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """
+    COMFORT-FIRST RECOMMENDATION PASS (the second of the two conceptual
+    optimization outputs).
+
+    Answers: "What configuration does ThermoShelter calculate as more
+    thermally comfortable if we are allowed to change the relevant
+    parameters within the defined prototype optimization search space?"
+
+    This is a SEPARATE Optuna TPE search from the user-constrained
+    objective run: the same authoritative Python thermal simulation, the
+    same canonical ClimateProfile scenario, the same material database,
+    the same geometry/opening feasibility rules and the same prototype
+    bounds — only the objective differs:
+
+      Primary:    maximize simulated comfort hours (minimize
+                  discomfort degree-hours over the same 18–24 °C band).
+      Tie-break:  a tiny per-kWh envelope-loss term so equal-comfort
+                  candidates prefer lower thermal losses. It is small
+                  enough that it can never override a comfort difference
+                  (losses are bounded << 1 discomfort-hour equivalent in
+                  practice), i.e. NOT a reweighted multi-objective score.
+
+    No parameters are hard-coded as "recommended": every value comes from
+    the search. Returns None recommendation_data when the search found no
+    comfort-feasible configuration — an honest outcome, not an error.
+    """
+    # Comfort-first weighting: every weight on comfort behaviour. The
+    # efficiency/solar terms become pure low-magnitude tie-breakers so the
+    # search still prefers lower losses among equal-comfort candidates
+    # without ever trading comfort away for them.
+    comfort_weights = {"comfort": 1.0, "efficiency": 0.0, "solar": 0.0}
+
+    # When invoked with a structured OptimizationInput (the endpoint path),
+    # clone it with the comfort-first weights - run_optimization reads
+    # weights from the input object, so passing them as kwargs would be
+    # silently ignored. All search bounds/constraints from the input are
+    # preserved exactly (same feasibility, same prototype geometry bounds,
+    # same door area fidelity as the user-constrained run).
+    if isinstance(city, OptimizationInput):
+        from dataclasses import replace as _dc_replace
+        city = _dc_replace(city, weights=comfort_weights)
+        # Explicit kwargs would be re-read from the input object; drop them
+        # so the cloned input is the single source of configuration.
+        res = run_optimization(
+            city=city,
+            climate_scenario=climate_scenario,
+            scenario_kind=scenario_kind,
+            **kwargs,
+        )
+    else:
+        res = run_optimization(
+            city=city,
+            home_type=home_type,
+            length=length,
+            width=width,
+            height=height,
+            wall_material=wall_material,
+            glazing=glazing,
+            orientation=orientation,
+            occupants=occupants,
+            door_area=door_area,
+            min_insulation_m=min_insulation_m,
+            # Comfort search may use the full authoritative insulation range
+            # allowed for this permanence (upper bound still capped inside the
+            # objective by the same is_temp rule as the user-constrained run).
+            max_insulation_m=max_insulation_m,
+            min_window_area=min_window_area,
+            max_window_area=max_window_area,
+            allowed_wall_materials=allowed_wall_materials,
+            allowed_glazings=allowed_glazings,
+            allowed_orientations=allowed_orientations,
+            n_trials=n_trials,
+            substeps=substeps,
+            hours_to_simulate=hours_to_simulate,
+            weights=comfort_weights,
+            climate_scenario=climate_scenario,
+            scenario_kind=scenario_kind,
+            optimize_geometry=optimize_geometry,
+            min_length_m=min_length_m,
+            max_length_m=max_length_m,
+            min_width_m=min_width_m,
+            max_width_m=max_width_m,
+            min_height_m=min_height_m,
+            max_height_m=max_height_m,
+            min_aspect_ratio=min_aspect_ratio,
+            max_aspect_ratio=max_aspect_ratio,
+            **kwargs,
+        )
+
+    ranked = res.get("ranked_designs") or []
+    if not ranked:
+        return {
+            "status": "no_comfort_feasible",
+            "message": (
+                "No comfort-feasible design was found within the current "
+                "prototype optimization bounds for this climate."
+            ),
+            "n_trials": res.get("n_trials"),
+            "n_pruned": res.get("n_pruned"),
+            "recommendation": None,
+        }
+
+    # Comfort-first ranking: comfort_hours DESC, then total_heat_loss_kwh ASC
+    # as the explicit secondary criterion (documented tie-break). The ranked
+    # list from run_optimization is ordered by the weighted score; re-rank by
+    # the stated comfort-first criteria using each candidate's REAL metrics.
+    best = min(
+        ranked,
+        key=lambda c: (
+            -float(c.get("comfort_hours", 0.0)),
+            float(c.get("total_heat_loss_kwh", 0.0)),
+        ),
+    )
+
+    rec = dict(best)
+    rec["label"] = "ThermoShelter Recommendation"
+    rec["rationale"] = (
+        "Comfort-first configuration: highest simulated comfort hours found "
+        "within the prototype optimization search space for this climate."
+    )
+
+    return {
+        "status": "ok",
+        "recommendation": rec,
+        "n_trials": res.get("n_trials"),
+        "n_pruned": res.get("n_pruned"),
+        "climate_provenance": res.get("climate_provenance"),
+        "climate_data_mode": res.get("climate_data_mode"),
+        "climate_fallback_used": res.get("climate_fallback_used"),
+    }
+
+
 if __name__ == "__main__":
     test_city = "leh"
     print(f"🧠 Running optimization for {test_city.upper()} (Temporary Shelter)...")

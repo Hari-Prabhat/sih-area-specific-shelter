@@ -639,8 +639,23 @@ export interface CanonicalOptimizationCandidate {
   surface_to_volume_ratio?: number | null;
   canonical_design?: any;
 }  /**
-   * Optimization Result structure from /api/optimization/run
-   */
+ * Dual-output optimization (E2): the separate comfort-first recommendation
+ * pass. Same authoritative simulation/feasibility/bounds as the
+ * user-constrained run - only the objective differs (maximize simulated
+ * comfort hours). status='no_comfort_feasible' is an honest search outcome,
+ * NOT an execution failure.
+ */
+export interface ComfortFirstRecommendation {
+  status: 'ok' | 'no_comfort_feasible' | 'error';
+  message?: string;
+  recommendation?: CanonicalOptimizationCandidate | null;
+  n_trials?: number | null;
+  n_pruned?: number | null;
+}
+
+/**
+ * Optimization Result structure from /api/optimization/run
+ */
 export interface CanonicalOptimizationResult {
   city: string;
   home_type: string;
@@ -662,6 +677,8 @@ export interface CanonicalOptimizationResult {
   /** Phase C provenance of the climate scenario the optimization ran against. */
   climate_provenance?: string | null;
   climate_fallback_used?: boolean | null;
+  /** E2: separate comfort-first recommendation pass output (optional). */
+  recommendation?: ComfortFirstRecommendation | null;
 }
 
 /**

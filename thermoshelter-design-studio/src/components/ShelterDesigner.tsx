@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles, ChevronRight } from 'lucide-react';
+import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles } from 'lucide-react';
 import { ShelterDesign } from '../types';
 import { materials } from '../data/materials';
 import StageSuspense from './ui/StageSuspense';
@@ -15,8 +15,6 @@ interface ShelterDesignerProps {
   setSelectedMaterial: (material: string) => void;
   onRunSimulation: () => void;
   isSimulating?: boolean;
-  onRunOptimization?: () => void;
-  isOptimizing?: boolean;
   onNavigateToCompare?: () => void;
   /** D2: field-level design updates avoid rebuilding the whole design object. */
   updateDesignField?: <K extends keyof ShelterDesign>(field: K, value: ShelterDesign[K]) => void;
@@ -33,8 +31,6 @@ export default function ShelterDesigner({
   setSelectedMaterial,
   onRunSimulation,
   isSimulating = false,
-  onRunOptimization,
-  isOptimizing = false,
   onNavigateToCompare,
   updateDesignField,
   missionOccupants,
@@ -90,34 +86,43 @@ export default function ShelterDesigner({
             <LayoutGrid className="w-4 h-4 text-purple-400" /> Shelter Shape & Form
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {(['rectangular', 'cylindrical', 'dome', 'pyramid'] as const).map((shape) => (
-              <button
-                key={shape}
-                onClick={() => updateField('shape', shape)}
-                aria-pressed={shelterDesign.shape === shape}
-                aria-label={`${shape} shelter form`}
-                className={`p-4 rounded-lg border transition-all text-center ${
-                  shelterDesign.shape === shape
-                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-sm'
-                    : 'bg-slate-700/30 border-slate-600/30 text-slate-400 hover:bg-slate-700/50'
-                }`}
-              >
-                <p className="text-xs font-medium capitalize">{shape}</p>
-              </button>
-            ))}
+            {(['rectangular', 'cylindrical', 'dome', 'pyramid'] as const).map((shape) => {
+              // C: honest shape support. The authoritative Python thermal
+              // engine implements rectangular geometry only — the other forms
+              // are visualization concepts, not simulated physics. They are
+              // shown disabled with explicit future-scope labelling rather
+              // than left as misleading selectable options.
+              const supported = shape === 'rectangular';
+              return (
+                <button
+                  key={shape}
+                  onClick={() => supported && updateField('shape', shape)}
+                  disabled={!supported}
+                  aria-pressed={shelterDesign.shape === shape}
+                  aria-label={supported ? `${shape} shelter form` : `${shape} shelter form — not yet physically simulated (future scope)`}
+                  title={supported ? 'Rectangular shelter form' : 'Future scope — this shape is not yet simulated by the thermal engine'}
+                  className={`p-4 rounded-lg border transition-all text-center ${
+                    shelterDesign.shape === shape
+                      ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-sm'
+                      : supported
+                      ? 'bg-slate-700/30 border-slate-600/30 text-slate-400 hover:bg-slate-700/50'
+                      : 'bg-slate-800/40 border-slate-700/20 text-slate-600 cursor-not-allowed'
+                  }`}
+                >
+                  <p className="text-xs font-medium capitalize">{shape}</p>
+                  {!supported && <p className="text-[9px] text-slate-500 mt-1">future scope</p>}
+                </button>
+              );
+            })}
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1 text-xs text-slate-400">
             <div className="flex justify-between">
               <span>Floor Area: {(shelterDesign.length * shelterDesign.width).toFixed(1)} m²</span>
               <span>Vol: {(shelterDesign.length * shelterDesign.width * shelterDesign.height).toFixed(1)} m³</span>
             </div>
-            {shelterDesign.shape !== 'rectangular' && (
-              <p className="text-[10px] text-purple-300 italic pt-1">
-                {shelterDesign.shape === 'cylindrical' && 'Cylindrical shell: Radius derived from length/width; walls form continuous curved surface.'}
-                {shelterDesign.shape === 'dome' && 'Hemispherical dome: Self-supporting curve; roof angle not applicable.'}
-                {shelterDesign.shape === 'pyramid' && 'Pyramidal shelter: Sloped 4-facet envelope converging at peak.'}
-              </p>
-            )}
+            <p className="text-[10px] text-slate-500 pt-1">
+              The thermal engine simulates rectangular geometry. Curved and sloped forms are future scope.
+            </p>
           </div>
         </div>
 
@@ -447,19 +452,8 @@ export default function ShelterDesigner({
         <ShelterModel3D design={shelterDesign} materialName={selectedMaterial} />
       </Suspense>
 
-      {/* Bottom Actions (D2 CTA consolidation: the single Run Simulation lives in
-          the header; this row offers the workflow's next stage) */}
-      {onRunOptimization && onNavigateToCompare && (
-        <div className="flex justify-center pt-2">
-          <button
-            onClick={onNavigateToCompare}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-amber-300 rounded-lg hover:bg-amber-500/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-          >
-            Continue to Optimization
-            <ChevronRight className="w-4 h-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      {/* B: the single forward action is the Stepper's "Next" in the global
+          navigation — no duplicate in-stage next-phase button. */}
     </div>
   );
 }

@@ -13,8 +13,30 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  /* A: premium engineering foundation — deep graphite/navy base. Stage
+     content sits on cards above this; the grid motif stays subtle. */
+  background-color: #070d16;
 }
 
 #root {
   width: 100%;
+}
+
+/* A: subtle engineering-grid / blueprint motif. Restrained by design —
+   low-contrast lines on the deep navy base, no glow, no animation. */
+.engineering-grid-bg {
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Focus visibility is a requirement, not decoration. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgba(103, 232, 249, 0.7);
+  outline-offset: 2px;
 }

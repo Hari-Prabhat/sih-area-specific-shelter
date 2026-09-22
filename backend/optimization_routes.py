@@ -171,6 +171,15 @@ class OptimizationRunRequest(BaseModel):
         ge=1.0,
         description="Orientation-independent maximum aspect ratio max(L/W, W/L) (optional)"
     )
+    include_recommendation: bool = Field(
+        True,
+        description=(
+            "Also run the separate comfort-first recommendation pass (E2). "
+            "Uses the same authoritative simulation, feasibility rules, and "
+            "prototype bounds - only the objective differs: maximize simulated "
+            "comfort hours. Adds a second Optuna search of n_trials."
+        )
+    )
 
 
 # =====================================================================
@@ -312,8 +321,47 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
                 )
                 candidate.canonical_design = cand_sd.to_dict()
 
+        # 5b. COMFORT-FIRST RECOMMENDATION PASS (dual-output, E2)
+        #
+        # A SEPARATE Optuna search over the SAME authoritative search space
+        # (same simulation engine, same climate scenario, same feasibility,
+        # same prototype bounds, same door-area fidelity) whose objective is
+        # maximize simulated comfort hours. This is NOT a reweighting of the
+        # user-constrained result and NOT Pareto optimization - it is its
+        # own search whose winner is re-ranked by (comfort_hours desc,
+        # heat_loss asc). Returned separately from the user-constrained
+        # ranked designs; the frontend presents them side by side and the
+        # user chooses which to apply.
+        recommendation_payload: Optional[Dict[str, Any]] = None
+        if request.include_recommendation:
+            try:
+                from services.optimize import run_comfort_first_recommendation
+                rec_input = opt_input  # same bounds/constraints/climate
+                recommendation_payload = run_comfort_first_recommendation(city=rec_input)
+                rec = recommendation_payload.get("recommendation") if recommendation_payload else None
+                if rec:
+                    # Attach the canonical design for the winning trial so the
+                    # frontend can Apply it exactly like a ranked candidate.
+                    try:
+                        rec_cand = OptimizationCandidate.from_dict(rec)
+                        rec_sd = OptimizationAdapter.candidate_to_shelter_design(
+                            candidate=rec_cand,
+                            base_design=design,
+                        )
+                        rec["canonical_design"] = rec_sd.to_dict()
+                    except Exception as e:  # noqa: BLE001 - recommendation stays usable without canonical
+                        logger.warning(f"Could not attach canonical design to recommendation: {e}")
+            except Exception as e:  # noqa: BLE001 - recommendation is additive; main result must survive
+                logger.error(f"Comfort-first recommendation pass failed: {e}", exc_info=True)
+                recommendation_payload = {
+                    "status": "error",
+                    "message": f"Recommendation pass failed: {e}",
+                    "recommendation": None,
+                }
+
         # 6. Format Response
         response_data = opt_result.to_dict()
+        response_data["recommendation"] = recommendation_payload
         return response_data
 
     except HTTPException:

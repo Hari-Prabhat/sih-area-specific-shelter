@@ -176,6 +176,8 @@ export interface OptimizationState {
 export interface StudioState {
   // Navigation
   stage: WorkflowStage;
+  /** B: highest stage index reached this session (for direct navigation). */
+  maxVisitedIndex: number;
   expertMode: boolean;
 
   // Site & climate
@@ -218,6 +220,8 @@ export interface StudioActions {
   ) => Promise<void>;
   selectCandidate: (candidate: CanonicalOptimizationCandidate | null) => void;
   applyCandidate: (candidate: CanonicalOptimizationCandidate) => void;
+  /** H: apply the comfort-first recommendation; also clears stale optimization results. */
+  applyRecommendation: (candidate: CanonicalOptimizationCandidate) => void;
   clearSimulationError: () => void;
   clearOptimizationError: () => void;
 }
@@ -257,8 +261,17 @@ export function glazingToUi(glazing: string): 'single' | 'double' | 'triple' {
 
 export function StudioStateProvider({ children }: { children: ReactNode }) {
   // Navigation
-  const [stage, setStage] = useState<WorkflowStage>('site-climate');
+  const [stage, setStageRaw] = useState<WorkflowStage>('site-climate');
+  // B: highest stage index reached this session — previously visited stages
+  // stay directly clickable in the global navigation.
+  const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
   const [expertMode, setExpertMode] = useState(false);
+
+  const setStage = useCallback((s: WorkflowStage) => {
+    setStageRaw(s);
+    const idx = WORKFLOW_STAGES.findIndex((x) => x.id === s);
+    if (idx >= 0) setMaxVisitedIndex((prev) => Math.max(prev, idx));
+  }, []);
 
   // Site & climate
   const [climate, setClimate] = useState<ClimateData>(climatePresets[0]);
@@ -551,6 +564,21 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  /**
+   * H: apply the comfort-first ThermoShelter RECOMMENDATION as the new
+   * canonical design. Same patch path as applyCandidate (one canonical
+   * ShelterDesign after application — no competing design state), but the
+   * stale OPTIMIZATION results are also cleared because the applied design
+   * is no longer the one the current run was based on.
+   */
+  const applyRecommendation = useCallback(
+    (candidate: CanonicalOptimizationCandidate) => {
+      applyCandidate(candidate);
+      setOptimization((prev) => ({ ...prev, result: null, selectedCandidate: null }));
+    },
+    [applyCandidate],
+  );
+
   const clearSimulationError = useCallback(() => {
     setSimulation((prev) => ({ ...prev, error: null }));
   }, []);
@@ -562,6 +590,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
   const store = useMemo<StudioStore>(
     () => ({
       stage,
+      maxVisitedIndex,
       expertMode,
       climate,
       climateProfile,
@@ -584,11 +613,13 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       runOptimization,
       selectCandidate,
       applyCandidate,
+      applyRecommendation,
       clearSimulationError,
       clearOptimizationError,
     }),
     [
       stage,
+      maxVisitedIndex,
       expertMode,
       climate,
       climateProfile,
@@ -606,6 +637,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       runOptimization,
       selectCandidate,
       applyCandidate,
+      applyRecommendation,
       clearSimulationError,
       clearOptimizationError,
     ],

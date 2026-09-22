@@ -109,9 +109,6 @@ function ShelterDesignerStage() {
       setSelectedMaterial={setWallMaterial}
       onRunSimulation={runSimulation}
       isSimulating={simulation.loading}
-      onRunOptimization={() => setStage('optimization')}
-      isOptimizing={optimization.loading}
-      onNavigateToCompare={() => setStage('optimization')}
       updateDesignField={setDesignField}
       missionOccupants={mission.occupants}
       onMissionOccupantsChange={(n) => setMissionField('occupants', n)}
@@ -135,7 +132,7 @@ function SimulationResultsStage() {
 
 /** Optimization stage content. */
 function ComparativeStage() {
-  const { climate, design, wallMaterial, simulation, optimization, runOptimization, applyCandidate, setStage } =
+  const { climate, design, wallMaterial, simulation, optimization, runOptimization, applyCandidate, applyRecommendation, setStage } =
     useStudioState();
   return (
     <ComparativeAnalysis
@@ -147,6 +144,7 @@ function ComparativeStage() {
       isOptimizing={optimization.loading}
       onRunOptimization={runOptimization}
       onApplyCandidate={applyCandidate}
+      onApplyRecommendation={applyRecommendation}
       onNavigateToDesign={() => setStage('design')}
     />
   );
@@ -280,22 +278,22 @@ function ErrorBanners() {
 }
 
 function StudioShell() {
-  const { stage, setStage, expertMode, setExpertMode } = useStudioState();
+  const { stage, setStage, expertMode, setExpertMode, maxVisitedIndex } = useStudioState();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a1220] via-[#0a1424] to-[#070d16] text-slate-100 engineering-grid-bg">
       {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
+      <header className="bg-[#0a1220]/90 backdrop-blur-md border-b border-cyan-500/10 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-sky-700 rounded-lg flex items-center justify-center shadow-md shadow-cyan-500/20">
               <Mountain className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-                ThermoShelter Design Studio
+              <h1 className="text-lg font-bold tracking-tight text-white">
+                ThermoShelter <span className="text-cyan-400">Design Studio</span>
               </h1>
-              <p className="text-xs text-slate-400">Area-Specific Shelter Design for Thermal Comfort</p>
+              <p className="text-xs text-slate-400">Area-Specific Passive Shelter Digital Twin & Thermal Design Optimization</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -305,7 +303,7 @@ function StudioShell() {
                 type="checkbox"
                 checked={expertMode}
                 onChange={(e) => setExpertMode(e.target.checked)}
-                className="w-4 h-4 accent-amber-500"
+                className="w-4 h-4 accent-cyan-500"
               />
               Expert mode
             </label>
@@ -323,7 +321,7 @@ function StudioShell() {
 
       {/* Workflow navigation */}
       <div className="max-w-7xl mx-auto px-4 pt-3">
-        <Stepper current={stage} onNavigate={setStage} expertMode={expertMode} />
+        <Stepper current={stage} onNavigate={setStage} expertMode={expertMode} maxVisitedIndex={maxVisitedIndex} />
       </div>
 
       {/* Main stage content — heavyweight views resolve through Suspense */}
@@ -334,7 +332,7 @@ function StudioShell() {
         </Suspense>
       </main>
 
-      <footer className="bg-slate-900/80 border-t border-slate-700/30 py-4 mt-8">
+      <footer className="bg-[#0a1220]/80 border-t border-cyan-500/10 py-4 mt-8">
         <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
           <p>ThermoShelter Design Studio | SIH 2026 | SIH26051 | DRDO</p>
         </div>

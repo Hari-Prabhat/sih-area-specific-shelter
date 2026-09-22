@@ -43,8 +43,7 @@ import {
   ApiError,
   CanonicalOptimizationResult,
   CanonicalOptimizationCandidate,
-} from '../services/api';
-import { materials, getMaterialByName } from '../data/materials';
+} from '../services/api';import { materials, getMaterialByName } from '../data/materials';
 import { deriveBaselineMetrics } from '../services/baselineMetrics';
 import StageSuspense from './ui/StageSuspense';
 import Button from './ui/Button';
@@ -84,6 +83,8 @@ interface ComparativeAnalysisProps {
     optimizeGeometry?: boolean
   ) => Promise<void>;
   onApplyCandidate?: (candidate: CanonicalOptimizationCandidate) => void;
+  /** H: apply the separate comfort-first recommendation as the canonical design. */
+  onApplyRecommendation?: (candidate: CanonicalOptimizationCandidate) => void;
   onNavigateToDesign?: () => void;
 }
 
@@ -102,6 +103,7 @@ export default function ComparativeAnalysis({
   isOptimizing = false,
   onRunOptimization,
   onApplyCandidate,
+  onApplyRecommendation,
   onNavigateToDesign,
 }: ComparativeAnalysisProps) {
   // Mode selection: Bayesian Optimization vs Material Sweeps
@@ -114,6 +116,13 @@ export default function ComparativeAnalysis({
   // Batch 1-A: geometry+envelope search is OPT-IN. Default preserves the
   // pre-D5 fixed-geometry workflow exactly (no geometry fields sent).
   const [optimizeGeometry, setOptimizeGeometry] = useState<boolean>(false);
+  // D: variables actually enabled in the most recent optimization run —
+  // recorded when the run is triggered so the explanation never invents scope.
+  const [lastRunConfig, setLastRunConfig] = useState<{
+    geometry: boolean;
+    trials: number;
+    weights: { comfort: number; efficiency: number; solar: number };
+  } | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<CanonicalOptimizationCandidate | null>(null);
   const [previewCandidateDesign, setPreviewCandidateDesign] = useState<ShelterDesign | null>(null);
   const [appliedCandidateRank, setAppliedCandidateRank] = useState<number | null>(null);
@@ -132,6 +141,10 @@ export default function ComparativeAnalysis({
   // The former fabricated fallbacks (60 / 500*0.7 / 600 / 250) are gone —
   // without a baseline the UI renders a truthful empty state instead.
   const baseline = deriveBaselineMetrics(baselineResult);
+
+  // E2: the separate comfort-first recommendation pass output.
+  const recPayload = optimizationResult?.recommendation ?? null;
+  const recommendation = recPayload?.recommendation ?? null;
 
   // Deltas vs the baseline — computed only when a real baseline exists.
   const recommended = optimizationResult?.recommended_design;
@@ -157,6 +170,7 @@ export default function ComparativeAnalysis({
   const handleTriggerOptimization = async () => {
     if (onRunOptimization) {
       setAppliedCandidateRank(null);
+      setLastRunConfig({ geometry: optimizeGeometry, trials: nTrials, weights: { ...weights } });
       await onRunOptimization(weights, nTrials, homeType, optimizeGeometry);
     }
   };
@@ -515,6 +529,36 @@ export default function ComparativeAnalysis({
               )}
             </div>
 
+            {/* D: plain-language explanation of what optimization actually does.
+                States the weighted-scalar (NOT Pareto) method and lists only the
+                variables enabled in the current/last run. */}
+            <div className="rounded-xl border border-slate-700/40 bg-slate-900/40 p-4 flex items-start gap-3">
+              <Info className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" aria-hidden="true" />
+              <div className="space-y-1.5 text-xs text-slate-300">
+                <p>
+                  Optimization searches the allowed design space and ranks simulated shelter
+                  configurations using thermal comfort, heat-loss efficiency, and solar utilization.
+                  Each candidate is evaluated with the authoritative 168-hour thermal simulation;
+                  the sampler (Optuna TPE) learns which configurations score best.
+                </p>
+                <p className="text-slate-400">
+                  Scoring is a <span className="text-slate-200 font-medium">weighted single score</span> —
+                  comfort {Math.round((lastRunConfig?.weights ?? weights).comfort * 100)}% / efficiency{' '}
+                  {Math.round((lastRunConfig?.weights ?? weights).efficiency * 100)}% / solar{' '}
+                  {Math.round((lastRunConfig?.weights ?? weights).solar * 100)}%. It is{' '}
+                  <span className="text-slate-200 font-medium">not Pareto optimization</span>.
+                </p>
+                <p className="text-slate-400">
+                  Variables searched in this run:{' '}
+                  <span className="text-slate-200 font-medium">
+                    insulation thickness, window area, wall material, glazing, orientation, thermal mass
+                    {(lastRunConfig?.geometry ?? optimizeGeometry) ? ', length, width, clear height' : ''}
+                  </span>
+                  . Door area stays fixed at the design's value and is never optimized.
+                </p>
+              </div>
+            </div>
+
             {/* Launch CTA */}
             <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
               <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -690,6 +734,26 @@ export default function ComparativeAnalysis({
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* E/G: DUAL-OUTPUT COMPARISON — user-constrained design vs the
+                  separate comfort-first ThermoShelter recommendation. */}
+              {recPayload && (
+                <DualOutputComparison
+                  userDesign={optimizationResult.recommended_design ?? null}
+                  recommendation={recommendation}
+                  recStatus={recPayload.status}
+                  recMessage={recPayload.message}
+                  appliedRank={appliedCandidateRank}
+                  onApplyRecommendation={() => {
+                    if (recommendation && onApplyRecommendation) {
+                      onApplyRecommendation(recommendation);
+                    }
+                  }}
+                  onApplyUser={() => {
+                    if (optimizationResult.recommended_design) handleApply(optimizationResult.recommended_design);
+                  }}
+                />
               )}
 
               {/* Ranked Candidate Cards Grid */}
@@ -1076,5 +1140,242 @@ export default function ComparativeAnalysis({
         </div>
       )}
     </div>
+  );
+}
+
+// =====================================================================
+// E/G: DUAL-OUTPUT SIDE-BY-SIDE COMPARISON
+//
+// Card 1: the user's requirement-constrained best result (from the
+// weighted-scalar run they configured).
+// Card 2: the separate comfort-first ThermoShelter recommendation (own
+// Optuna search, same engine/feasibility/bounds; objective = maximize
+// simulated comfort hours, tie-break lower heat loss). NOT Pareto, NOT a
+// reweighting of card 1.
+// =====================================================================
+function DualOutputComparison({
+  userDesign,
+  recommendation,
+  recStatus,
+  recMessage,
+  appliedRank,
+  onApplyRecommendation,
+  onApplyUser,
+}: {
+  userDesign: CanonicalOptimizationCandidate | null;
+  recommendation: CanonicalOptimizationCandidate | null;
+  recStatus: 'ok' | 'no_comfort_feasible' | 'error';
+  recMessage?: string;
+  appliedRank: number | null;
+  onApplyRecommendation: () => void;
+  onApplyUser: () => void;
+}) {
+  const isRecApplied = recommendation != null && appliedRank === recommendation.rank;
+  const isUserApplied = userDesign != null && appliedRank === userDesign.rank;
+
+  // G1: explanation derived ONLY from actual parameter differences.
+  const diffs: string[] = [];
+  if (userDesign && recommendation) {
+    if (recommendation.insulation_mm !== userDesign.insulation_mm) {
+      diffs.push(
+        recommendation.insulation_mm > userDesign.insulation_mm
+          ? `thicker insulation (${recommendation.insulation_mm} mm vs ${userDesign.insulation_mm} mm)`
+          : `thinner insulation (${recommendation.insulation_mm} mm vs ${userDesign.insulation_mm} mm)`
+      );
+    }
+    if (Math.abs(recommendation.window_area_m2 - userDesign.window_area_m2) > 0.05) {
+      diffs.push(
+        recommendation.window_area_m2 < userDesign.window_area_m2
+          ? `lower window area (${recommendation.window_area_m2.toFixed(1)} m² vs ${userDesign.window_area_m2.toFixed(1)} m²)`
+          : `higher window area (${recommendation.window_area_m2.toFixed(1)} m² vs ${userDesign.window_area_m2.toFixed(1)} m²)`
+      );
+    }
+    if (recommendation.wall_material !== userDesign.wall_material) {
+      diffs.push(`different wall material (${recommendation.wall_material_name})`);
+    }
+    if (recommendation.glazing !== userDesign.glazing) {
+      diffs.push(`different glazing (${recommendation.glazing_name})`);
+    }
+    if (recommendation.orientation.toLowerCase() !== userDesign.orientation.toLowerCase()) {
+      diffs.push(`different orientation (${recommendation.orientation} vs ${userDesign.orientation})`);
+    }
+    if (
+      typeof recommendation.length_m === 'number' &&
+      typeof userDesign.length_m === 'number' &&
+      (Math.abs(recommendation.length_m - userDesign.length_m) > 0.05 ||
+        Math.abs((recommendation.width_m ?? 0) - (userDesign.width_m ?? 0)) > 0.05 ||
+        Math.abs((recommendation.height_m ?? 0) - (userDesign.height_m ?? 0)) > 0.05)
+    ) {
+      diffs.push('different geometry');
+    }
+    if (
+      recommendation.thermal_mass_level &&
+      userDesign.thermal_mass_level &&
+      recommendation.thermal_mass_level !== userDesign.thermal_mass_level
+    ) {
+      diffs.push(`different thermal mass (${recommendation.thermal_mass_level} vs ${userDesign.thermal_mass_level})`);
+    }
+  }
+
+  const fmtComfort = (c: CanonicalOptimizationCandidate) => `${Math.round(c.comfort_percentage)}%`;
+
+  return (
+    <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-5 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-white flex items-center gap-2">
+          <Award className="w-4 h-4 text-cyan-400" />
+          Two Design Outputs
+        </h3>
+        <span className="text-[11px] text-slate-500">
+          Same simulation engine and feasibility rules — two different objectives.
+        </span>
+      </div>
+
+      {recStatus === 'no_comfort_feasible' && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3" role="note">
+          <Info className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" aria-hidden="true" />
+          <div className="text-xs text-amber-200/90">
+            <p className="font-semibold text-amber-200">No comfort-feasible design found</p>
+            <p className="mt-0.5">
+              The recommendation search completed successfully, but no configuration within the current
+              prototype optimization bounds achieved simulated comfort in this climate and period.
+              This is a search outcome, not an execution failure.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {recStatus === 'error' && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex items-start gap-3" role="alert">
+          <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" aria-hidden="true" />
+          <div className="text-xs text-red-200/90">
+            <p className="font-semibold text-red-200">Recommendation pass failed</p>
+            <p className="mt-0.5">{recMessage ?? 'An error occurred while running the comfort-first search.'}</p>
+            <p className="mt-1 text-red-200/70">The user-constrained results above remain valid.</p>
+          </div>
+        </div>
+      )}
+
+      {recommendation && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* CARD 1 — USER DESIGN */}
+          <div className="rounded-xl border border-indigo-500/30 bg-slate-800/50 p-4 space-y-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Your Design</p>
+              <p className="text-sm font-semibold text-white">Requirement Constrained</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Best result respecting your configured weights, materials and constraints.
+              </p>
+            </div>
+            {userDesign ? (
+              <>
+                <CandidateSpecList c={userDesign} />
+                <button
+                  onClick={onApplyUser}
+                  className={`w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                    isUserApplied ? 'bg-emerald-600 text-white' : 'bg-indigo-600/80 hover:bg-indigo-500 text-white'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5" /> {isUserApplied ? 'Applied to Studio' : 'Apply Your-Design Result'}
+                </button>
+              </>
+            ) : (
+              <p className="text-xs text-slate-500">No user-constrained candidate available.</p>
+            )}
+          </div>
+
+          {/* CARD 2 — RECOMMENDATION */}
+          <div className="rounded-xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 to-slate-900/60 p-4 space-y-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">ThermoShelter Recommendation</p>
+              <p className="text-sm font-semibold text-white">Comfort First</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Model-generated configuration optimized for simulated thermal comfort within the
+                available prototype engineering search space.
+              </p>
+            </div>
+            <CandidateSpecList c={recommendation} accent="cyan" />
+            {diffs.length > 0 && (
+              <p className="text-[11px] text-slate-400">
+                <span className="text-slate-300 font-medium">Why it differs:</span> recommendation uses{' '}
+                {diffs.join('; ')}.
+              </p>
+            )}
+            <button
+              onClick={onApplyRecommendation}
+              className={`w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                isRecApplied ? 'bg-emerald-600 text-white' : 'bg-cyan-600/80 hover:bg-cyan-500 text-white'
+              }`}
+            >
+              <Check className="w-3.5 h-3.5" /> {isRecApplied ? 'Applied to Studio' : 'Apply Recommendation'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Comfort comparison strip — real values only. */}
+      {userDesign && recommendation && (
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500">Your design comfort</p>
+            <p className="text-lg font-bold text-indigo-300">{fmtComfort(userDesign)}</p>
+          </div>
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500">Recommendation comfort</p>
+            <p className={`text-lg font-bold ${
+              recommendation.comfort_percentage > userDesign.comfort_percentage ? 'text-cyan-300' : 'text-slate-300'
+            }`}>
+              {fmtComfort(recommendation)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500">Advantage</p>
+            <p className="text-lg font-bold text-emerald-400">
+              {recommendation.comfort_percentage > userDesign.comfort_percentage
+                ? `+${Math.round(recommendation.comfort_percentage - userDesign.comfort_percentage)}%`
+                : recommendation.comfort_percentage === userDesign.comfort_percentage
+                ? '—'
+                : `${Math.round(recommendation.comfort_percentage - userDesign.comfort_percentage)}%`}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CandidateSpecList({
+  c,
+  accent = 'indigo',
+}: {
+  c: CanonicalOptimizationCandidate;
+  accent?: 'indigo' | 'cyan';
+}) {
+  const rows: Array<[string, string]> = [
+    ['Comfort hours', `${Math.round(c.comfort_hours)} h (${Math.round(c.comfort_percentage)}%)`],
+    ['Geometry',
+      typeof c.length_m === 'number' && typeof c.width_m === 'number' && typeof c.height_m === 'number'
+        ? `${c.length_m.toFixed(1)} × ${c.width_m.toFixed(1)} × ${c.height_m.toFixed(1)} m`
+        : 'Base design geometry'],
+    ['Floor area', typeof c.floor_area_m2 === 'number' ? `${c.floor_area_m2.toFixed(1)} m²` : '—'],
+    ['Orientation', c.orientation],
+    ['Insulation', `${c.insulation_mm} mm`],
+    ['Wall material', c.wall_material_name],
+    ['Glazing', c.glazing_name],
+    ['Window area', `${c.window_area_m2.toFixed(1)} m²`],
+    ['Thermal mass', c.thermal_mass_level ?? '—'],
+    ['Heat loss', `${Math.round(c.total_heat_loss_kwh)} kWh`],
+    ['Useful solar', `${Math.round(c.solar_gain_kwh)} kWh`],
+    ['Objective score', `${(c.overall_score * 100).toFixed(1)} / 100`],
+  ];
+  return (
+    <dl className="space-y-1 text-xs">
+      {rows.map(([k, v]) => (
+        <div key={k} className="flex justify-between gap-3">
+          <dt className="text-slate-400">{k}</dt>
+          <dd className={`font-medium ${accent === 'cyan' ? 'text-cyan-100' : 'text-slate-100'} truncate`}>{v}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

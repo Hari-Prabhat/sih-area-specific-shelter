@@ -5,17 +5,40 @@ import Button from './Button';
 interface StepperProps {
   current: WorkflowStage;
   onNavigate: (stage: WorkflowStage) => void;
-  /** Guided mode shows Next/Back and disables direct jumps; expert mode is free navigation. */
+  /** Guided mode shows Next/Back; expert mode is free navigation. */
   expertMode: boolean;
+  /** Highest stage index reached this session — previously visited stages stay directly clickable. */
+  maxVisitedIndex: number;
+}
+
+/**
+ * B: pure reachability rule for direct stage navigation.
+ * - Backward navigation is always free.
+ * - Forward navigation is allowed up to the highest stage visited this
+ *   session (guided mode) or to every available stage (expert mode).
+ * Exported for regression testing.
+ */
+export function isStageReachable(
+  stageIndex: number,
+  currentIndex: number,
+  maxVisitedIndex: number,
+  available: boolean,
+  expertMode: boolean
+): boolean {
+  if (!available) return false;
+  if (expertMode) return true;
+  return stageIndex <= Math.max(currentIndex, maxVisitedIndex);
 }
 
 /**
  * D1 primitive: workflow navigation for the 9-stage studio.
- * Guided mode: sequential stepper with Next/Back.
- * Expert mode: every available stage is directly clickable.
- * Unavailable stages render disabled with a lock icon (honest, not hidden).
+ * Guided mode: sequential stepper with a single Next/Back pair.
+ * Direct mode (B): every stage up to the highest visited one is clickable
+ * from the global navigation — backward is always free; forward is allowed
+ * up to where the user has already been. Later stages render disabled with
+ * a lock icon (honest, not hidden).
  */
-export default function Stepper({ current, onNavigate, expertMode }: StepperProps) {
+export default function Stepper({ current, onNavigate, expertMode, maxVisitedIndex }: StepperProps) {
   const index = WORKFLOW_STAGES.findIndex((s) => s.id === current);
   const prev = index > 0 ? WORKFLOW_STAGES[index - 1] : null;
   const next = index < WORKFLOW_STAGES.length - 1 ? WORKFLOW_STAGES[index + 1] : null;
@@ -23,12 +46,18 @@ export default function Stepper({ current, onNavigate, expertMode }: StepperProp
   const nextNavigable = next && next.available ? next : null;
 
   return (
-    <nav aria-label="Workflow stages" className="bg-slate-800/50 border border-slate-700/30 rounded-xl px-4 py-3">
+    <nav aria-label="Workflow stages" className="bg-slate-900/60 border border-slate-700/40 rounded-xl px-4 py-3 backdrop-blur-sm">
       <ol className="flex items-center gap-1 overflow-x-auto">
         {WORKFLOW_STAGES.map((stage, i) => {
           const isCurrent = stage.id === current;
           const isCompleted = i < index;
-          const clickable = expertMode && stage.available && !isCurrent;
+          // B: direct navigation. Expert mode = everything available.
+          // Guided mode = current, completed (earlier) and previously
+          // visited stages are clickable; strictly-new later stages are not.
+          const reachable = isStageReachable(
+            i, index, maxVisitedIndex, stage.available, expertMode
+          );
+          const clickable = reachable && !isCurrent;
 
           return (
             <li key={stage.id} className="flex items-center shrink-0">
@@ -37,18 +66,22 @@ export default function Stepper({ current, onNavigate, expertMode }: StepperProp
                 onClick={() => clickable && onNavigate(stage.id)}
                 disabled={!clickable}
                 aria-current={isCurrent ? 'step' : undefined}
-                title={stage.available ? stage.fullLabel : `${stage.fullLabel} — coming in a later phase`}
+                title={
+                  stage.available
+                    ? stage.fullLabel
+                    : `${stage.fullLabel} — coming in a later phase`
+                }
                 className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
-                  ${isCurrent ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : ''}
+                  ${isCurrent ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/40' : ''}
                   ${!isCurrent && isCompleted ? 'text-emerald-300 hover:bg-slate-700/50' : ''}
                   ${!isCurrent && !isCompleted && stage.available ? 'text-slate-300 hover:bg-slate-700/50' : ''}
                   ${!stage.available ? 'text-slate-500 cursor-not-allowed' : ''}
                   ${clickable ? 'cursor-pointer' : 'cursor-default'}
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400`}
               >
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border
-                    ${isCurrent ? 'border-amber-400 bg-amber-500/30 text-amber-200' : ''}
+                    ${isCurrent ? 'border-cyan-400 bg-cyan-500/25 text-cyan-200' : ''}
                     ${!isCurrent && isCompleted ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-300' : ''}
                     ${!isCurrent && !isCompleted && stage.available ? 'border-slate-600 bg-slate-700/40 text-slate-300' : ''}
                     ${!stage.available ? 'border-slate-700 bg-slate-800/60 text-slate-600' : ''}`}
