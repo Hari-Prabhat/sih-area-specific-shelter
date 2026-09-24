@@ -42,7 +42,7 @@ export default function Button({
       'bg-gradient-to-r from-cyan-500 to-sky-600 text-slate-950 shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-sky-500',
     secondary:
       'bg-slate-700/70 text-slate-100 border border-slate-600/60 hover:bg-slate-600/70',
-    ghost: 'text-slate-300 hover:text-white hover:bg-slate-700/50',
+    ghost: 'text-slate-300 hover:text-slate-100 hover:bg-slate-700/50',
     danger: 'bg-red-600/90 text-white hover:bg-red-500',
   };
 

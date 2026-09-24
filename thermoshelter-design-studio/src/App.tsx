@@ -289,7 +289,7 @@ function StudioShell() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}>
-              <Mountain className="w-6 h-6 text-white" aria-hidden="true" />
+              <Mountain className="w-6 h-6 text-slate-100" aria-hidden="true" />
             </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
@@ -323,7 +323,7 @@ function StudioShell() {
       </div>
 
       {/* Workflow navigation */}
-      <div className="max-w-7xl mx-auto px-4 pt-3">
+      <div className="max-w-7xl mx-auto px-4 pt-3 min-w-0">
         <Stepper current={stage} onNavigate={setStage} maxVisitedIndex={maxVisitedIndex} />
       </div>
 

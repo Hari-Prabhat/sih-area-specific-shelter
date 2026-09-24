@@ -107,7 +107,7 @@ export default function EngineeringBlueprint({
             <Ruler className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-100 tracking-wide flex items-center gap-2">
               Architectural & Engineering Blueprint
               <span className="text-xs font-mono font-normal px-2 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded">
                 ISO 6946 / SIH 2026
@@ -135,7 +135,7 @@ export default function EngineeringBlueprint({
               className={`px-3 py-1.5 rounded-md text-xs font-mono transition-all ${
                 activeView === tab.id
                   ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-700/50'
               }`}
             >
               {tab.label}
@@ -610,27 +610,27 @@ export default function EngineeringBlueprint({
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-center mb-4">
                 <div className="bg-slate-800 p-3 rounded border border-slate-700">
                   <span className="text-slate-400 block text-[10px] uppercase">1. Exterior Film</span>
-                  <span className="text-white font-bold block mt-1">R_se = 0.04</span>
+                  <span className="text-slate-100 font-bold block mt-1">R_se = 0.04</span>
                   <span className="text-slate-500 text-[10px]">m²·K/W</span>
                 </div>
                 <div className="bg-amber-950/40 p-3 rounded border border-amber-600/40">
                   <span className="text-amber-400 block text-[10px] uppercase">2. Base Wall Masonry</span>
-                  <span className="text-white font-bold block mt-1">{materialName}</span>
+                  <span className="text-slate-100 font-bold block mt-1">{materialName}</span>
                   <span className="text-amber-300 text-[10px]">{wallThickMm} mm thickness</span>
                 </div>
                 <div className="bg-yellow-950/40 p-3 rounded border border-yellow-600/40">
                   <span className="text-yellow-400 block text-[10px] uppercase">3. Thermal Insulation</span>
-                  <span className="text-white font-bold block mt-1">{insLabel}</span>
+                  <span className="text-slate-100 font-bold block mt-1">{insLabel}</span>
                   <span className="text-yellow-300 text-[10px]">{insThickMm} mm</span>
                 </div>
                 <div className="bg-blue-950/40 p-3 rounded border border-blue-600/40">
                   <span className="text-blue-400 block text-[10px] uppercase">4. Thermal Mass Layer</span>
-                  <span className="text-white font-bold block mt-1">{thermalMassEnabled ? 'Sensible Mass Core' : 'Standard'}</span>
+                  <span className="text-slate-100 font-bold block mt-1">{thermalMassEnabled ? 'Sensible Mass Core' : 'Standard'}</span>
                   <span className="text-blue-300 text-[10px]">{thermalMassEnabled ? `${massThickMm} mm` : '0 mm'}</span>
                 </div>
                 <div className="bg-slate-800 p-3 rounded border border-slate-700">
                   <span className="text-slate-400 block text-[10px] uppercase">5. Interior Film</span>
-                  <span className="text-white font-bold block mt-1">R_si = 0.13</span>
+                  <span className="text-slate-100 font-bold block mt-1">R_si = 0.13</span>
                   <span className="text-slate-500 text-[10px]">m²·K/W</span>
                 </div>
               </div>

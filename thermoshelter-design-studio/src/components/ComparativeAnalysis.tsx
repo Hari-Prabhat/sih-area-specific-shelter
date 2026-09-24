@@ -334,7 +334,7 @@ export default function ComparativeAnalysis({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
+            <Sparkles className="w-5 h-5 text-slate-100" />
           </div>
           <div>
             <h2 className="text-xl font-bold">Optimization & Design Comparison</h2>
@@ -351,7 +351,7 @@ export default function ComparativeAnalysis({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition ${
               activeMode === 'optimization'
                 ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -362,7 +362,7 @@ export default function ComparativeAnalysis({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition ${
               activeMode === 'sweep'
                 ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -377,12 +377,12 @@ export default function ComparativeAnalysis({
           <div className="bg-slate-800/60 rounded-xl border border-slate-700/40 p-6 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-700/40 pb-4">
               <div>
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-indigo-400" />
                   Optimization Problem Configuration
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Target location: <span className="text-amber-400 font-semibold">{climateData.location}</span> | Baseline Wall: <span className="text-white font-medium">{selectedMaterial}</span>
+                  Target location: <span className="text-amber-400 font-semibold">{climateData.location}</span> | Baseline Wall: <span className="text-slate-100 font-medium">{selectedMaterial}</span>
                 </p>
               </div>
 
@@ -393,7 +393,7 @@ export default function ComparativeAnalysis({
                   <select
                     value={homeType}
                     onChange={(e) => setHomeType(e.target.value as any)}
-                    className="px-3 py-1.5 bg-slate-700/60 border border-slate-600/50 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="px-3 py-1.5 bg-slate-700/60 border border-slate-600/50 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   >
                     <option value="Permanent">Permanent (High Thermal Mass)</option>
                     <option value="Temporary">Temporary (Lightweight / Rapid)</option>
@@ -405,7 +405,7 @@ export default function ComparativeAnalysis({
                   <select
                     value={nTrials}
                     onChange={(e) => setNTrials(Number(e.target.value))}
-                    className="px-3 py-1.5 bg-slate-700/60 border border-slate-600/50 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="px-3 py-1.5 bg-slate-700/60 border border-slate-600/50 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   >
                     <option value={10}>10 Trials (~2 sec)</option>
                     <option value={20}>20 Trials (~4 sec, Recommended)</option>
@@ -485,7 +485,7 @@ export default function ComparativeAnalysis({
                 <span className="flex items-center gap-2.5">
                   <Ruler className="w-4 h-4 text-violet-400" aria-hidden="true" />
                   <span>
-                    <span className="text-sm font-semibold text-white">Optimize Geometry + Envelope</span>
+                    <span className="text-sm font-semibold text-slate-100">Optimize Geometry + Envelope</span>
                     <span className="block text-[11px] text-slate-400">
                       Adds length, width and clear height to the search alongside the six envelope dimensions.
                     </span>
@@ -610,7 +610,7 @@ export default function ComparativeAnalysis({
                         <Award className="w-3.5 h-3.5" />
                         Recommended Design #{optimizationResult.recommended_design.rank} — {optimizationResult.recommended_design.label}
                       </div>
-                      <h3 className="text-2xl font-bold text-white">
+                      <h3 className="text-2xl font-bold text-slate-100">
                         {optimizationResult.recommended_design.wall_material_name} + {optimizationResult.recommended_design.insulation_mm}mm Insulation
                       </h3>
                       {typeof optimizationResult.recommended_design.length_m === 'number' &&
@@ -759,7 +759,7 @@ export default function ComparativeAnalysis({
               {/* Ranked Candidate Cards Grid */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
                     <Award className="w-4 h-4 text-indigo-400" />
                     Top Optimization Candidates Ranked by Optuna
                   </h3>
@@ -804,7 +804,7 @@ export default function ComparativeAnalysis({
                               #{c.rank}
                             </span>
                             <div>
-                              <h4 className="text-sm font-bold text-white">{c.label}</h4>
+                              <h4 className="text-sm font-bold text-slate-100">{c.label}</h4>
                               <p className="text-[10px] text-indigo-400 uppercase tracking-wider font-semibold">
                                 Score: {(c.overall_score * 100).toFixed(1)} / 100
                               </p>
@@ -820,7 +820,7 @@ export default function ComparativeAnalysis({
                         <div className="space-y-1.5 text-xs text-slate-300 mb-4 pb-3 border-b border-slate-700/40">
                           <div className="flex justify-between">
                             <span className="text-slate-400">Wall Substrate:</span>
-                            <span className="font-medium text-white truncate max-w-[150px]">{c.wall_material_name}</span>
+                            <span className="font-medium text-slate-100 truncate max-w-[150px]">{c.wall_material_name}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400">Insulation:</span>
@@ -839,19 +839,19 @@ export default function ComparativeAnalysis({
                           {typeof c.length_m === 'number' && typeof c.width_m === 'number' && typeof c.height_m === 'number' && (
                             <div className="flex justify-between">
                               <span className="text-slate-400">Geometry:</span>
-                              <span className="font-medium text-white">{c.length_m.toFixed(1)} × {c.width_m.toFixed(1)} × {c.height_m.toFixed(1)} m</span>
+                              <span className="font-medium text-slate-100">{c.length_m.toFixed(1)} × {c.width_m.toFixed(1)} × {c.height_m.toFixed(1)} m</span>
                             </div>
                           )}
                           {typeof c.floor_area_m2 === 'number' && (
                             <div className="flex justify-between">
                               <span className="text-slate-400">Floor Area:</span>
-                              <span className="font-medium text-white">{c.floor_area_m2.toFixed(1)} m²</span>
+                              <span className="font-medium text-slate-100">{c.floor_area_m2.toFixed(1)} m²</span>
                             </div>
                           )}
                           {typeof c.surface_to_volume_ratio === 'number' && (
                             <div className="flex justify-between">
                               <span className="text-slate-400">Surface / Volume:</span>
-                              <span className="font-medium text-white">{c.surface_to_volume_ratio.toFixed(2)} 1/m</span>
+                              <span className="font-medium text-slate-100">{c.surface_to_volume_ratio.toFixed(2)} 1/m</span>
                             </div>
                           )}
                           {c.thermal_mass_level && (
@@ -930,7 +930,7 @@ export default function ComparativeAnalysis({
                 {/* Bar Chart: Baseline vs Top Candidates */}
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-emerald-400" />
                       Thermal Comfort vs. Energy Demand
                     </h4>
@@ -958,7 +958,7 @@ export default function ComparativeAnalysis({
                 {/* Radar Chart: Multi-Objective Sub-Scores */}
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-indigo-400" />
                       Multi-Objective Trade-Off (Radar)
                     </h4>
@@ -1001,7 +1001,7 @@ export default function ComparativeAnalysis({
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                         <Eye className="w-4 h-4 text-indigo-400" />
                         3D Architectural Preview — Candidate #{activeCandidate.rank} ({activeCandidate.label})
                       </h4>
@@ -1070,7 +1070,7 @@ export default function ComparativeAnalysis({
               <select
                 value={newMaterial}
                 onChange={(e) => setNewMaterial(e.target.value)}
-                className="px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none"
+                className="px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none"
               >
                 {materials
                   .filter((m) => m.category !== 'Insulation')
@@ -1222,7 +1222,7 @@ function DualOutputComparison({
   return (
     <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-white flex items-center gap-2">
+        <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
           <Award className="w-4 h-4 text-cyan-400" />
           Two Design Outputs
         </h3>
@@ -1262,7 +1262,7 @@ function DualOutputComparison({
           <div className="rounded-xl border border-indigo-500/30 bg-slate-800/50 p-4 space-y-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Your Design</p>
-              <p className="text-sm font-semibold text-white">Requirement Constrained</p>
+              <p className="text-sm font-semibold text-slate-100">Requirement Constrained</p>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 Best result respecting your configured weights, materials and constraints.
               </p>
@@ -1288,7 +1288,7 @@ function DualOutputComparison({
           <div className="rounded-xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 to-slate-900/60 p-4 space-y-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">ThermoShelter Recommendation</p>
-              <p className="text-sm font-semibold text-white">Comfort First</p>
+              <p className="text-sm font-semibold text-slate-100">Comfort First</p>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 Model-generated configuration optimized for simulated thermal comfort within the
                 available prototype engineering search space.

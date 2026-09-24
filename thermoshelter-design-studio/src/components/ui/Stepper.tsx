@@ -42,7 +42,7 @@ export default function Stepper({ current, onNavigate, maxVisitedIndex }: Steppe
   const nextNavigable = next && next.available ? next : null;
 
   return (
-    <nav aria-label="Workflow stages" className="bg-slate-900/60 border border-slate-700/40 rounded-xl px-4 py-3 backdrop-blur-sm">
+    <nav aria-label="Workflow stages" className="bg-slate-900/60 border border-slate-700/40 rounded-xl px-4 py-3 backdrop-blur-sm min-w-0 overflow-hidden">
       <ol className="flex items-center gap-1 overflow-x-auto">
         {WORKFLOW_STAGES.map((stage, i) => {
           const isCurrent = stage.id === current;

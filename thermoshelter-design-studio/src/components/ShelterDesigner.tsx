@@ -161,7 +161,7 @@ export default function ShelterDesigner({
                   max={input.max}
                   step={input.step}
                   onChange={(e) => updateField(input.field as keyof ShelterDesign, Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-amber-500/50"
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50"
                 />
               </div>
             ))}
@@ -224,7 +224,7 @@ export default function ShelterDesigner({
                   step={0.5}
                   value={shelterDesign.windowArea}
                   onChange={(e) => updateField('windowArea', Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
                 />
               </div>
               <div className="space-y-1">
@@ -236,7 +236,7 @@ export default function ShelterDesigner({
                   step={0.5}
                   value={shelterDesign.doorArea}
                   onChange={(e) => updateField('doorArea', Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
                 />
               </div>
             </div>
@@ -246,7 +246,7 @@ export default function ShelterDesigner({
               <select
                 value={shelterDesign.windowGlazing}
                 onChange={(e) => updateField('windowGlazing', e.target.value as any)}
-                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-xs text-white focus:outline-none focus:border-cyan-500"
+                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
               >
                 <option value="single">Single Glazed (U ≈ 5.8 W/m²·K, SHGC 0.85)</option>
                 <option value="double">Double Glazed Clear (U ≈ 2.8 W/m²·K, SHGC 0.70)</option>
@@ -289,7 +289,7 @@ export default function ShelterDesigner({
               <select
                 value={shelterDesign.insulationType}
                 onChange={(e) => updateField('insulationType', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
               >
                 <option value="None">None (Uninsulated)</option>
                 <option value="EPS">Expanded Polystyrene (EPS, k=0.036)</option>
@@ -384,13 +384,13 @@ export default function ShelterDesigner({
                       step={1}
                       value={missionOccupants ?? 1}
                       onChange={(e) => onMissionOccupantsChange(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)))}
-                      className="w-16 px-2 py-1 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm font-mono font-bold text-white text-right focus:outline-none focus:border-indigo-500"
+                      className="w-16 px-2 py-1 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm font-mono font-bold text-slate-100 text-right focus:outline-none focus:border-indigo-500"
                       aria-label="Number of internal occupants"
                     />
                     <span className="text-[11px] text-slate-400">persons · {(missionOccupants ?? 1) * 80} W gain</span>
                   </div>
                 ) : (
-                  <span className="font-mono font-bold text-white">{missionOccupants ?? '—'} persons</span>
+                  <span className="font-mono font-bold text-slate-100">{missionOccupants ?? '—'} persons</span>
                 )}
               </div>
               {onMissionOccupantsChange && (
@@ -418,7 +418,7 @@ export default function ShelterDesigner({
                       const v = parseFloat(e.target.value);
                       if (!Number.isNaN(v)) updateField('ach', Math.max(0.1, Math.min(5, v)));
                     }}
-                    className="w-20 px-2 py-1 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm font-mono font-bold text-white text-right focus:outline-none focus:border-sky-500"
+                    className="w-20 px-2 py-1 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm font-mono font-bold text-slate-100 text-right focus:outline-none focus:border-sky-500"
                     aria-label="Air changes per hour"
                   />
                   <span className="text-[11px] text-slate-400">h⁻¹</span>

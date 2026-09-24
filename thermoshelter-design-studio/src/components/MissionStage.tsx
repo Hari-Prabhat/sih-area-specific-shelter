@@ -65,7 +65,7 @@ export default function MissionStage() {
               max={50}
               value={mission.occupants}
               onChange={(e) => setMissionField('occupants', Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white focus:outline-none focus:border-amber-500/60"
+              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-slate-100 focus:outline-none focus:border-amber-500/60"
             />
             <p className="text-xs text-slate-500">
               Drives internal heat gains and ventilation sizing in the Python simulation.
@@ -81,7 +81,7 @@ export default function MissionStage() {
               min={1}
               value={mission.durationMonths}
               onChange={(e) => setMissionField('durationMonths', Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white focus:outline-none focus:border-amber-500/60"
+              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-slate-100 focus:outline-none focus:border-amber-500/60"
             />
           </div>
         </div>

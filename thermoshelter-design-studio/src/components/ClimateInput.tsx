@@ -133,12 +133,12 @@ export default function ClimateInput({ climateData, setClimateData, climateProfi
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
 placeholder="City, district, state, PIN code, or 'lat, lon'"
-            className="flex-1 min-w-[220px] px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+            className="flex-1 min-w-[220px] px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-emerald-500/50"
           />
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as WeatherDatasetMode)}
-            className="px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none"
+            className="px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none"
           >
             {CLIMATE_MODES.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
@@ -232,7 +232,7 @@ placeholder="City, district, state, PIN code, or 'lat, lon'"
                     input.type === 'number' ? Number(e.target.value) : e.target.value
                   )
                 }
-                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-amber-500/50"
+                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50"
               />
             </div>
           ))}

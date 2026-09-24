@@ -145,7 +145,7 @@ export default function PassiveStrategyStage() {
           <Thermometer className="w-4 h-4 text-amber-400" aria-hidden="true" /> Core strategy
         </h3>
         {model.primaryStrategy ? (
-          <p className="text-base text-white font-medium">{model.primaryStrategy}</p>
+          <p className="text-base text-slate-100 font-medium">{model.primaryStrategy}</p>
         ) : (
           <p className="text-sm text-slate-500">Not provided by the backend.</p>
         )}

@@ -199,7 +199,7 @@ export default function SimulationResults({
         <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/5 border border-orange-500/20 rounded-xl p-4">
           <Thermometer className="w-5 h-5 text-orange-400 mb-2" />
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Avg Indoor Temp</p>
-          <p className="text-2xl font-bold text-white mt-1">{result.avgInsideTemp}°C</p>
+          <p className="text-2xl font-bold text-slate-100 mt-1">{result.avgInsideTemp}°C</p>
           <p className="text-[10px] text-slate-400 mt-0.5">
             Min: <span className="text-blue-400 font-semibold">{result.minInsideTemp}°C</span> | Max: <span className="text-amber-400 font-semibold">{result.maxInsideTemp}°C</span>
           </p>
@@ -209,7 +209,7 @@ export default function SimulationResults({
         <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border border-yellow-500/20 rounded-xl p-4">
           <Sun className="w-5 h-5 text-yellow-400 mb-2" />
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Solar Thermal Gain</p>
-          <p className="text-2xl font-bold text-white mt-1">
+          <p className="text-2xl font-bold text-slate-100 mt-1">
             {canonical ? `${Math.round(canonical.integrated_solar_energy_kwh)} kWh` : `${result.solarEnergyGain} kWh/day`}
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5 truncate">
@@ -221,7 +221,7 @@ export default function SimulationResults({
         <div className="bg-gradient-to-br from-red-500/20 to-red-600/5 border border-red-500/20 rounded-xl p-4">
           <Zap className="w-5 h-5 text-red-400 mb-2" />
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Heat Loss</p>
-          <p className="text-2xl font-bold text-white mt-1">
+          <p className="text-2xl font-bold text-slate-100 mt-1">
             {canonical ? `${Math.round(canonical.total_heat_loss_kwh)} kWh` : `${result.totalHeatLoss} W`}
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5">
@@ -233,7 +233,7 @@ export default function SimulationResults({
         <div className="bg-gradient-to-br from-green-500/20 to-green-600/5 border border-green-500/20 rounded-xl p-4">
           <TrendingUp className="w-5 h-5 text-green-400 mb-2" />
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Thermal Comfort</p>
-          <p className="text-2xl font-bold text-white mt-1">{result.thermalComfortIndex}%</p>
+          <p className="text-2xl font-bold text-slate-100 mt-1">{result.thermalComfortIndex}%</p>
           <p className="text-[10px] text-slate-400 mt-0.5">
             {canonical ? `DDH: ${Math.round(canonical.discomfort_degree_hours)} °C·h` : 'Predicted Comfort Index'}
           </p>
@@ -618,7 +618,7 @@ export default function SimulationResults({
               <div>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-slate-400">Total Incident Solar Irradiation on Glazing</span>
-                  <span className="text-white font-mono font-bold">
+                  <span className="text-slate-100 font-mono font-bold">
                     {Math.round(canonical.integrated_incident_solar_kwh)} kWh
                   </span>
                 </div>
