@@ -123,9 +123,8 @@ export default function ClimateInput({ climateData, setClimateData, climateProfi
           <Search className="w-4 h-4 text-emerald-400" /> Live Weather / Location Climate
         </h3>
         <p className="text-xs text-slate-500 mb-3">
-          Resolve any location by name or "lat, lon" coordinates and drive the simulation with
-          real provider weather. Modes are never mixed: Live ends now, Forecast looks ahead,
-          Design uses bundled benchmark climate.
+          Search any Indian city, district, state, 6-digit PIN code, or "lat, lon" coordinates.
+          Modes are never mixed: Live ends now, Forecast looks ahead, Design uses bundled benchmark climate.
         </p>
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <input

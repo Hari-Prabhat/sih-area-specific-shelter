@@ -213,6 +213,7 @@ def run_simulation(
     hourly_direct_solar: Optional[List[float]] = None,
     hourly_diffuse_solar: Optional[List[float]] = None,
     extra_thermal_capacity_j_k: Optional[float] = None,
+    shape: str = "rectangular",
 ) -> Dict[str, Any]:
     """
     Authoritative physical simulation runner for shelter thermal response.
@@ -244,7 +245,24 @@ def run_simulation(
         return {"error": f"No weather data available for city: {city}"}
 
     # 2. Geometric Calculations via services/geometry.py
-    floor_area = f.calculate_floor_area(length, width)
+    # Product-hardening pass: shape-aware canonical geometry. The selected
+    # shelter form (rectangular / cylindrical / dome / pyramid) is authoritative
+    # here — a dome is simulated AS a dome via its true curved-envelope
+    # metrics, never silently converted back to a rectangular box.
+    _shape_geo = f.calculate_shape_geometry(shape, length, width, height)
+    if shape == "cylindrical" and width != length:
+        # Diameter convention: L and W both denote the diameter; keep them
+        # consistent rather than guessing which the user meant.
+        raise ValueError(
+            f"Cylindrical shelter requires length == width (diameter), "
+            f"got L={length}, W={width}"
+        )
+    if shape == "dome" and width != length:
+        raise ValueError(
+            f"Dome shelter requires length == width (diameter), "
+            f"got L={length}, W={width}"
+        )
+    floor_area = _shape_geo["floor_area_m2"]
 
     # Determine roof type from model if provided
     effective_roof_type = roof_type
@@ -253,7 +271,13 @@ def run_simulation(
     elif shelter_model in ("rectangular_flat", "compact_shelter", "elongated_shelter"):
         effective_roof_type = "flat"
 
-    if effective_roof_type == "pitched":
+    if shape in ("cylindrical", "dome", "pyramid"):
+        # Shape-specific envelope: consume the canonical shape geometry
+        # directly (curved walls, spherical cap, sloped pyramid faces).
+        volume = _shape_geo["volume_m3"]
+        roof_area = _shape_geo["roof_area_m2"]
+        gross_wall_area = _shape_geo["gross_wall_area_m2"]
+    elif effective_roof_type == "pitched":
         p_geo = f.calculate_pitched_roof_geometry(length, width, height, pitch_angle_deg)
         roof_area = p_geo["roof_area"]
         gross_wall_area = p_geo["gross_wall_area"]
@@ -609,6 +633,11 @@ def run_simulation(
             "door_area_m2": round(door_area_clamped, 2),
             "roof_type": effective_roof_type,
             "shelter_model": shelter_model or ("rectangular_pitched" if effective_roof_type == "pitched" else "rectangular_flat"),
+            # Product-hardening pass: report the authoritative shape and its
+            # gross envelope areas so every consumer (Apply, Blueprint, 3D,
+            # Report) sees the same truth the engine simulated.
+            "shape": _shape_geo["shape"],
+            "gross_wall_area_m2": round(gross_wall_area, 2),
         },
         "specs": {
             "wall_material": wall_material if isinstance(wall_material, str) else "custom",

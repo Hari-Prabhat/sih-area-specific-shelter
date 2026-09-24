@@ -249,6 +249,16 @@ class LocationResolver:
                 loc = self.resolve((lat_val, lon_val))
                 return [loc]
 
+        # Indian PIN code input resolves through the India Post directory +
+        # geocoding path (never sent to the place-name geocoder as a city).
+        if query_clean.isdigit() and len(query_clean) == 6:
+            try:
+                return [self.resolve_from_pincode(query_clean, allow_online=allow_online)]
+            except ValueError:
+                # Unknown/unreachable PIN: fall through so the caller can
+                # surface a clear "location not found" instead of a crash.
+                return []
+
         results: List[Location] = []
         query_lower = query_clean.lower()
 
@@ -314,8 +324,13 @@ class LocationResolver:
         district: Optional[str] = None
         region: Optional[str] = None
         try:
+            # The India Post directory rejects requests without a browser-like
+            # User-Agent and enforces TLS filtering; the header is required for
+            # reliable resolution. Timeout is the resolver's configured value.
             resp = requests.get(
-                f"https://api.postalpincode.in/pincode/{pin}", timeout=self.timeout_seconds
+                f"https://api.postalpincode.in/pincode/{pin}",
+                timeout=max(self.timeout_seconds, 8.0),
+                headers={"User-Agent": "Mozilla/5.0 (compatible; ThermoShelter/1.0)"},
             )
             if resp.status_code == 200:
                 payload = resp.json()
@@ -370,6 +385,11 @@ class LocationResolver:
             coords = self._parse_coordinates_string(query)
             if coords:
                 return self.resolve_from_coordinates(coords[0], coords[1])
+            # Indian PIN codes route through the India Post directory, never
+            # the place-name geocoder (a PIN is not a city name).
+            q = query.strip()
+            if q.isdigit() and len(q) == 6:
+                return self.resolve_from_pincode(q)
             return self.resolve_from_name(query)
 
         raise TypeError(f"Unsupported location query type: {type(query)}")

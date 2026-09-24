@@ -9,25 +9,80 @@
   color-scheme: dark;
 }
 
+/* =====================================================================
+   SEMANTIC DESIGN TOKENS (product-hardening pass)
+   =====================================================================
+   Every component consumes these variables — no hard-coded theme colors.
+   Dark theme: deep navy/charcoal, cyan accents, amber thermal.
+   Light theme: intentionally designed cool-white engineering theme (NOT an
+   inverted dark UI) — dark navy typography, soft gray surfaces, subtle
+   blue/cyan accents, restrained purple highlights, amber thermal.
+   ===================================================================== */
+
+:root,
+:root[data-theme='dark'] {
+  --bg-primary: #070d16;
+  --bg-secondary: #0a1220;
+  --surface: rgba(15, 23, 42, 0.72);
+  --surface-elevated: rgba(30, 41, 59, 0.6);
+  --border: rgba(51, 65, 85, 0.55);
+  --border-strong: rgba(71, 85, 105, 0.8);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent-primary: #22d3ee;      /* cyan — navigation, active states */
+  --accent-secondary: #a78bfa;    /* purple — secondary/highlight */
+  --thermal: #f59e0b;             /* amber — thermal/solar data only */
+  --solar: #fb923c;               /* warm orange — solar gain */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --grid-line: rgba(103, 232, 249, 0.035);
+  --shadow-card: 0 4px 16px rgba(2, 6, 16, 0.5);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg-primary: #f6f8fb;
+  --bg-secondary: #eef2f7;
+  --surface: #ffffff;
+  --surface-elevated: #f1f5f9;
+  --border: rgba(100, 116, 139, 0.28);
+  --border-strong: rgba(71, 85, 105, 0.5);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent-primary: #0891b2;      /* darker cyan for contrast on white */
+  --accent-secondary: #7c3aed;    /* violet */
+  --thermal: #b45309;             /* dark amber, WCAG-safe on white */
+  --solar: #c2410c;
+  --success: #059669;
+  --warning: #b45309;
+  --danger: #dc2626;
+  --grid-line: rgba(8, 145, 178, 0.05);
+  --shadow-card: 0 2px 10px rgba(15, 23, 42, 0.08);
+  color-scheme: light;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  /* A: premium engineering foundation — deep graphite/navy base. Stage
-     content sits on cards above this; the grid motif stays subtle. */
-  background-color: #070d16;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
   width: 100%;
 }
 
-/* A: subtle engineering-grid / blueprint motif. Restrained by design —
-   low-contrast lines on the deep navy base, no glow, no animation. */
+/* Subtle engineering-grid / blueprint motif; token-driven so both themes get
+   an appropriate, restrained grid. */
 .engineering-grid-bg {
   background-image:
-    linear-gradient(rgba(103, 232, 249, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(103, 232, 249, 0.035) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
@@ -37,6 +92,15 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid rgba(103, 232, 249, 0.7);
+  outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
+}
+
+/* Theme-aware engineering panel primitive: shared card styling consumed by
+   stage components via the `panel` class instead of repeated slate utilities. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-card);
 }

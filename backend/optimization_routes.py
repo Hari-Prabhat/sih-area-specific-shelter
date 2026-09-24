@@ -275,7 +275,8 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
                     "optimize_geometry", "min_length_m", "max_length_m",
                     "min_width_m", "max_width_m",
                     "min_height_m", "max_height_m",
-                    "min_aspect_ratio", "max_aspect_ratio"
+                    "min_aspect_ratio", "max_aspect_ratio",
+                    "shape"
                 }
             }
 

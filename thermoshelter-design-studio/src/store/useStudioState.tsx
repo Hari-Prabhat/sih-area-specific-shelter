@@ -178,7 +178,6 @@ export interface StudioState {
   stage: WorkflowStage;
   /** B: highest stage index reached this session (for direct navigation). */
   maxVisitedIndex: number;
-  expertMode: boolean;
 
   // Site & climate
   climate: ClimateData;
@@ -203,7 +202,6 @@ export interface StudioState {
 
 export interface StudioActions {
   setStage: (stage: WorkflowStage) => void;
-  setExpertMode: (expert: boolean) => void;
   setClimate: (climate: ClimateData) => void;
   setClimateProfile: (profile: SimulationClimateProfile | null) => void;
   setMissionField: <K extends keyof MissionConfig>(field: K, value: MissionConfig[K]) => void;
@@ -265,7 +263,6 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
   // B: highest stage index reached this session — previously visited stages
   // stay directly clickable in the global navigation.
   const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
-  const [expertMode, setExpertMode] = useState(false);
 
   const setStage = useCallback((s: WorkflowStage) => {
     setStageRaw(s);
@@ -484,6 +481,9 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
             length: design.length,
             width: design.width,
             height: design.height,
+            // Canonical form rides with the optimization config (evaluated,
+            // not searched): every trial simulates the actual shape.
+            shape: design.shape,
             wall_material: wallMaterialKey(wallMaterial),
             wall_thickness_m: design.wallThickness,
             insulation_thickness_m: insThick,
@@ -591,7 +591,6 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
     () => ({
       stage,
       maxVisitedIndex,
-      expertMode,
       climate,
       climateProfile,
       mission,
@@ -601,7 +600,6 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
       optimization,
       backendHealth,
       setStage,
-      setExpertMode,
       setClimate,
       setClimateProfile: applyClimateProfile,
       setMissionField,
@@ -620,7 +618,6 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
     [
       stage,
       maxVisitedIndex,
-      expertMode,
       climate,
       climateProfile,
       mission,

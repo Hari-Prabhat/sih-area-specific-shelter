@@ -355,7 +355,7 @@ export default function ComparativeAnalysis({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Bayesian Optimizer
+            Optimize Design
           </button>
           <button
             onClick={() => setActiveMode('sweep')}
@@ -366,7 +366,7 @@ export default function ComparativeAnalysis({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            Material Sweep
+            Material Comparison
           </button>
         </div>
       </div>
@@ -573,7 +573,7 @@ export default function ComparativeAnalysis({
                 loadingText={`Running Optuna Optimizer (${nTrials} Trials)…`}
                 icon={!isOptimizing ? <Sparkles className="w-4 h-4" /> : undefined}
               >
-                Run Bayesian Optimization
+                Optimize Design
               </Button>
             </div>
           </div>
@@ -584,7 +584,7 @@ export default function ComparativeAnalysis({
               <Sparkles className="w-12 h-12 text-indigo-400/50 mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-slate-300 mb-1">No Optimization Run Yet</h3>
               <p className="text-sm text-slate-400 max-w-md mx-auto mb-4">
-                Click "Run Bayesian Optimization" above to search the parameter space using Optuna and discover top-performing shelter configurations.
+                Click "Optimize Design" to search the design space for configurations with improved simulated thermal performance (powered by Optuna TPE).
               </p>
               <Button
                 variant="secondary"
@@ -1065,7 +1065,7 @@ export default function ComparativeAnalysis({
           )}
 
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4">Add Material Variant to Compare</h3>
+            <h3 className="text-sm font-semibold text-slate-300 mb-4">Compare a different envelope material for the current design</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <select
                 value={newMaterial}
@@ -1099,7 +1099,7 @@ export default function ComparativeAnalysis({
 
           {comparisons.length >= 2 && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
-              <h3 className="text-sm font-semibold text-slate-300 mb-4">Material Sweep Performance</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-4">Material Comparison Results</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
                   data={comparisons.map((c) => ({
@@ -1127,8 +1127,8 @@ export default function ComparativeAnalysis({
           {comparisons.length === 0 && (
             <div className="text-center py-16 bg-slate-800/30 rounded-xl border border-slate-700/20">
               <Layers className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-400 mb-2">No Material Sweeps Yet</h3>
-              <p className="text-sm text-slate-500 mb-4">Add designs to compare or use Quick Compare</p>
+              <h3 className="text-lg font-semibold text-slate-400 mb-2">No Material Comparisons Yet</h3>
+              <p className="text-sm text-slate-500 mb-4">Compare how different envelope materials affect thermal performance for the current shelter design.</p>
               <button
                 onClick={quickCompare}
                 className="px-6 py-2 bg-indigo-500 text-white font-medium rounded-lg hover:bg-indigo-400"

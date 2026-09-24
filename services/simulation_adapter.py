@@ -171,6 +171,9 @@ class SimulationAdapter:
                 if d.metadata.get("thermal_mass_enabled")
                 else None
             ),
+            # Product-hardening pass: the canonical design's shape is
+            # authoritative — the engine simulates the ACTUAL form.
+            shape=str(d.metadata.get("shape", "rectangular")),
         )
 
         if "error" in raw_res:
@@ -329,6 +332,9 @@ class OptimizationAdapter:
             "max_height_m": kwargs.get("max_height_m"),
             "min_aspect_ratio": kwargs.get("min_aspect_ratio"),
             "max_aspect_ratio": kwargs.get("max_aspect_ratio"),
+            # Product-hardening pass: the design's form rides with the
+            # optimization config so every trial simulates the actual shape.
+            "shape": kwargs.get("shape", str(getattr(sd, "shape", "rectangular"))),
         }
 
         return adapt_to_optimization_input(payload)

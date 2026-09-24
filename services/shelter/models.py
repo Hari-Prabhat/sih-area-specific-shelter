@@ -1111,6 +1111,9 @@ class ShelterDesign:
                 "wall_thickness_m": wall_thickness_m,
                 "roof_thickness_m": roof_thickness_m,
                 "shelter_model": kwargs.get("shelter_model", f"rectangular_{roof_type}"),
+                # Product-hardening pass: the canonical design carries the
+                # user-selected shelter form explicitly.
+                "shape": str(kwargs.get("shape", "rectangular")),
                 "heat_per_person": heat_per_person_val,
                 "ach": ach_val,
                 "orientation": ori_raw,
@@ -1266,6 +1269,11 @@ class ShelterDesign:
         return self.requirements.permanence.capitalize()
 
     @property
+    def shape(self) -> str:
+        """Authoritative shelter form (rectangular/cylindrical/dome/pyramid)."""
+        return str(self.metadata.get("shape", "rectangular"))
+
+    @property
     def shelter_model(self) -> Optional[str]:
         if "shelter_model" in self.metadata:
             return str(self.metadata["shelter_model"])
@@ -1303,6 +1311,7 @@ class ShelterDesign:
             "length": self.length,
             "width": self.width,
             "height": self.height,
+            "shape": self.shape,
             "wall_material": self.wall_material,
             "wall_thickness_m": self.wall_thickness_m,
             "insulation_thickness_m": self.insulation_thickness_m,

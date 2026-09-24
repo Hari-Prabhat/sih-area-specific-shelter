@@ -463,6 +463,9 @@ export function buildCanonicalSimulationPayload(
       length: design.length,
       width: design.width,
       height: design.height,
+      // Product-hardening pass: the canonical form reaches the engine —
+      // a dome is simulated AS a dome (curved envelope), never flattened.
+      shape: design.shape,
       wall_material: wallMaterialKey(material?.name),
       wall_thickness_m: design.wallThickness,
       insulation_thickness_m: insThick,

@@ -175,6 +175,10 @@ def _objective(
     max_height_m: Optional[float] = None,
     min_aspect_ratio: Optional[float] = None,
     max_aspect_ratio: Optional[float] = None,
+    # Product-hardening pass: the user-selected shelter form is authoritative
+    # for every trial simulation. Shape is NOT an optimization variable —
+    # it is evaluated, not searched (documented product decision).
+    shape: str = "rectangular",
 ) -> float:
     """
     Evaluates one candidate shelter configuration against physical objectives.
@@ -241,7 +245,7 @@ def _objective(
     # dimension bounds, orientation-independent aspect ratio
     # (max(L/W, W/L)), per-facade opening fit, and the gross-wall backstop.
     # ------------------------------------------------------------------
-    if optimize_geometry:
+    if optimize_geometry and shape == "rectangular":
         try:
             from services.geometry_feasibility import evaluate_geometry_feasibility
         except ImportError:  # pragma: no cover - import-parity fallback
@@ -328,6 +332,7 @@ def _objective(
         hourly_direct_solar=hourly_direct_solar,
         hourly_diffuse_solar=hourly_diffuse_solar,
         extra_thermal_capacity_j_k=_thermal_mass_capacity_j_k(tm_level_choice, trial_length, trial_width),
+        shape=shape,
     )
 
     if "error" in sim_result:
@@ -417,6 +422,7 @@ def optimize_shelter(opt_input: Union[OptimizationInput, Dict[str, Any]]) -> Opt
         hours_to_simulate=contract_input.hours_to_simulate,
         weights=contract_input.weights,
         climate_scenario=contract_input.climate_scenario,
+        shape=str(getattr(contract_input, "shape", "rectangular")),
         **_geometry_search_fields(contract_input),
     )
 
@@ -459,6 +465,9 @@ def run_optimization(
     max_height_m: Optional[float] = None,
     min_aspect_ratio: Optional[float] = None,
     max_aspect_ratio: Optional[float] = None,
+    # Product-hardening pass: authoritative shelter form, evaluated (not
+    # searched) for every trial and candidate simulation.
+    shape: str = "rectangular",
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
@@ -649,6 +658,7 @@ def run_optimization(
             max_height_m=max_height_m,
             min_aspect_ratio=min_aspect_ratio,
             max_aspect_ratio=max_aspect_ratio,
+            shape=shape,
         ),
         n_trials=n_trials,
     )
@@ -706,6 +716,7 @@ def run_optimization(
         hourly_temperatures=hourly_t,
         hourly_direct_solar=hourly_ds,
         hourly_diffuse_solar=hourly_dfs,
+        shape=shape,
     )
 
     glaze_name = GLAZING_PROPERTIES.get(best_glaze, {}).get("name", best_glaze.replace("_", " ").title())
@@ -759,6 +770,7 @@ def run_optimization(
             hourly_direct_solar=hourly_ds,
             hourly_diffuse_solar=hourly_dfs,
             extra_thermal_capacity_j_k=_thermal_mass_capacity_j_k(c_tm_level, c_len, c_wid),
+            shape=shape,
         )
         if "error" in c_sim:
             continue
@@ -948,6 +960,7 @@ def run_comfort_first_recommendation(
     max_height_m: Optional[float] = None,
     min_aspect_ratio: Optional[float] = None,
     max_aspect_ratio: Optional[float] = None,
+    shape: str = "rectangular",
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
@@ -1036,6 +1049,7 @@ def run_comfort_first_recommendation(
             max_height_m=max_height_m,
             min_aspect_ratio=min_aspect_ratio,
             max_aspect_ratio=max_aspect_ratio,
+            shape=shape,
             **kwargs,
         )
 
@@ -1091,4 +1105,4 @@ if __name__ == "__main__":
     print(f"Optimal Material: {res['wall_material']}")
     print(f"Ranked Designs: {len(res['ranked_designs'])}")
     for d in res['ranked_designs']:
-        print(f" - {d['label']}: {d['wall_material']} | {d['insulation_mm']}mm | Score: {d['overall_score']}")
+        print(f" - {d['label']}: {d['wall_material']} | {d['insulation_mm']}mm | Score: {d['overall_score']}")

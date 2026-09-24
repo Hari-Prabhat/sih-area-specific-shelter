@@ -576,6 +576,11 @@ class OptimizationInput:
     # ------------------------------------------------------------------
     min_aspect_ratio: Optional[float] = None
     max_aspect_ratio: Optional[float] = None
+    # Product-hardening pass: authoritative shelter form carried with the
+    # optimization configuration. Shape is EVALUATED (every trial/candidate
+    # simulation uses the actual form) but NOT SEARCHED — changing shape
+    # remains an explicit user decision, not an optimizer variable.
+    shape: str = "rectangular"
 
     def __post_init__(self) -> None:
         self.validate()
@@ -744,6 +749,7 @@ class OptimizationInput:
             max_height_m=data.get("max_height_m"),
             min_aspect_ratio=data.get("min_aspect_ratio"),
             max_aspect_ratio=data.get("max_aspect_ratio"),
+            shape=str(data.get("shape", "rectangular")),
         )
 
 

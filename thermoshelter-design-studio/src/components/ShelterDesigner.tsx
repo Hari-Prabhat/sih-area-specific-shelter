@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles } from 'lucide-react';
 import { ShelterDesign } from '../types';
 import { materials } from '../data/materials';
+import { calculateShapeGeometryDisplay } from '../services/shapeGeometry';
 import StageSuspense from './ui/StageSuspense';
 
 // D3: the three.js digital twin is the heaviest view in the studio and is
@@ -43,6 +44,12 @@ export default function ShelterDesigner({
       setShelterDesign({ ...shelterDesign, [field]: value });
     }
   };
+
+  // Display-only shape metrics (backend recomputes authoritatively).
+  const derivedMetrics = useMemo(
+    () => calculateShapeGeometryDisplay(shelterDesign.shape, shelterDesign.length, shelterDesign.width, shelterDesign.height),
+    [shelterDesign.shape, shelterDesign.length, shelterDesign.width, shelterDesign.height],
+  );
 
   return (
     <div className="space-y-6">
@@ -87,41 +94,48 @@ export default function ShelterDesigner({
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {(['rectangular', 'cylindrical', 'dome', 'pyramid'] as const).map((shape) => {
-              // C: honest shape support. The authoritative Python thermal
-              // engine implements rectangular geometry only — the other forms
-              // are visualization concepts, not simulated physics. They are
-              // shown disabled with explicit future-scope labelling rather
-              // than left as misleading selectable options.
-              const supported = shape === 'rectangular';
+              // Product-hardening pass: all four forms are physically simulated
+              // by the authoritative Python engine via services/geometry.py
+              // calculate_shape_geometry (curved envelope, spherical cap,
+              // sloped faces). Cylindrical/dome treat L and W as the diameter.
               return (
                 <button
                   key={shape}
-                  onClick={() => supported && updateField('shape', shape)}
-                  disabled={!supported}
+                  onClick={() => {
+                    updateField('shape', shape);
+                    // Diameter convention: keep L == W when switching to a
+                    // radial form so the geometry stays physically valid.
+                    if ((shape === 'cylindrical' || shape === 'dome') && shelterDesign.width !== shelterDesign.length) {
+                      const d = Math.max(shelterDesign.length, shelterDesign.width);
+                      updateField('length', d);
+                      updateField('width', d);
+                    }
+                  }}
                   aria-pressed={shelterDesign.shape === shape}
-                  aria-label={supported ? `${shape} shelter form` : `${shape} shelter form — not yet physically simulated (future scope)`}
-                  title={supported ? 'Rectangular shelter form' : 'Future scope — this shape is not yet simulated by the thermal engine'}
+                  aria-label={`${shape} shelter form`}
+                  title={`${shape.charAt(0).toUpperCase() + shape.slice(1)} shelter form — physically simulated`}
                   className={`p-4 rounded-lg border transition-all text-center ${
                     shelterDesign.shape === shape
                       ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-sm'
-                      : supported
-                      ? 'bg-slate-700/30 border-slate-600/30 text-slate-400 hover:bg-slate-700/50'
-                      : 'bg-slate-800/40 border-slate-700/20 text-slate-600 cursor-not-allowed'
+                      : 'bg-slate-700/30 border-slate-600/30 text-slate-400 hover:bg-slate-700/50'
                   }`}
                 >
                   <p className="text-xs font-medium capitalize">{shape}</p>
-                  {!supported && <p className="text-[9px] text-slate-500 mt-1">future scope</p>}
                 </button>
               );
             })}
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/30 space-y-1 text-xs text-slate-400">
             <div className="flex justify-between">
-              <span>Floor Area: {(shelterDesign.length * shelterDesign.width).toFixed(1)} m²</span>
-              <span>Vol: {(shelterDesign.length * shelterDesign.width * shelterDesign.height).toFixed(1)} m³</span>
+              <span>Floor Area: {derivedMetrics.floorArea.toFixed(1)} m²</span>
+              <span>Vol: {derivedMetrics.volume.toFixed(1)} m³</span>
             </div>
             <p className="text-[10px] text-slate-500 pt-1">
-              The thermal engine simulates rectangular geometry. Curved and sloped forms are future scope.
+              {shelterDesign.shape === 'cylindrical' || shelterDesign.shape === 'dome'
+                ? 'Diameter controls the footprint (length = width).'
+                : shelterDesign.shape === 'pyramid'
+                ? 'Height is the apex height above the base.'
+                : 'Rectangular envelope: L × W footprint, clear height H.'}
             </p>
           </div>
         </div>

@@ -4,8 +4,6 @@ import {
   Thermometer,
   Sun,
   Zap,
-  AlertTriangle,
-  CheckCircle,
   TrendingUp,
   Activity,
   Shield,
@@ -684,46 +682,13 @@ export default function SimulationResults({
         </div>
       )}
 
-      {/* Row 4: Monthly Projection */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
-        <h3 className="text-sm font-semibold text-slate-300 mb-4">Annual Diurnal Monthly Projection</h3>
-        {monthlyData && monthlyData.length >= 12 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
-              <YAxis stroke="#64748b" fontSize={10} unit="°C" />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-              />
-              <Bar dataKey="inside" fill="#f59e0b" name="Inside" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="ambient" fill="#3b82f6" name="Ambient" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="py-8 text-center text-slate-400 text-sm border border-dashed border-slate-700/60 rounded-lg">
-            <p className="font-medium text-slate-300 mb-1">Annual Monthly Projection Unavailable</p>
-            <p className="text-xs text-slate-500 font-mono">
-              Simulation executed for 168-hour (7-day) transient horizon. Annual diurnal projection requires a full 8760-hour annual simulation.
-            </p>
-          </div>
-        )}
+      {/* Simulation horizon — honest scope statement (no annual claim) */}
+      <div className="panel px-6 py-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
+        <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Simulation horizon:</span>{' '}
+        168 hours (7 days) transient simulation of the current canonical design. Annual projections are not
+        computed by the prototype engine and are therefore not shown.
       </div>
 
-      {/* Recommendations */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
-        <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-400" /> Engineering Recommendations
-        </h3>
-        <div className="space-y-3">
-          {result.recommendedImprovements.map((rec, i) => (
-            <div key={i} className="flex items-start gap-3 bg-slate-700/30 rounded-lg p-3">
-              <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-slate-300">{rec}</p>
-            </div>
-          ))}
-        </div>
       </div>
-    </div>
   );
 }

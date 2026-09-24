@@ -5,8 +5,6 @@ import Button from './Button';
 interface StepperProps {
   current: WorkflowStage;
   onNavigate: (stage: WorkflowStage) => void;
-  /** Guided mode shows Next/Back; expert mode is free navigation. */
-  expertMode: boolean;
   /** Highest stage index reached this session — previously visited stages stay directly clickable. */
   maxVisitedIndex: number;
 }
@@ -22,11 +20,9 @@ export function isStageReachable(
   stageIndex: number,
   currentIndex: number,
   maxVisitedIndex: number,
-  available: boolean,
-  expertMode: boolean
+  available: boolean
 ): boolean {
   if (!available) return false;
-  if (expertMode) return true;
   return stageIndex <= Math.max(currentIndex, maxVisitedIndex);
 }
 
@@ -38,7 +34,7 @@ export function isStageReachable(
  * up to where the user has already been. Later stages render disabled with
  * a lock icon (honest, not hidden).
  */
-export default function Stepper({ current, onNavigate, expertMode, maxVisitedIndex }: StepperProps) {
+export default function Stepper({ current, onNavigate, maxVisitedIndex }: StepperProps) {
   const index = WORKFLOW_STAGES.findIndex((s) => s.id === current);
   const prev = index > 0 ? WORKFLOW_STAGES[index - 1] : null;
   const next = index < WORKFLOW_STAGES.length - 1 ? WORKFLOW_STAGES[index + 1] : null;
@@ -55,7 +51,7 @@ export default function Stepper({ current, onNavigate, expertMode, maxVisitedInd
           // Guided mode = current, completed (earlier) and previously
           // visited stages are clickable; strictly-new later stages are not.
           const reachable = isStageReachable(
-            i, index, maxVisitedIndex, stage.available, expertMode
+            i, index, maxVisitedIndex, stage.available
           );
           const clickable = reachable && !isCurrent;
 
@@ -98,8 +94,8 @@ export default function Stepper({ current, onNavigate, expertMode, maxVisitedInd
         })}
       </ol>
 
-      {!expertMode && (
-        <div className="flex justify-between mt-3 pt-3 border-t border-slate-700/40">
+      {(
+        <div className="flex justify-between mt-3 pt-3 border-t">
           <Button
             variant="secondary"
             onClick={() => prev && onNavigate(prev.id)}

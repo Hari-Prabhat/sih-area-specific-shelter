@@ -4,6 +4,8 @@ import { buildBlueprintSimulationOverlay } from './services/blueprintOverlay';
 const ReportStage = lazy(() => import('./components/ReportStage'));
 import { CircleDashed, Mountain } from 'lucide-react';
 import { StudioStateProvider, useStudioState, activeWeatherProvenance, fallbackUsed } from './store/useStudioState';
+import ThemeToggle from './theme/ThemeToggle';
+import { LanguageSelector, useLocale } from './i18n';
 import ClimateInput from './components/ClimateInput';
 import MissionStage from './components/MissionStage';
 import ShelterDesigner from './components/ShelterDesigner';
@@ -203,7 +205,6 @@ function ContextStripBinding() {
     climateProfile,
     design,
     wallMaterial,
-    backendHealth,
   } = useStudioState();
 
   const provenance = activeWeatherProvenance(climateProfile);
@@ -234,7 +235,7 @@ function ContextStripBinding() {
           design.insulationType && design.insulationType !== 'None' ? `${design.insulationType} insulation` : 'No insulation',
         orientationDeg: design.orientation,
         geometryLabel: `${design.length} × ${design.width} × ${design.height} m`,
-        backendHealth,
+        shapeLabel: design.shape,
       }}
     />
   );
@@ -278,38 +279,40 @@ function ErrorBanners() {
 }
 
 function StudioShell() {
-  const { stage, setStage, expertMode, setExpertMode, maxVisitedIndex } = useStudioState();
+  const { stage, setStage, maxVisitedIndex } = useStudioState();
+  const { t } = useLocale();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a1220] via-[#0a1424] to-[#070d16] text-slate-100 engineering-grid-bg">
+    <div className="min-h-screen engineering-grid-bg" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Header */}
-      <header className="bg-[#0a1220]/90 backdrop-blur-md border-b border-cyan-500/10 sticky top-0 z-50">
+      <header className="backdrop-blur-md border-b sticky top-0 z-50" style={{ background: 'color-mix(in srgb, var(--bg-secondary) 88%, transparent)', borderColor: 'var(--border)' }}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-sky-700 rounded-lg flex items-center justify-center shadow-md shadow-cyan-500/20">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}>
               <Mountain className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white">
-                ThermoShelter <span className="text-cyan-400">Design Studio</span>
+              <h1 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                ThermoShelter <span style={{ color: 'var(--accent-primary)' }}>Design Studio</span>
               </h1>
-              <p className="text-xs text-slate-400">Area-Specific Passive Shelter Digital Twin & Thermal Design Optimization</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('appSubtitle')}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* Mode toggle: guided stepper vs expert free navigation */}
-            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={expertMode}
-                onChange={(e) => setExpertMode(e.target.checked)}
-                className="w-4 h-4 accent-cyan-500"
-              />
-              Expert mode
-            </label>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span>SIH 2026 | DRDO</span>
-            </div>
+            <LanguageSelector />
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState({}, '', '/');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              aria-label="Back to landing page"
+              className="p-2 rounded-lg border text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+            >
+              ←
+            </button>
           </div>
         </div>
       </header>
@@ -321,7 +324,7 @@ function StudioShell() {
 
       {/* Workflow navigation */}
       <div className="max-w-7xl mx-auto px-4 pt-3">
-        <Stepper current={stage} onNavigate={setStage} expertMode={expertMode} maxVisitedIndex={maxVisitedIndex} />
+        <Stepper current={stage} onNavigate={setStage} maxVisitedIndex={maxVisitedIndex} />
       </div>
 
       {/* Main stage content — heavyweight views resolve through Suspense */}
@@ -332,9 +335,9 @@ function StudioShell() {
         </Suspense>
       </main>
 
-      <footer className="bg-[#0a1220]/80 border-t border-cyan-500/10 py-4 mt-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-          <p>ThermoShelter Design Studio | SIH 2026 | SIH26051 | DRDO</p>
+      <footer className="border-t py-4 mt-8" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+        <div className="max-w-7xl mx-auto px-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p>{t('footer')}</p>
         </div>
       </footer>
     </div>

@@ -33,6 +33,7 @@ from services.geometry import (
     calculate_net_wall_area,
     calculate_pitched_roof_geometry,
     calculate_roof_area_flat,
+    calculate_shape_geometry,
     calculate_total_envelope_area,
     calculate_volume,
     calculate_wall_area,

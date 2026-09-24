@@ -19,6 +19,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStudioState } from '../store/useStudioState';
 import { buildReportInput } from '../services/reportModel';
+import { copyReportToClipboard } from '../services/reportExport';
 import {
   captureBlueprintSvgs,
   captureTwinPng,
@@ -160,13 +161,15 @@ export default function ReportStage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const copyJson = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+  // Product-hardening pass: rich clipboard export. Word / Google Docs /
+  // LibreOffice receive a structured engineering document (headings, tables,
+  // bold labels) via text/html with a high-quality text/plain fallback —
+  // never raw JSON.
+  const copyReport = async () => {
+    const ok = await copyReportToClipboard(report);
+    if (ok) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable — non-critical affordance, stay silent */
+      setTimeout(() => setCopied(false), 2500);
     }
   };
 
@@ -187,11 +190,11 @@ export default function ReportStage() {
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
-            onClick={copyJson}
+            onClick={copyReport}
             icon={copied ? <Check size={15} /> : <Copy size={15} />}
-            aria-label="Copy report data as JSON"
+            aria-label="Copy report for pasting into Word or Google Docs"
           >
-            {copied ? 'Copied' : 'Copy Report Data'}
+            {copied ? 'Report copied — ready to paste into Word or Google Docs.' : 'Copy Report'}
           </Button>
           <Button
             onClick={() => window.print()}
