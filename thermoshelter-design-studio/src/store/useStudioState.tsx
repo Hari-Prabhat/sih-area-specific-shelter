@@ -149,6 +149,12 @@ export function candidateDesignPatch(
     patch.width = candidate.width_m;
     patch.height = candidate.height_m;
   }
+  // Optimization-UX pass: the candidate's ACTUAL simulated form is carried
+  // so Apply keeps Blueprint/3D/Report on the same canonical shape (matters
+  // when the comfort-first recommendation searched across all four forms).
+  if (candidate.shape) {
+    patch.shape = candidate.shape as ShelterDesign['shape'];
+  }
   return patch;
 }
 
@@ -240,6 +246,13 @@ function mapGlazingKey(glazing: ShelterDesign['windowGlazing']): string {
 
 /** Maps an orientation string ("south"/"north"/…) to canonical azimuth degrees. */
 export function orientationToDegrees(orientation: string): number {
+  // Optimization-UX pass: the optimizer may report a continuous azimuth
+  // (e.g. "157.0") — carry the exact degree value through. Cardinal names
+  // keep their legacy mapping (only used by legacy pinned/categorical runs).
+  const asNum = Number(orientation);
+  if (orientation.trim() !== '' && Number.isFinite(asNum)) {
+    return ((asNum % 360) + 360) % 360;
+  }
   const o = orientation.toLowerCase();
   if (o.includes('north') && !o.includes('south')) return 0;
   if (o.includes('east')) return 90;
@@ -476,7 +489,10 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
 
         const result = await runOptimizationViaApi({
           city: cityName,
-          home_type: homeType || 'Permanent',
+          // Spec §26: shelter permanence is the Mission stage's canonical
+          // decision (deploymentType). The UI-passed homeType is kept only
+          // for API compatibility and defaults to the canonical value.
+          home_type: homeType || (mission.deploymentType === 'Permanent' ? 'Permanent' : 'Temporary'),
           design: {
             length: design.length,
             width: design.width,
@@ -529,7 +545,7 @@ export function StudioStateProvider({ children }: { children: ReactNode }) {
         }));
       }
     },
-    [climate, climateProfile, design, wallMaterial, mission.occupants],
+    [climate, climateProfile, design, wallMaterial, mission.occupants, mission.deploymentType],
   );
 
   const selectCandidate = useCallback((candidate: CanonicalOptimizationCandidate | null) => {

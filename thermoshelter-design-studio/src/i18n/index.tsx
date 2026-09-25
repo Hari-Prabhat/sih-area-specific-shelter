@@ -122,6 +122,21 @@ const en = {
   noSimulationResults: 'No Simulation Results Yet',
   noOptimizationResults: 'No Optimization Results Yet',
   footer: 'ThermoShelter Design Studio | SIH 2026 | SIH26051 | DRDO - Problem Statement',
+  // Optimization-UX pass: optimizer-managed orientation + advanced controls
+  orientationOptimizedTitle: 'Optimized by ThermoShelter',
+  orientationOptimizedBody:
+    'ThermoShelter will optimize the shelter orientation for your selected climate. The best azimuth is climate-dependent — it is found by simulation, not a fixed rule.',
+  orientationOptimizedHint:
+    'Run the Optimization stage to get the recommended orientation; applying it updates this design automatically.',
+  orientationCurrent: 'Current design azimuth',
+  advancedControls: 'Advanced Design Controls',
+  advancedControlsHint:
+    'Window & door area, glazing, roof pitch, insulation, thermal mass, infiltration — ThermoShelter\'s optimizer manages these automatically.',
+  manualAzimuth: 'Manual Azimuth Override',
+  shelterPermanence: 'Shelter Permanence',
+  optunaTrials: 'Optuna Trials',
+  optimizerManagesNote:
+    'Orientation is searched as a full azimuth (0–360°) — the optimum is climate-dependent and found by simulation.',
 };
 
 export type TranslationKey = keyof typeof en;
@@ -179,6 +194,20 @@ const hi: Partial<Record<TranslationKey, string>> = {
   reportCopied: 'रिपोर्ट कॉपी हो गई — Word या Google Docs में पेस्ट करें।',
   noSimulationResults: 'अभी कोई सिमुलेशन परिणाम नहीं',
   noOptimizationResults: 'अभी कोई अनुकूलन परिणाम नहीं',
+  orientationOptimizedTitle: 'ThermoShelter द्वारा अनुकूलित',
+  orientationOptimizedBody:
+    'ThermoShelter आपके चयनित जलवायु के लिए आश्रय की दिशा का अनुकूलन करेगा। सर्वोत्तम दिगंश जलवायु-निर्भर है — यह सिमुलेशन से मिलता है, किसी स्थिर नियम से नहीं।',
+  orientationOptimizedHint:
+    'अनुशंसित दिशा के लिए अनुकूलन चरण चलाएँ; उसे लागू करने पर यह डिज़ाइन स्वतः अपडेट हो जाता है।',
+  orientationCurrent: 'वर्तमान डिज़ाइन दिगंश',
+  advancedControls: 'उन्नत डिज़ाइन नियंत्रण',
+  advancedControlsHint:
+    'खिड़की/दरवाज़ा क्षेत्र, ग्लेज़िंग, छत ढाल, इन्सुलेशन, थर्मल मास, वायुसेचन — ThermoShelter का ऑप्टिमाइज़र इन्हें स्वतः प्रबंधित करता है।',
+  manualAzimuth: 'मैन्युअल दिगंश ओवरराइड',
+  shelterPermanence: 'आश्रय स्थायित्व',
+  optunaTrials: 'Optuna ट्रायल',
+  optimizerManagesNote:
+    'दिशा को पूर्ण दिगंश (0–360°) के रूप में खोजा जाता है — इष्टतम मान जलवायु-निर्भर है और सिमुलेशन से मिलता है।',
   designDecisionTitle: 'डिज़ाइन → विश्लेषण → निर्णय',
   designStage: 'डिज़ाइन',
   designStageBody: 'ज्यामिति, आकार, सामग्री, इन्सुलेशन, खुले भाग और अभिविन्यास।',
@@ -244,6 +273,20 @@ const te: Partial<Record<TranslationKey, string>> = {
   reportCopied: 'నివేదిక కాపీ అయింది — Word లేదా Google Docs లో పేస్ట్ చేయండి.',
   noSimulationResults: 'ఇంకా సిమ్యులేషన్ ఫలితాలు లేవు',
   noOptimizationResults: 'ఇంకా ఆప్టిమైజేషన్ ఫలితాలు లేవు',
+  orientationOptimizedTitle: 'ThermoShelter ద్వారా ఆప్టిమైజ్ చేయబడింది',
+  orientationOptimizedBody:
+    'ThermoShelter మీ ఎంచుకున్న వాతావరణానికి షెల్టర్ దిశను ఆప్టిమైజ్ చేస్తుంది. ఉత్తమ ఎజిమత్ వాతావరణం-ఆధారితం — ఇది సిమ్యులేషన్ ద్వారా లభిస్తుంది, స్థిర నియమం ద్వారా కాదు.',
+  orientationOptimizedHint:
+    'సిఫారసు చేసిన దిశ కోసం ఆప్టిమైజేషన్ దశను నడపండి; దాన్ని వర్తింపు చేసినప్పుడు ఈ డిజైన్ స్వయంచాలకంగా నవీకరించబడుతుంది.',
+  orientationCurrent: 'ప్రస్తుత డిజైన్ ఎజిమత్',
+  advancedControls: 'అధునాతన డిజైన్ నియంత్రణలు',
+  advancedControlsHint:
+    'కిటికీ/తలుపు వైశాల్యం, గ్లేజింగ్, పైకప్పు వాలు, ఇన్సులేషన్, థర్మల్ మాస్, గాలి ప్రసరణ — ThermoShelter ఆప్టిమైజర్ వీటిని స్వయంచాలకంగా నిర్వహిస్తుంది.',
+  manualAzimuth: 'మాన్యువల్ ఎజిమత్ ఓవర్‌రైడ్',
+  shelterPermanence: 'షెల్టర్ శాశ్వతత్వం',
+  optunaTrials: 'Optuna ట్రయల్స్',
+  optimizerManagesNote:
+    'దిశను పూర్తి ఎజిమత్ (0–360°)గా వెతుకుతారు — అనువైన విలువ వాతావరణం-ఆధారితం మరియు సిమ్యులేషన్ ద్వారా లభిస్తుంది.',
   designDecisionTitle: 'డిజైన్ → విశ్లేషణ → నిర్ణయం',
   designStage: 'డిజైన్',
   designStageBody: 'జ్యామెట్రీ, ఆకారం, పదార్థాలు, ఇన్సులేషన్, తెరవాట్లు మరియు దిశ.',
@@ -286,6 +329,20 @@ const ta: Partial<Record<TranslationKey, string>> = {
   applyRecommendation: 'பரிந்துரையைப் பயன்படுத்து',
   copyReport: 'அறிக்கையை நகலெடு',
   noSimulationResults: 'இன்னும் ஒப்புரு முடிவுகள் இல்லை',
+  orientationOptimizedTitle: 'ThermoShelter மூலம் மேம்படுத்தப்பட்டது',
+  orientationOptimizedBody:
+    'ThermoShelter உங்கள் தேர்ந்தெடுத்த காலநிலைக்கு அடைக்கலத்தின் திசையை மேம்படுத்தும். சிறந்த திசைக்கோணம் காலநிலையைப் பொறுத்தது — அது ஒப்புருவாக்கத்தால் கண்டறியப்படுகிறது, நிலையான விதியால் அல்ல.',
+  orientationOptimizedHint:
+    'பரிந்துரைக்கப்பட்ட திசைக்கு மேம்பாட்டு நிலையை இயக்கவும்; அதைப் பயன்படுத்தும்போது இந்த வடிவமைப்பு தானாகப் புதுப்பிக்கப்படும்.',
+  orientationCurrent: 'தற்போதைய வடிவமைப்பு திசைக்கோணம்',
+  advancedControls: 'மேம்பட்ட வடிவமைப்பு கட்டுப்பாடுகள்',
+  advancedControlsHint:
+    'ஜன்னல்/கதவு பரப்பு, கண்ணாடி, கூரை சாய்வு, காப்பு, வெப்ப நிறை, காற்றோட்டம் — ThermoShelter மேம்படுத்தி இவற்றை தானாக நிர்வகிக்கிறது.',
+  manualAzimuth: 'கைமுறை திசைக்கோண மாற்றம்',
+  shelterPermanence: 'அடைக்கல நிலைத்தன்மை',
+  optunaTrials: 'Optuna முயற்சிகள்',
+  optimizerManagesNote:
+    'திசை முழு திசைக்கோணமாக (0–360°) தேடப்படுகிறது — சிறந்த மதிப்பு காலநிலையைப் பொறுத்தது மற்றும் ஒப்புருவாக்கத்தால் கண்டறியப்படுகிறது.',
 };
 
 const kn: Partial<Record<TranslationKey, string>> = {
@@ -318,6 +375,20 @@ const kn: Partial<Record<TranslationKey, string>> = {
   applyRecommendation: 'ಶಿಫಾರಸನ್ನು ಅನ್ವಯಿಸಿ',
   copyReport: 'ವರದಿಯನ್ನು ನಕಲಿಸಿ',
   noSimulationResults: 'ಇನ್ನೂ ಸಿಮ್ಯುಲೇಶನ್ ಫಲಿತಾಂಶಗಳಿಲ್ಲ',
+  orientationOptimizedTitle: 'ThermoShelter ಮೂಲಕ ಆಪ್ಟಿಮೈಸ್ ಮಾಡಲಾಗಿದೆ',
+  orientationOptimizedBody:
+    'ThermoShelter ನಿಮ್ಮ ಆಯ್ಕೆ ಮಾಡಿದ ಹವಾಮಾನಕ್ಕೆ ಆಶ್ರಯದ ದಿಕ್ಕನ್ನು ಆಪ್ಟಿಮೈಸ್ ಮಾಡುತ್ತದೆ. ಅತ್ಯುತ್ತಮ ದಿಕ್ಕು ಹವಾಮಾನವನ್ನು ಅವಲಂಬಿಸಿರುತ್ತದೆ — ಅದನ್ನು ಸಿಮ್ಯುಲೇಶನ್‌ನಿಂದ ಕಂಡುಹಿಡಿಯಲಾಗುತ್ತದೆ, ಸ್ಥಿರ ನಿಯಮದಿಂದಲ್ಲ.',
+  orientationOptimizedHint:
+    'ಶಿಫಾರಸು ಮಾಡಿದ ದಿಕ್ಕಿಗಾಗಿ ಆಪ್ಟಿಮೈಸೇಶನ್ ಹಂತವನ್ನು ರನ್ ಮಾಡಿ; ಅದನ್ನು ಅನ್ವಯಿಸಿದಾಗ ಈ ಡಿಸೈನ್ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ನವೀಕರಿಸಲ್ಪಡುತ್ತದೆ.',
+  orientationCurrent: 'ಪ್ರಸ್ತುತ ಡಿಸೈನ್ ದಿಕ್ಕು',
+  advancedControls: 'ಸುಧಾರಿತ ಡಿಸೈನ್ ನಿಯಂತ್ರಣಗಳು',
+  advancedControlsHint:
+    'ಕಿಟಕಿ/ಬಾಗಿಲು ಪ್ರದೇಶ, ಗ್ಲೇಸಿಂಗ್, ಛಾವಣಿ ಇಳಿಜಾರು, ಇನ್ಸುಲೇಶನ್, ಥರ್ಮಲ್ ಮಾಸ್, ಗಾಳಿ ಸಂಚಾರ — ThermoShelter ಆಪ್ಟಿಮೈಜರ್ ಇವುಗಳನ್ನು ಸ್ವಯಂಚಾಲಿತವಾಗಿ ನಿರ್ವಹಿಸುತ್ತದೆ.',
+  manualAzimuth: 'ಕೈಯಿಂದ ದಿಕ್ಕು ಬದಲಾಯಿಸುವಿಕೆ',
+  shelterPermanence: 'ಆಶ್ರಯ ಶಾಶ್ವತತೆ',
+  optunaTrials: 'Optuna ಪ್ರಯೋಗಗಳು',
+  optimizerManagesNote:
+    'ದಿಕ್ಕನ್ನು ಪೂರ್ಣ ಡಿಗ್ರಿ ವ್ಯಾಪ್ತಿಯಲ್ಲಿ (0–360°) ಹುಡುಕಲಾಗುತ್ತದೆ — ಅತ್ಯುತ್ತಮ ಮೌಲ್ಯ ಹವಾಮಾನವನ್ನು ಅವಲಂಬಿಸಿರುತ್ತದೆ ಮತ್ತು ಸಿಮ್ಯುಲೇಶನ್‌ನಿಂದ ಬರುತ್ತದೆ.',
 };
 
 const bn: Partial<Record<TranslationKey, string>> = {
@@ -350,6 +421,20 @@ const bn: Partial<Record<TranslationKey, string>> = {
   applyRecommendation: 'সুপারিশ প্রয়োগ করুন',
   copyReport: 'প্রতিবেদন কপি করুন',
   noSimulationResults: 'এখনও সিমুলেশন ফলাফল নেই',
+  orientationOptimizedTitle: 'ThermoShelter দ্বারা অপ্টিমাইজড',
+  orientationOptimizedBody:
+    'ThermoShelter আপনার নির্বাচিত জলবায়ুর জন্য আশ্রয়ের দিক অপ্টিমাইজ করবে। সর্বোত্তম দিক জলবায়ু-নির্ভর — এটি সিমুলেশন থেকে পাওয়া যায়, কোনো স্থির নিয়ম থেকে নয়।',
+  orientationOptimizedHint:
+    'সুপারিশকৃত দিকের জন্য অপ্টিমাইজেশন ধাপ চালান; এটি প্রয়োগ করলে এই ডিজাইন স্বয়ংক্রিয়ভাবে আপডেট হয়।',
+  orientationCurrent: 'বর্তমান ডিজাইন দিক',
+  advancedControls: 'উন্নত ডিজাইন নিয়ন্ত্রণ',
+  advancedControlsHint:
+    'জানালা/দরজার ক্ষেত্রফল, গ্লেজিং, ছাদের ঢাল, ইনসুলেশন, থার্মাল মাস, বায়ুচলাচল — ThermoShelter অপ্টিমাইজার এগুলো স্বয়ংক্রিয়ভাবে পরিচালনা করে।',
+  manualAzimuth: 'ম্যানুয়াল দিক ওভাররাইড',
+  shelterPermanence: 'আশ্রয় স্থায়িত্ব',
+  optunaTrials: 'Optuna ট্রায়াল',
+  optimizerManagesNote:
+    'দিক সম্পূর্ণ অ্যাজিমুথ (0–360°) হিসেবে অনুসন্ধান করা হয় — সর্বোত্তম মান জলবায়ু-নির্ভর এবং সিমুলেশন থেকে আসে।',
 };
 
 const mr: Partial<Record<TranslationKey, string>> = {
@@ -382,6 +467,20 @@ const mr: Partial<Record<TranslationKey, string>> = {
   applyRecommendation: 'शिफारस लागू करा',
   copyReport: 'अहवाल कॉपी करा',
   noSimulationResults: 'अजून सिम्युलेशन निकाल नाहीत',
+  orientationOptimizedTitle: 'ThermoShelter द्वारे ऑप्टिमाइझ केले',
+  orientationOptimizedBody:
+    'ThermoShelter तुमच्या निवडलेल्या हवामानासाठी आश्रयाची दिशा ऑप्टिमाइझ करेल. सर्वोत्तम दिशा हवामानावर अवलंबून असते — ती सिम्युलेशनद्वारे मिळते, स्थिर नियमाने नाही.',
+  orientationOptimizedHint:
+    'शिफारस केलेल्या दिशेसाठी ऑप्टिमायझेशन टप्पा चालवा; तो लागू केल्यास ही डिझाइन आपोआप अपडेट होते.',
+  orientationCurrent: 'सध्याचा डिझाइन दिशा',
+  advancedControls: 'प्रगत डिझाइन नियंत्रणे',
+  advancedControlsHint:
+    'खिडकी/दार क्षेत्र, ग्लेझिंग, छताची उतार, इन्सुलेशन, थर्मल मास, वायुवहन — ThermoShelter ऑप्टिमायझर हे आपोआप व्यवस्थापित करते.',
+  manualAzimuth: 'मॅन्युअल दिशा ओव्हरराइड',
+  shelterPermanence: 'आश्रय कायमस्वरूपीपणा',
+  optunaTrials: 'Optuna ट्रायल',
+  optimizerManagesNote:
+    'दिशा संपूर्ण अॅझिमुथ (0–360°) म्हणून शोधली जाते — ऑप्टिमम मूल्य हवामानावर अवलंबून असते आणि सिम्युलेशनद्वारे येते.',
 };
 
 const LOCALES: Record<Locale, Partial<Record<TranslationKey, string>>> = {
@@ -434,6 +533,15 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+
+/**
+ * Pure (React-free) translation lookup for a specific locale. Exported for
+ * tests and non-component callers; components should use `t` from useLocale.
+ * Falls back to the English source string, never a raw key.
+ */
+export function getTranslation(locale: Locale, key: TranslationKey): string {
+  return LOCALES[locale]?.[key] ?? en[key];
 }
 
 export function useLocale(): LocaleContextValue {

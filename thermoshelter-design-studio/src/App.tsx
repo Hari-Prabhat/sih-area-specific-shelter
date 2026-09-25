@@ -134,12 +134,13 @@ function SimulationResultsStage() {
 
 /** Optimization stage content. */
 function ComparativeStage() {
-  const { climate, design, wallMaterial, simulation, optimization, runOptimization, applyCandidate, applyRecommendation, setStage } =
+  const { climate, design, wallMaterial, simulation, optimization, mission, runOptimization, applyCandidate, applyRecommendation, setStage } =
     useStudioState();
   return (
     <ComparativeAnalysis
       climateData={climate}
       shelterDesign={design}
+      missionDeploymentType={mission.deploymentType}
       selectedMaterial={wallMaterial}
       baselineResult={simulation.result}
       optimizationResult={optimization.result}

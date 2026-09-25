@@ -48,6 +48,7 @@ import { deriveBaselineMetrics } from '../services/baselineMetrics';
 import StageSuspense from './ui/StageSuspense';
 import Button from './ui/Button';
 import ProvenanceChip from './ui/ProvenanceChip';
+import { useLocale } from '../i18n';
 
 // D3: lazy three.js digital twin — see ShelterDesigner.
 const ShelterModel3D = lazy(() => import('./ShelterModel3D'));
@@ -75,6 +76,9 @@ interface ComparativeAnalysisProps {
   baselineResult?: SimulationResult | null;
   optimizationResult?: CanonicalOptimizationResult | null;
   isOptimizing?: boolean;
+  /** Spec §26: shelter permanence is the Mission stage's canonical decision —
+   * consumed read-only here, never re-asked. */
+  missionDeploymentType?: 'Temporary' | 'Seasonal' | 'Permanent';
   onRunOptimization?: (
     weights?: { comfort: number; efficiency: number; solar: number },
     nTrials?: number,
@@ -101,6 +105,7 @@ export default function ComparativeAnalysis({
   baselineResult,
   optimizationResult,
   isOptimizing = false,
+  missionDeploymentType = 'Permanent',
   onRunOptimization,
   onApplyCandidate,
   onApplyRecommendation,
@@ -112,7 +117,11 @@ export default function ComparativeAnalysis({
   // Multi-objective weights configuration
   const [weights, setWeights] = useState({ comfort: 0.5, efficiency: 0.3, solar: 0.2 });
   const [nTrials, setNTrials] = useState<number>(20);
-  const [homeType, setHomeType] = useState<'Permanent' | 'Temporary'>('Permanent');
+  const { t } = useLocale();
+  // Spec §26: no local permanence state — the Mission stage's canonical
+  // deployment type is consumed read-only. Seasonal deployments map to the
+  // lightweight/rapid shelter class the optimizer's home_type models.
+  const homeType = missionDeploymentType === 'Permanent' ? 'Permanent' : 'Temporary';
   // Batch 1-A: geometry+envelope search is OPT-IN. Default preserves the
   // pre-D5 fixed-geometry workflow exactly (no geometry fields sent).
   const [optimizeGeometry, setOptimizeGeometry] = useState<boolean>(false);
@@ -307,22 +316,22 @@ export default function ComparativeAnalysis({
     ? [
         {
           subject: 'Comfort',
-          Candidate: Math.round(activeCandidate.sub_scores.comfort * 100),
+          Candidate: Math.round(activeCandidate.sub_scores.comfort),
           fullMark: 100,
         },
         {
           subject: 'Efficiency',
-          Candidate: Math.round(activeCandidate.sub_scores.efficiency * 100),
+          Candidate: Math.round(activeCandidate.sub_scores.efficiency),
           fullMark: 100,
         },
         {
           subject: 'Solar',
-          Candidate: Math.round(activeCandidate.sub_scores.solar * 100),
+          Candidate: Math.round(activeCandidate.sub_scores.solar),
           fullMark: 100,
         },
         {
           subject: 'Overall',
-          Candidate: Math.round(activeCandidate.overall_score * 100),
+          Candidate: Math.round(activeCandidate.overall_score),
           fullMark: 100,
         },
       ]
@@ -386,22 +395,20 @@ export default function ComparativeAnalysis({
                 </p>
               </div>
 
-              {/* Permanence & Trials Selector */}
+              {/* Permanence (canonical, read-only from Mission) & Trials Selector */}
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-slate-400">Shelter Permanence:</label>
-                  <select
-                    value={homeType}
-                    onChange={(e) => setHomeType(e.target.value as any)}
-                    className="px-3 py-1.5 bg-slate-700/60 border border-slate-600/50 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  <span className="text-xs text-slate-400">{t('shelterPermanence')}:</span>
+                  <span
+                    className="px-3 py-1.5 bg-slate-900/60 border border-slate-600/40 rounded-lg text-xs text-slate-100 font-semibold"
+                    title="Set in the Mission stage — ThermoShelter keeps one canonical permanence decision across the workflow"
                   >
-                    <option value="Permanent">Permanent (High Thermal Mass)</option>
-                    <option value="Temporary">Temporary (Lightweight / Rapid)</option>
-                  </select>
+                    {homeType === 'Permanent' ? 'Permanent (High Thermal Mass)' : 'Temporary (Lightweight / Rapid)'}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-slate-400">Optuna Trials:</label>
+                  <label className="text-xs text-slate-400">{t('optunaTrials')}:</label>
                   <select
                     value={nTrials}
                     onChange={(e) => setNTrials(Number(e.target.value))}
@@ -554,7 +561,9 @@ export default function ComparativeAnalysis({
                     insulation thickness, window area, wall material, glazing, orientation, thermal mass
                     {(lastRunConfig?.geometry ?? optimizeGeometry) ? ', length, width, clear height' : ''}
                   </span>
-                  . Door area stays fixed at the design's value and is never optimized.
+                  . Orientation is searched as a full azimuth (0–360°) — the optimum is
+                  climate-dependent and found by simulation. Door area stays fixed at the
+                  design's value and is never optimized.
                 </p>
               </div>
             </div>
@@ -806,7 +815,7 @@ export default function ComparativeAnalysis({
                             <div>
                               <h4 className="text-sm font-bold text-slate-100">{c.label}</h4>
                               <p className="text-[10px] text-indigo-400 uppercase tracking-wider font-semibold">
-                                Score: {(c.overall_score * 100).toFixed(1)} / 100
+                                Score: {c.overall_score.toFixed(1)} / 100
                               </p>
                             </div>
                           </div>
@@ -1366,7 +1375,7 @@ function CandidateSpecList({
     ['Thermal mass', c.thermal_mass_level ?? '—'],
     ['Heat loss', `${Math.round(c.total_heat_loss_kwh)} kWh`],
     ['Useful solar', `${Math.round(c.solar_gain_kwh)} kWh`],
-    ['Objective score', `${(c.overall_score * 100).toFixed(1)} / 100`],
+    ['Objective score', `${c.overall_score.toFixed(1)} / 100`],
   ];
   return (
     <dl className="space-y-1 text-xs">

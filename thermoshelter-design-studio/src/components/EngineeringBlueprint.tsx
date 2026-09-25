@@ -15,6 +15,7 @@ import { Compass, Layers, Maximize2, Ruler, Eye } from 'lucide-react';
 import { ShelterDesign } from '../types';
 import { deriveOpeningLayout } from '../services/openingLayout';
 import { getMaterialByName } from '../data/materials';
+import { calculateShapeGeometryDisplay, ShelterShape } from '../services/shapeGeometry';
 import { buildBlueprintSimulationOverlay, formatOverlayValue } from '../services/blueprintOverlay';
 import type { BlueprintSimulationOverlay } from '../services/blueprintOverlay';
 
@@ -80,22 +81,39 @@ export default function EngineeringBlueprint({
   const insThickMm = insulationType && insulationType !== 'None' ? Math.round(insulationThickness * 10) : 0;
   const massThickMm = thermalMassEnabled ? thermalMassThickness * 10 : 0;
 
-  // Title Block Metadata
-  const floorArea = (length * width).toFixed(1);
-  const volume = (length * width * height).toFixed(1);
+  // Title Block Metadata — shape-aware (mirrors services/geometry.py),
+  // so the blueprint reports the REAL footprint of the simulated form.
+  const shapeMetrics = calculateShapeGeometryDisplay(shape, length, width, height);
+  const floorArea = shapeMetrics.floorArea.toFixed(1);
+  const volume = shapeMetrics.volume.toFixed(1);
+
+  // Optimization-UX pass: the diameter convention for radial forms keeps the
+  // canonical L == W contract; the plan/elevation/section views draw the
+  // actual circular/curved geometry instead of a rectilinear approximation.
+  const planDiameter = shape === 'cylindrical' || shape === 'dome' ? Math.min(length, width) : null;
+
+  // Shape adaptation note when non-rectangular: states what IS drawn, never
+  // an "equivalent rectilinear envelope" disclaimer (the drawing is real).
+  const shapeNote =
+    shape === 'cylindrical'
+      ? `Circular plan of diameter ${Math.min(length, width)} m — the simulated cylindrical envelope.`
+      : shape === 'dome'
+        ? `Circular plan (⌀ ${Math.min(length, width)} m) with a spherical-cap section — the simulated dome envelope.`
+        : shape === 'pyramid'
+          ? `L × W base (${length} m × ${width} m) with sloped triangular faces and apex — the simulated pyramid envelope.`
+          : null;
 
   return (
     <div className="space-y-6">
-      {/* Shape adaptation note when non-rectangular */}
+      {/* Shape adaptation note when non-rectangular: the drawings below ARE
+          the real geometry — this badge names the form, it disclaims nothing. */}
       {shape !== 'rectangular' && (
         <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3.5 flex items-center justify-between text-xs font-mono text-amber-200">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-bold rounded uppercase">
               {shape} Geometry
             </span>
-            <span>
-              2D CAD drawing rendered for equivalent rectilinear envelope (L: {length}m × W: {width}m). Volumetric & thermal calculations reflect equivalent {shape} thermal footprint.
-            </span>
+            <span>{shapeNote}</span>
           </div>
         </div>
       )}
@@ -182,9 +200,12 @@ export default function EngineeringBlueprint({
                 {/* Outer Perimeter Dimensions */}
                 {/* Base visual scaling */}
                 {(() => {
-                  const scale = Math.min(480 / Math.max(length, 1), 320 / Math.max(width, 1), 50);
-                  const wSvg = length * scale;
-                  const hSvg = width * scale;
+                  // Radial plans: scale from the DIAMETER so the circle fits.
+                  const planSpan = planDiameter ?? length;
+                  const planSpanW = planDiameter ?? width;
+                  const scale = Math.min(480 / Math.max(planSpan, 1), 320 / Math.max(planSpanW, 1), 50);
+                  const wSvg = planSpan * scale;
+                  const hSvg = planSpanW * scale;
                   const tSvg = Math.max(8, wallThickness * scale);
 
                   return (
@@ -205,31 +226,68 @@ export default function EngineeringBlueprint({
                         </text>
                       </g>
 
-                      {/* Outer Wall Boundary */}
-                      <rect
-                        x={-wSvg / 2}
-                        y={-hSvg / 2}
-                        width={wSvg}
-                        height={hSvg}
-                        fill="#0d233a"
-                        stroke="#00f2fe"
-                        strokeWidth="2"
-                      />
+                      {/* Outer Wall Boundary — real per-shape plan geometry */}
+                      {planDiameter !== null ? (
+                        <g>
+                          {/* Cylindrical / dome: circular plan of the actual diameter */}
+                          <circle
+                            cx="0"
+                            cy="0"
+                            r={(planDiameter / 2) * scale}
+                            fill="#0d233a"
+                            stroke="#00f2fe"
+                            strokeWidth="2"
+                          />
+                          <circle
+                            cx="0"
+                            cy="0"
+                            r={Math.max(20, (planDiameter / 2) * scale - tSvg)}
+                            fill="#071424"
+                            stroke="#00f2fe"
+                            strokeWidth="1.5"
+                            strokeDasharray="4 2"
+                          />
+                          {insThickMm > 0 && (
+                            <circle
+                              cx="0"
+                              cy="0"
+                              r={Math.max(10, (planDiameter / 2) * scale - tSvg * 0.7)}
+                              fill="none"
+                              stroke="#eab308"
+                              strokeWidth="1"
+                              strokeDasharray="2 2"
+                            />
+                          )}
+                        </g>
+                      ) : (
+                        <rect
+                          x={-wSvg / 2}
+                          y={-hSvg / 2}
+                          width={wSvg}
+                          height={hSvg}
+                          fill="#0d233a"
+                          stroke="#00f2fe"
+                          strokeWidth="2"
+                        />
+                      )}
 
-                      {/* Inner Wall Boundary */}
-                      <rect
-                        x={-wSvg / 2 + tSvg}
-                        y={-hSvg / 2 + tSvg}
-                        width={Math.max(20, wSvg - 2 * tSvg)}
-                        height={Math.max(20, hSvg - 2 * tSvg)}
-                        fill="#071424"
-                        stroke="#00f2fe"
-                        strokeWidth="1.5"
-                        strokeDasharray="4 2"
-                      />
+                      {/* Inner Wall Boundary — rectangular only (radial forms
+                          draw their inner circle in the shape branch above) */}
+                      {planDiameter === null && (
+                        <rect
+                          x={-wSvg / 2 + tSvg}
+                          y={-hSvg / 2 + tSvg}
+                          width={Math.max(20, wSvg - 2 * tSvg)}
+                          height={Math.max(20, hSvg - 2 * tSvg)}
+                          fill="#071424"
+                          stroke="#00f2fe"
+                          strokeWidth="1.5"
+                          strokeDasharray="4 2"
+                        />
+                      )}
 
-                      {/* Insulation Boundary Layer */}
-                      {insThickMm > 0 && (
+                      {/* Insulation Boundary Layer — rectangular plans only */}
+                      {insThickMm > 0 && planDiameter === null && (
                         <rect
                           x={-wSvg / 2 + tSvg * 0.7}
                           y={-hSvg / 2 + tSvg * 0.7}
@@ -242,8 +300,8 @@ export default function EngineeringBlueprint({
                         />
                       )}
 
-                      {/* Thermal Mass Area (Trombe / Internal Slab) */}
-                      {thermalMassEnabled && (
+                      {/* Thermal Mass Area (Trombe / Internal Slab) — rectangular plans */}
+                      {thermalMassEnabled && planDiameter === null && (
                         <g>
                           <rect
                             x={-wSvg / 4}
@@ -261,9 +319,10 @@ export default function EngineeringBlueprint({
                         </g>
                       )}
 
-                      {/* South Window Openings (shared openingLayout — W1/W2/W3) */}
+                      {/* South Window Openings (shared openingLayout — W1/W2/W3).
+                          Rectangular plans only: openings sit on straight facades. */}
                       <g>
-                        {openings.south.windows.map((w, i) => (
+                        {planDiameter === null && openings.south.windows.map((w, i) => (
                           <g key={`win-s${i}`}>
                             <rect
                               x={(w.centerX * scale) - (openings.south.width * scale) / 2}
@@ -287,7 +346,7 @@ export default function EngineeringBlueprint({
                             </text>
                           </g>
                         ))}
-                        {openings.north.windows.map((w, i) => (
+                        {planDiameter === null && openings.north.windows.map((w, i) => (
                           <g key={`win-n${i}`}>
                             <rect
                               x={(w.centerX * scale) - (openings.north.width * scale) / 2}
@@ -313,20 +372,24 @@ export default function EngineeringBlueprint({
                         ))}
                       </g>
 
-                      {/* Main Entry Door (South facade — matches the 3D twin) */}
-                      <rect
-                        x={-(derivedDoorWidth * scale) / 2}
-                        y={-hSvg / 2 - 2}
-                        width={derivedDoorWidth * scale}
-                        height={tSvg + 4}
-                        fill="#f97316"
-                        fillOpacity="0.8"
-                        stroke="#ffffff"
-                        strokeWidth="1.5"
-                      />
-                      <text x="0" y={-hSvg / 2 - 8} fill="#fb923c" fontSize="9" fontFamily="monospace" textAnchor="middle">
-                        DOOR ({derivedDoorWidth}m × {derivedDoorHeight}m)
-                      </text>
+                      {/* Main Entry Door (South facade — matches the 3D twin). */}
+                      {planDiameter === null && (
+                        <>
+                          <rect
+                            x={-(derivedDoorWidth * scale) / 2}
+                            y={-hSvg / 2 - 2}
+                            width={derivedDoorWidth * scale}
+                            height={tSvg + 4}
+                            fill="#f97316"
+                            fillOpacity="0.8"
+                            stroke="#ffffff"
+                            strokeWidth="1.5"
+                          />
+                          <text x="0" y={-hSvg / 2 - 8} fill="#fb923c" fontSize="9" fontFamily="monospace" textAnchor="middle">
+                            DOOR ({derivedDoorWidth}m × {derivedDoorHeight}m)
+                          </text>
+                        </>
+                      )}
 
                       {/* Center Space Label */}
                       <text x="0" y="-10" fill="#e2e8f0" fontSize="12" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
@@ -336,27 +399,29 @@ export default function EngineeringBlueprint({
                         Area = {floorArea} m² | Vol = {volume} m³
                       </text>
 
-                      {/* Horizontal Dimension: LENGTH */}
+                      {/* Horizontal Dimension: LENGTH / DIAMETER */}
                       <g transform={`translate(0, ${-hSvg / 2 - 35})`}>
                         <line x1={-wSvg / 2} y1="0" x2={wSvg / 2} y2="0" stroke="#00f2fe" strokeWidth="1.2" markerStart="url(#dim-arrow-rev)" markerEnd="url(#dim-arrow)" />
                         <line x1={-wSvg / 2} y1="-10" x2={-wSvg / 2} y2="10" stroke="#00f2fe" strokeWidth="0.8" />
                         <line x1={wSvg / 2} y1="-10" x2={wSvg / 2} y2="10" stroke="#00f2fe" strokeWidth="0.8" />
-                        <rect x="-40" y="-10" width="80" height="20" fill="#07111e" />
+                        <rect x="-60" y="-10" width="120" height="20" fill="#07111e" />
                         <text x="0" y="4" fill="#00f2fe" fontSize="11" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
-                          L = {length.toFixed(2)} m
+                          {planDiameter !== null ? `⌀ = ${planDiameter.toFixed(2)} m` : `L = ${length.toFixed(2)} m`}
                         </text>
                       </g>
 
-                      {/* Vertical Dimension: WIDTH */}
-                      <g transform={`translate(${wSvg / 2 + 35}, 0)`}>
-                        <line x1="0" y1={-hSvg / 2} x2="0" y2={hSvg / 2} stroke="#00f2fe" strokeWidth="1.2" markerStart="url(#dim-arrow-rev)" markerEnd="url(#dim-arrow)" />
-                        <line x1="-10" y1={-hSvg / 2} x2="10" y2={-hSvg / 2} stroke="#00f2fe" strokeWidth="0.8" />
-                        <line x1="-10" y1={hSvg / 2} x2="10" y2={hSvg / 2} stroke="#00f2fe" strokeWidth="0.8" />
-                        <rect x="-10" y="-12" width="60" height="24" fill="#07111e" />
-                        <text x="20" y="4" fill="#00f2fe" fontSize="11" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
-                          W = {width.toFixed(2)} m
-                        </text>
-                      </g>
+                      {/* Vertical Dimension: WIDTH (radial forms: radius check line) */}
+                      {planDiameter === null && (
+                        <g transform={`translate(${wSvg / 2 + 35}, 0)`}>
+                          <line x1="0" y1={-hSvg / 2} x2="0" y2={hSvg / 2} stroke="#00f2fe" strokeWidth="1.2" markerStart="url(#dim-arrow-rev)" markerEnd="url(#dim-arrow)" />
+                          <line x1="-10" y1={-hSvg / 2} x2="10" y2={-hSvg / 2} stroke="#00f2fe" strokeWidth="0.8" />
+                          <line x1="-10" y1={hSvg / 2} x2="10" y2={hSvg / 2} stroke="#00f2fe" strokeWidth="0.8" />
+                          <rect x="-10" y="-12" width="60" height="24" fill="#07111e" />
+                          <text x="20" y="4" fill="#00f2fe" fontSize="11" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
+                            W = {width.toFixed(2)} m
+                          </text>
+                        </g>
+                      )}
 
                       {/* Wall Thickness Callout */}
                       <g transform={`translate(${-wSvg / 2 - 20}, 0)`}>
@@ -393,12 +458,21 @@ export default function EngineeringBlueprint({
 
               <g transform="translate(400, 360)">
                 {(() => {
-                  const scale = Math.min(450 / Math.max(width, 1), 220 / Math.max(height, 1), 50);
-                  const wSvg = width * scale;
+                  // Radial sections span the DIAMETER; pyramid sections the base.
+                  const secSpan = shape === 'cylindrical' || shape === 'dome' ? Math.min(length, width) : width;
+                  const scale = Math.min(450 / Math.max(secSpan, 1), 220 / Math.max(height, 1), 50);
+                  const wSvg = secSpan * scale;
                   const hSvg = height * scale;
                   const tSvg = Math.max(8, wallThickness * scale);
                   const pitchRad = (roofAngle * Math.PI) / 180;
                   const roofRise = Math.tan(pitchRad) * (wSvg / 2);
+                  // Dome spherical-cap section: drum height + cap rise (mirrors
+                  // services/geometry.py calculate_shape_geometry exactly).
+                  const domeR = (secSpan / 2) * scale;
+                  const domeDrumH = shape === 'dome'
+                    ? Math.max(0, Math.min(hSvg - domeR, hSvg))
+                    : 0;
+                  const domeCapH = shape === 'dome' ? hSvg - domeDrumH : 0;
 
                   return (
                     <g>
@@ -412,21 +486,86 @@ export default function EngineeringBlueprint({
                         GROUND SLAB (indicative engine-default floor build-up, not user-selected)
                       </text>
 
-                      {/* Left Wall Section */}
-                      <rect x={-wSvg / 2} y={-hSvg} width={tSvg} height={hSvg} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
-                      {/* Right Wall Section */}
-                      <rect x={wSvg / 2 - tSvg} y={-hSvg} width={tSvg} height={hSvg} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                      {/* Wall sections — real per-shape geometry.
+                          Dome: drum walls + spherical-cap shell to the apex.
+                          Cylinder: straight walls + flat cap.
+                          Pyramid: sloped walls from base corners to the apex.
+                          Rectangular: straight walls + flat/pitched roof. */}
+                      {shape === 'dome' ? (
+                        <g>
+                          {/* Drum wall sections */}
+                          {domeDrumH > 0 && (
+                            <>
+                              <rect x={-wSvg / 2} y={-domeDrumH} width={tSvg} height={domeDrumH} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                              <rect x={wSvg / 2 - tSvg} y={-domeDrumH} width={tSvg} height={domeDrumH} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                            </>
+                          )}
+                          {/* Spherical-cap shell (quadratic Bézier through apex) */}
+                          <path
+                            d={`M ${-wSvg / 2},${-domeDrumH} Q 0,${-domeDrumH - domeCapH * 1.55} ${wSvg / 2},${-domeDrumH}`}
+                            fill="#0d233a"
+                            stroke="#00f2fe"
+                            strokeWidth="2"
+                          />
+                          <path
+                            d={`M ${-wSvg / 2 + tSvg},${-domeDrumH} Q 0,${-domeDrumH - domeCapH * 1.45} ${wSvg / 2 - tSvg},${-domeDrumH}`}
+                            fill="#071424"
+                            stroke="#00f2fe"
+                            strokeWidth="1.2"
+                            strokeDasharray="4 2"
+                          />
+                          <text x="0" y={-hSvg - 10} fill="#00f2fe" fontSize="10" fontFamily="monospace" textAnchor="middle">
+                            SPHERICAL CAP (apex H = {height.toFixed(2)} m)
+                          </text>
+                        </g>
+                      ) : shape === 'cylindrical' ? (
+                        <g>
+                          <rect x={-wSvg / 2} y={-hSvg} width={tSvg} height={hSvg} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                          <rect x={wSvg / 2 - tSvg} y={-hSvg} width={tSvg} height={hSvg} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                          <rect x={-wSvg / 2 - 15} y={-hSvg - 18} width={wSvg + 30} height="18" fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                          <text x="0" y={-hSvg - 26} fill="#00f2fe" fontSize="10" fontFamily="monospace" textAnchor="middle">
+                            CIRCULAR ROOF SLAB (⌀ {secSpan.toFixed(2)} m)
+                          </text>
+                        </g>
+                      ) : shape === 'pyramid' ? (
+                        <g>
+                          {/* Section cuts the pyramid mid-span: two sloped faces
+                              from grade to the apex (exact section geometry). */}
+                          <polygon
+                            points={`${-wSvg / 2},0 0,${-hSvg} ${wSvg / 2},0`}
+                            fill="#0d233a"
+                            stroke="#00f2fe"
+                            strokeWidth="2"
+                          />
+                          <polygon
+                            points={`${-wSvg / 2 + tSvg + 2},0 0,${-hSvg + tSvg + 2} ${wSvg / 2 - tSvg - 2},0`}
+                            fill="#071424"
+                            stroke="#00f2fe"
+                            strokeWidth="1.2"
+                            strokeDasharray="4 2"
+                          />
+                          <text x="0" y={-hSvg - 10} fill="#00f2fe" fontSize="10" fontFamily="monospace" textAnchor="middle">
+                            APEX AT {height.toFixed(2)} m
+                          </text>
+                        </g>
+                      ) : (
+                        <>
+                          <rect x={-wSvg / 2} y={-hSvg} width={tSvg} height={hSvg} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                          <rect x={wSvg / 2 - tSvg} y={-hSvg} width={tSvg} height={hSvg} fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
+                        </>
+                      )}
 
-                      {/* Insulation Callout layer on Wall */}
-                      {insThickMm > 0 && (
+                      {/* Insulation Callout layer on Wall — straight-wall forms */}
+                      {insThickMm > 0 && (shape === 'rectangular' || shape === 'cylindrical') && (
                         <g>
                           <rect x={-wSvg / 2 + tSvg - 4} y={-hSvg} width="4" height={hSvg} fill="#eab308" />
                           <rect x={wSvg / 2 - tSvg} y={-hSvg} width="4" height={hSvg} fill="#eab308" />
                         </g>
                       )}
 
-                      {/* Pitched or Flat Roof */}
-                      {roofRise > 5 ? (
+                      {/* Pitched or Flat Roof — rectangular sections only
+                          (dome/cylinder/pyramid draw their own envelope above) */}
+                      {(shape === 'rectangular' && roofRise > 5) ? (
                         <g>
                           {/* Left Rafter */}
                           <polygon
@@ -448,9 +587,9 @@ export default function EngineeringBlueprint({
                             ∠ {roofAngle}°
                           </text>
                         </g>
-                      ) : (
+                      ) : shape === 'rectangular' ? (
                         <rect x={-wSvg / 2 - 15} y={-hSvg - 18} width={wSvg + 30} height="18" fill="#0d233a" stroke="#00f2fe" strokeWidth="1.5" />
-                      )}
+                      ) : null}
 
                       {/* Interior Labels */}
                       <text x="0" y={-hSvg / 2} fill="#e2e8f0" fontSize="11" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
@@ -508,38 +647,83 @@ export default function EngineeringBlueprint({
 
               <g transform="translate(400, 360)">
                 {(() => {
-                  const scale = Math.min(480 / Math.max(length, 1), 220 / Math.max(height, 1), 50);
-                  const lSvg = length * scale;
+                  // Radial elevations span the DIAMETER; pyramid the base L.
+                  const elevSpan = shape === 'cylindrical' || shape === 'dome' ? Math.min(length, width) : length;
+                  const scale = Math.min(480 / Math.max(elevSpan, 1), 220 / Math.max(height, 1), 50);
+                  const lSvg = elevSpan * scale;
                   const hSvg = height * scale;
                   const pitchRad = (roofAngle * Math.PI) / 180;
                   const roofRise = Math.tan(pitchRad) * (width * scale * 0.25);
+                  // Dome elevation cap rise (spherical cap over the drum).
+                  const domeR = (elevSpan / 2) * scale;
+                  const domeDrumH = shape === 'dome'
+                    ? Math.max(0, Math.min(hSvg - domeR, hSvg))
+                    : 0;
+                  const domeCapH = shape === 'dome' ? hSvg - domeDrumH : 0;
 
                   return (
                     <g>
                       {/* Ground Line */}
                       <line x1="-350" y1="0" x2="350" y2="0" stroke="#475569" strokeWidth="2" strokeDasharray="8 4" />
 
-                      {/* Main Facade Wall */}
-                      <rect
-                        x={-lSvg / 2}
-                        y={-hSvg}
-                        width={lSvg}
-                        height={hSvg}
-                        fill="#0d233a"
-                        stroke="#00f2fe"
-                        strokeWidth="2"
-                      />
+                      {/* Main Facade Wall — real per-shape elevation.
+                          Dome: drum + curved cap silhouette to the apex.
+                          Cylinder: rectangular facade of the diameter.
+                          Pyramid: triangular sloped-face silhouette.
+                          Rectangular: facade + flat/pitched fascia. */}
+                      {shape === 'dome' ? (
+                        <g>
+                          {domeDrumH > 0 && (
+                            <rect x={-lSvg / 2} y={-domeDrumH} width={lSvg} height={domeDrumH} fill="#0d233a" stroke="#00f2fe" strokeWidth="2" />
+                          )}
+                          <path
+                            d={`M ${-lSvg / 2},${-domeDrumH} Q 0,${-domeDrumH - domeCapH * 1.55} ${lSvg / 2},${-domeDrumH}`}
+                            fill="#0d233a"
+                            stroke="#00f2fe"
+                            strokeWidth="2"
+                          />
+                          <text x="0" y={-hSvg - 12} fill="#00f2fe" fontSize="10" fontFamily="monospace" textAnchor="middle">
+                            SPHERICAL CAP — APEX {height.toFixed(2)} m
+                          </text>
+                        </g>
+                      ) : shape === 'pyramid' ? (
+                        <g>
+                          <polygon
+                            points={`${-lSvg / 2},0 0,${-hSvg} ${lSvg / 2},0`}
+                            fill="#0d233a"
+                            stroke="#00f2fe"
+                            strokeWidth="2"
+                          />
+                          <text x="0" y={-hSvg - 12} fill="#00f2fe" fontSize="10" fontFamily="monospace" textAnchor="middle">
+                            SLOPED FACE — APEX {height.toFixed(2)} m
+                          </text>
+                        </g>
+                      ) : (
+                        <rect
+                          x={-lSvg / 2}
+                          y={-hSvg}
+                          width={lSvg}
+                          height={hSvg}
+                          fill="#0d233a"
+                          stroke="#00f2fe"
+                          strokeWidth="2"
+                        />
+                      )}
 
-                      {/* Roof Fascia */}
-                      <polygon
-                        points={`${-lSvg / 2 - 15},${-hSvg} ${lSvg / 2 + 15},${-hSvg} ${lSvg / 2 + 15},${-hSvg - Math.max(16, roofRise)} ${-lSvg / 2 - 15},${-hSvg - Math.max(16, roofRise)}`}
-                        fill="#1e293b"
-                        stroke="#00f2fe"
-                        strokeWidth="1.5"
-                      />
+                      {/* Roof Fascia — rectangular/cylindrical elevations only
+                          (dome/pyramid draw their own curved/sloped silhouette) */}
+                      {(shape === 'rectangular' || shape === 'cylindrical') && (
+                        <polygon
+                          points={`${-lSvg / 2 - 15},${-hSvg} ${lSvg / 2 + 15},${-hSvg} ${lSvg / 2 + 15},${-hSvg - Math.max(16, roofRise)} ${-lSvg / 2 - 15},${-hSvg - Math.max(16, roofRise)}`}
+                          fill="#1e293b"
+                          stroke="#00f2fe"
+                          strokeWidth="1.5"
+                        />
+                      )}
 
-                      {/* Windows (south facade, shared openingLayout) */}
-                      {openings.south.windows.map((w, i) => (
+                      {/* Windows (south facade, shared openingLayout) —
+                          straight facades only (rect/cylinder vertical walls) */}
+                      {(shape === 'rectangular' || shape === 'cylindrical') && openings.south.windows.map((w, i) => (
                         <rect
                           key={`elev-win-${i}`}
                           x={(w.centerX * scale) - (openings.south.width * scale) / 2}
@@ -553,33 +737,41 @@ export default function EngineeringBlueprint({
                         />
                       ))}
 
-                      {/* Door */}
-                      <rect
-                        x={-(derivedDoorWidth * scale) / 2}
-                        y={-(derivedDoorHeight * scale)}
-                        width={derivedDoorWidth * scale}
-                        height={derivedDoorHeight * scale}
-                        fill="#f97316"
-                        fillOpacity="0.3"
-                        stroke="#f97316"
-                        strokeWidth="1.5"
-                      />
-                      <text
-                        x="0"
-                        y={-(derivedDoorHeight * scale) / 2}
-                        fill="#fb923c"
-                        fontSize="9"
-                        fontFamily="monospace"
-                        textAnchor="middle"
-                      >
-                        DOOR ({derivedDoorWidth}m × {derivedDoorHeight}m)
-                      </text>
+                      {/* Door — straight facades only */}
+                      {(shape === 'rectangular' || shape === 'cylindrical') && (
+                        <>
+                          <rect
+                            x={-(derivedDoorWidth * scale) / 2}
+                            y={-(derivedDoorHeight * scale)}
+                            width={derivedDoorWidth * scale}
+                            height={derivedDoorHeight * scale}
+                            fill="#f97316"
+                            fillOpacity="0.3"
+                            stroke="#f97316"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x="0"
+                            y={-(derivedDoorHeight * scale) / 2}
+                            fill="#fb923c"
+                            fontSize="9"
+                            fontFamily="monospace"
+                            textAnchor="middle"
+                          >
+                            DOOR ({derivedDoorWidth}m × {derivedDoorHeight}m)
+                          </text>
+                        </>
+                      )}
 
-                      {/* Dimension: Length */}
+                      {/* Dimension: Length / Diameter / Base */}
                       <g transform="translate(0, 35)">
                         <line x1={-lSvg / 2} y1="0" x2={lSvg / 2} y2="0" stroke="#00f2fe" strokeWidth="1.2" markerStart="url(#dim-arrow-rev)" markerEnd="url(#dim-arrow)" />
                         <text x="0" y="15" fill="#00f2fe" fontSize="11" fontWeight="bold" fontFamily="monospace" textAnchor="middle">
-                          Facade Length = {length.toFixed(2)} m
+                          {shape === 'cylindrical' || shape === 'dome'
+                            ? `⌀ = ${Math.min(length, width).toFixed(2)} m`
+                            : shape === 'pyramid'
+                              ? `Base = ${length.toFixed(2)} m`
+                              : `Facade Length = ${length.toFixed(2)} m`}
                         </text>
                       </g>
 

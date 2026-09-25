@@ -338,20 +338,42 @@ def run_optimization_endpoint(request: OptimizationRunRequest) -> Dict[str, Any]
             try:
                 from services.optimize import run_comfort_first_recommendation
                 rec_input = opt_input  # same bounds/constraints/climate
-                recommendation_payload = run_comfort_first_recommendation(city=rec_input)
+                # Baseline inclusion (spec §20/§56): the user's own design —
+                # the EXACT canonical design the direct simulation evaluated
+                # — enters the comfort ranking as an explicit candidate, so
+                # a "Comfort Max" recommendation can never be worse than a
+                # feasible baseline. The flat design dict preserves fields
+                # the OptimizationInput bounds cannot carry (insulation
+                # thickness, thermal mass, ACH, roof, wall thickness).
+                baseline_flat = request.design if isinstance(request.design, dict) else None
+                recommendation_payload = run_comfort_first_recommendation(
+                    city=rec_input,
+                    baseline_design=baseline_flat,
+                )
                 rec = recommendation_payload.get("recommendation") if recommendation_payload else None
                 if rec:
+                    if rec.get("is_baseline") and baseline_flat:
+                        # The user's own design won: attach the EXACT baseline
+                        # canonical design (not a candidate reconstruction) so
+                        # Apply reproduces what was already simulated.
+                        try:
+                            rec["canonical_design"] = adapt_to_shelter_design(
+                                dict(baseline_flat)
+                            ).to_dict()
+                        except Exception as e:  # noqa: BLE001
+                            logger.warning(f"Could not attach baseline canonical design: {e}")
                     # Attach the canonical design for the winning trial so the
                     # frontend can Apply it exactly like a ranked candidate.
-                    try:
-                        rec_cand = OptimizationCandidate.from_dict(rec)
-                        rec_sd = OptimizationAdapter.candidate_to_shelter_design(
-                            candidate=rec_cand,
-                            base_design=design,
-                        )
-                        rec["canonical_design"] = rec_sd.to_dict()
-                    except Exception as e:  # noqa: BLE001 - recommendation stays usable without canonical
-                        logger.warning(f"Could not attach canonical design to recommendation: {e}")
+                    if not rec.get("canonical_design"):
+                        try:
+                            rec_cand = OptimizationCandidate.from_dict(rec)
+                            rec_sd = OptimizationAdapter.candidate_to_shelter_design(
+                                candidate=rec_cand,
+                                base_design=design,
+                            )
+                            rec["canonical_design"] = rec_sd.to_dict()
+                        except Exception as e:  # noqa: BLE001 - recommendation stays usable without canonical
+                            logger.warning(f"Could not attach canonical design to recommendation: {e}")
             except Exception as e:  # noqa: BLE001 - recommendation is additive; main result must survive
                 logger.error(f"Comfort-first recommendation pass failed: {e}", exc_info=True)
                 recommendation_payload = {

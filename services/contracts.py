@@ -550,9 +550,11 @@ class OptimizationInput:
     # engineering/product decisions and are not invented by this contract.
     # The optimizer must fail loudly rather than silently assume bounds.
     #
-    # NOTE (D5-A): only rectangular-footprint dimensions (length/width/height)
-    # are contract-covered. Shape (cylindrical/dome/pyramid) is NOT safe to
-    # optimize - the thermal engine simulates rectangular envelopes only.
+    # NOTE: length/width/height are rectangular-footprint dimensions. The
+    # shelter FORM (rectangular/cylindrical/dome/pyramid) is carried in the
+    # ``shape`` field below; the thermal engine simulates every supported
+    # form through services/geometry.calculate_shape_geometry, and the
+    # comfort-first pass can search the form as a categorical variable.
     # ------------------------------------------------------------------
     optimize_geometry: bool = False
     min_length_m: Optional[float] = None
@@ -577,10 +579,27 @@ class OptimizationInput:
     min_aspect_ratio: Optional[float] = None
     max_aspect_ratio: Optional[float] = None
     # Product-hardening pass: authoritative shelter form carried with the
-    # optimization configuration. Shape is EVALUATED (every trial/candidate
-    # simulation uses the actual form) but NOT SEARCHED — changing shape
-    # remains an explicit user decision, not an optimizer variable.
+    # optimization configuration. Every trial/candidate simulation uses the
+    # actual form. When ``search_shape`` is enabled the form becomes a
+    # categorical SEARCH variable (comfort-first pass): each candidate is
+    # simulated with its own real shape-specific geometry — never a
+    # rectangular approximation.
     shape: str = "rectangular"
+    # ------------------------------------------------------------------
+    # Optimization-UX pass: orientation becomes a SEARCHED variable when
+    # this flag is on. The engine evaluates real azimuths through its
+    # continuous solar response model, so the optimal orientation is
+    # climate-dependent and found by simulation — never hardcoded (180° is
+    # NOT universally optimal). The adapter enables it on the app path;
+    # direct/legacy callers keep the legacy categorical behaviour by
+    # defaulting to False.
+    # ------------------------------------------------------------------
+    search_orientation: bool = False
+    # Shelter FORM as a categorical search variable. Off for the
+    # user-constrained pass (the user's chosen shape is a requirement the
+    # top-3 must respect); the comfort-first pass enables it so the
+    # recommendation compares feasible versions of every supported form.
+    search_shape: bool = False
 
     def __post_init__(self) -> None:
         self.validate()
@@ -750,6 +769,8 @@ class OptimizationInput:
             min_aspect_ratio=data.get("min_aspect_ratio"),
             max_aspect_ratio=data.get("max_aspect_ratio"),
             shape=str(data.get("shape", "rectangular")),
+            search_orientation=bool(data.get("search_orientation", False)),
+            search_shape=bool(data.get("search_shape", False)),
         )
 
 
@@ -810,6 +831,14 @@ class OptimizationCandidate:
     height_m: Optional[float] = None
     floor_area_m2: Optional[float] = None
     surface_to_volume_ratio: Optional[float] = None
+    # Optimization-UX pass: the candidate's ACTUAL simulated shelter form.
+    # Always "rectangular" for user-constrained fixed-shape runs; any of the
+    # four supported forms when the shape was searched. None = legacy record.
+    shape: Optional[str] = None
+    # Dual-output fidelity: set on the baseline user-design candidate so the
+    # comfort-first recommendation can attribute a win back to the user's
+    # own design honestly.
+    is_baseline: Optional[bool] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -861,6 +890,16 @@ class OptimizationCandidate:
             length=b_len,
             width=b_wid,
             height=b_hgt,
+            # The candidate's simulated form is authoritative for the applied
+            # design (searched or fixed) — never silently reset to rectangular.
+            shape=(
+                self.shape
+                or (
+                    str(getattr(base_design, "shape", "rectangular"))
+                    if base_design is not None and hasattr(base_design, "shape")
+                    else "rectangular"
+                )
+            ),
             wall_material=self.wall_material,
             insulation_thickness_m=self.insulation_thickness_m,
             window_area=self.window_area_m2,
@@ -911,6 +950,8 @@ class OptimizationCandidate:
             height_m=data.get("height_m"),
             floor_area_m2=data.get("floor_area_m2"),
             surface_to_volume_ratio=data.get("surface_to_volume_ratio"),
+            shape=data.get("shape"),
+            is_baseline=data.get("is_baseline"),
         )
 
 

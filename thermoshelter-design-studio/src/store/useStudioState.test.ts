@@ -327,6 +327,62 @@ describe('D5-A: candidate geometry carry-through', () => {
   });
 });
 
+describe('optimization-UX pass: numeric azimuth + shape carry', () => {
+  it('orientationToDegrees carries a continuous azimuth exactly', () => {
+    expect(orientationToDegrees('157.0')).toBe(157);
+    expect(orientationToDegrees('0.0')).toBe(0);
+    expect(orientationToDegrees('352.5')).toBe(352.5);
+  });
+
+  it('orientationToDegrees normalizes negative/wrapped azimuths', () => {
+    expect(orientationToDegrees('-10')).toBe(350);
+    expect(orientationToDegrees('450')).toBe(90);
+  });
+
+  it('orientationToDegrees keeps the cardinal legacy mapping', () => {
+    expect(orientationToDegrees('south')).toBe(180);
+    expect(orientationToDegrees('north')).toBe(0);
+    expect(orientationToDegrees('east')).toBe(90);
+    expect(orientationToDegrees('west')).toBe(270);
+  });
+
+  const shapeCandidate = (shape: string | null) =>
+    ({
+      rank: 1,
+      label: 'Design #1',
+      rationale: '',
+      overall_score: 72,
+      sub_scores: { comfort: 60, efficiency: 70, solar: 40 },
+      insulation_mm: 100,
+      insulation_thickness_m: 0.1,
+      window_area_m2: 4,
+      wall_material: 'brick',
+      wall_material_name: 'Brick',
+      glazing: 'double_clear',
+      glazing_name: 'Double Glazed',
+      orientation: 'south',
+      comfort_hours: 30,
+      comfort_percentage: 18,
+      discomfort_dh: 600,
+      total_heat_loss_kwh: 30,
+      solar_gain_kwh: 12,
+      u_values: { wall_u: 0.5, roof_u: 0.4, floor_u: 0.6, window_u: 2.8 },
+      shape,
+    }) as unknown as CanonicalOptimizationCandidate;
+
+  it('carries the candidate simulated shape into the design patch', () => {
+    const design = { length: 6, width: 4, height: 3 } as ShelterDesign;
+    const patch = candidateDesignPatch(design, shapeCandidate('dome'));
+    expect(patch.shape).toBe('dome');
+  });
+
+  it('does not touch the design shape for legacy candidates', () => {
+    const design = { length: 6, width: 4, height: 3 } as ShelterDesign;
+    const patch = candidateDesignPatch(design, shapeCandidate(null));
+    expect(patch.shape).toBeUndefined();
+  });
+});
+
 describe('prototype geometry bounds (Batch 1-A)', () => {
   it('exposes exactly the approved D5-B prototype bounds', () => {
     // These are the approved PROPOSED PROTOTYPE OPTIMIZATION BOUNDS — the UI

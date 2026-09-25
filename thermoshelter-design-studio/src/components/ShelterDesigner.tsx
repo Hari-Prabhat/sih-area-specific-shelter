@@ -1,8 +1,9 @@
-import { lazy, Suspense, useMemo } from 'react';
-import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, Sparkles } from 'lucide-react';
+import { lazy, Suspense, useMemo, useState } from 'react';
+import { Settings, Play, Compass, Ruler, LayoutGrid, Layers, ShieldCheck, Wind, Users, Loader2, ChevronDown, Sparkles } from 'lucide-react';
 import { ShelterDesign } from '../types';
 import { materials } from '../data/materials';
 import { calculateShapeGeometryDisplay } from '../services/shapeGeometry';
+import { useLocale } from '../i18n';
 import StageSuspense from './ui/StageSuspense';
 
 // D3: the three.js digital twin is the heaviest view in the studio and is
@@ -50,6 +51,12 @@ export default function ShelterDesigner({
     () => calculateShapeGeometryDisplay(shelterDesign.shape, shelterDesign.length, shelterDesign.width, shelterDesign.height),
     [shelterDesign.shape, shelterDesign.length, shelterDesign.width, shelterDesign.height],
   );
+
+  // Spec §2/§29: technical envelope parameters live behind an optional
+  // Advanced disclosure. Normal users never need azimuth, glazing U-values
+  // or ACH — the optimizer manages these automatically.
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const { t } = useLocale();
 
   return (
     <div className="space-y-6">
@@ -168,43 +175,52 @@ export default function ShelterDesigner({
           </div>
         </div>
 
-        {/* Orientation & Solar Facade */}
+        {/* Orientation — optimizer-managed (spec §4–§6). 180° is NOT
+            universally optimal; the optimizer searches the full azimuth
+            against the selected climate and reports the recommended value
+            after the Optimization run. Manual control lives in Advanced. */}
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
           <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-            <Compass className="w-4 h-4 text-amber-400" /> Solar Azimuth & Orientation
+            <Compass className="w-4 h-4 text-amber-400" /> Orientation
           </h3>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Azimuth Angle</span>
-                <span className="text-amber-400 font-bold">{shelterDesign.orientation}°</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={360}
-                step={5}
-                value={shelterDesign.orientation}
-                onChange={(e) => updateField('orientation', Number(e.target.value))}
-                className="w-full accent-amber-500"
-              />
-              <div className="flex justify-between text-[10px] text-slate-500">
-                <span>N (0°)</span>
-                <span>E (90°)</span>
-                <span className="text-amber-300">S (180° Optimal)</span>
-                <span>W (270°)</span>
-                <span>N (360°)</span>
-              </div>
-            </div>
-            <div className="p-2.5 bg-slate-900/50 rounded-lg border border-slate-700/50 text-[11px] text-slate-300">
-              <p className="flex items-center gap-1.5 text-amber-300 font-medium mb-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> Passive Solar Alignment
+            <div className="p-3 bg-slate-900/50 rounded-lg border border-amber-500/20 text-xs text-slate-300">
+              <p className="flex items-center gap-1.5 text-amber-300 font-medium mb-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> {t('orientationOptimizedTitle')}
               </p>
-              Glazing facing 180° (True South) maximizes direct solar heat gain in cold high-altitude conditions.
+              <p>{t('orientationOptimizedBody')}</p>
+              <p className="text-[11px] text-slate-400 mt-2">{t('orientationOptimizedHint')}</p>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>{t('orientationCurrent')}</span>
+              <span className="font-mono text-slate-200">{shelterDesign.orientation}°</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Spec §2/§29: Advanced Design Controls — the technical envelope
+          parameters the optimizer manages automatically. Hidden behind an
+          explicit opt-in so the normal workflow stays high-level. */}
+      <div className="bg-slate-800/30 rounded-xl border border-slate-700/30">
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          aria-expanded={showAdvanced}
+          className="w-full flex items-center justify-between px-6 py-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
+        >
+          <span>
+            <span className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-slate-400" /> {t('advancedControls')}
+            </span>
+            <span className="block text-[11px] text-slate-500 mt-0.5">
+              {t('advancedControlsHint')}
+            </span>
+          </span>
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showAdvanced && (
+          <div className="px-6 pb-6 space-y-6 border-t border-slate-700/30 pt-5">
 
       {/* Row 2: Openings, Roof, Insulation & Passive Thermal Mass */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -434,7 +450,46 @@ export default function ShelterDesigner({
         </div>
       </div>
 
-      {/* Wall Material Palette */}
+          {/* Manual azimuth override (spec §6): only inside Advanced — the
+              optimum is climate-dependent and the optimizer searches it. */}
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
+            <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+              <Compass className="w-4 h-4 text-amber-400" /> {t('manualAzimuth')}
+            </h3>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">Azimuth Angle</span>
+                <span className="text-amber-400 font-bold">{shelterDesign.orientation}°</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={360}
+                step={5}
+                value={shelterDesign.orientation}
+                onChange={(e) => updateField('orientation', Number(e.target.value))}
+                className="w-full accent-amber-500"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500">
+                <span>N (0°)</span>
+                <span>E (90°)</span>
+                <span>S (180°)</span>
+                <span>W (270°)</span>
+                <span>N (360°)</span>
+              </div>
+              <p className="text-[11px] text-slate-400 pt-1">
+                Leave this to the optimizer unless you have a specific site
+                constraint — the optimal azimuth depends on your climate and
+                is found by simulation, not a fixed rule.
+              </p>
+            </div>
+          </div>
+          </div>
+        )}
+      </div>
+
+      {/* Wall Material Palette — optimizer-managed in the Optimization stage;
+          kept as an explicit override for users who want to pin a substrate. */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/30 p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-sm font-semibold text-slate-300">Structural Wall Substrate Material</h3>

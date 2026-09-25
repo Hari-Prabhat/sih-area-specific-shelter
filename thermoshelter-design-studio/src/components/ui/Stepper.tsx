@@ -1,6 +1,20 @@
 import { Check, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { WORKFLOW_STAGES, WorkflowStage } from '../../theme/tokens';
 import Button from './Button';
+import { useLocale, TranslationKey } from '../../i18n';
+
+/** Stage id → i18n key (full app-shell translation coverage, spec §41–43). */
+const STAGE_I18N: Record<WorkflowStage, TranslationKey> = {
+  'site-climate': 'stageClimate',
+  mission: 'stageMission',
+  design: 'stageDesign',
+  'passive-strategy': 'stagePassive',
+  simulation: 'stageSimulation',
+  optimization: 'stageOptimization',
+  blueprint: 'stageBlueprint',
+  'digital-twin': 'stageTwin',
+  report: 'stageReport',
+};
 
 interface StepperProps {
   current: WorkflowStage;
@@ -35,6 +49,7 @@ export function isStageReachable(
  * a lock icon (honest, not hidden).
  */
 export default function Stepper({ current, onNavigate, maxVisitedIndex }: StepperProps) {
+  const { t } = useLocale();
   const index = WORKFLOW_STAGES.findIndex((s) => s.id === current);
   const prev = index > 0 ? WORKFLOW_STAGES[index - 1] : null;
   const next = index < WORKFLOW_STAGES.length - 1 ? WORKFLOW_STAGES[index + 1] : null;
@@ -84,7 +99,7 @@ export default function Stepper({ current, onNavigate, maxVisitedIndex }: Steppe
                 >
                   {isCompleted ? <Check className="w-3 h-3" aria-hidden="true" /> : !stage.available ? <Lock className="w-2.5 h-2.5" aria-hidden="true" /> : i + 1}
                 </span>
-                {stage.shortLabel}
+                {t(STAGE_I18N[stage.id])}
               </button>
               {i < WORKFLOW_STAGES.length - 1 && (
                 <span className="w-4 h-px bg-slate-700 mx-1" aria-hidden="true" />
@@ -102,14 +117,14 @@ export default function Stepper({ current, onNavigate, maxVisitedIndex }: Steppe
             disabled={!prev}
             icon={<ChevronLeft className="w-4 h-4" aria-hidden="true" />}
           >
-            Back
+            {t('back')}
           </Button>
           <Button
             onClick={() => nextNavigable && onNavigate(nextNavigable.id)}
             disabled={!nextNavigable}
             icon={<ChevronRight className="w-4 h-4" aria-hidden="true" />}
           >
-            Next: {nextNavigable ? nextNavigable.shortLabel : '—'}
+            {t('next')}: {nextNavigable ? t(STAGE_I18N[nextNavigable.id]) : '—'}
           </Button>
         </div>
       )}

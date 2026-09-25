@@ -63,6 +63,207 @@ except ImportError:
 # ---------------------------------------------------------------------
 
 
+def _collapse_radial_dimensions(shape: str, length: float, width: float) -> tuple:
+    """
+    Radial forms carry the canonical diameter semantics (services/geometry.py
+    calculate_shape_geometry): length = width = DIAMETER. When shape search
+    samples a radial form over rectangular L/W candidates, both plan
+    dimensions collapse to the smaller of the two — a deterministic mapping
+    that keeps the trial footprint inside the sampled bounds (no invented
+    dimensions). Rectangular and pyramid keep their L/W base.
+    """
+    if str(shape) in ("cylindrical", "dome"):
+        diameter = min(float(length), float(width))
+        return diameter, diameter
+    return float(length), float(width)
+
+
+# ---------------------------------------------------------------------
+# Optimization-UX pass: comfort-first BASELINE INCLUSION.
+#
+# Product rule: a design labelled "Comfort Max" must NEVER report fewer
+# simulated comfort hours than an equally feasible baseline user design.
+# To guarantee that honestly, the user's own design (the SAME canonical
+# design the direct simulation evaluated — same insulation thickness,
+# thermal mass, ACH, window/door areas) is simulated on the identical
+# climate scenario at the same substeps as the search candidates and
+# enters the comfort ranking as an explicit candidate. If it wins, the
+# recommendation IS the user's design — labelled as such — never a
+# silently worse alternative.
+# ---------------------------------------------------------------------
+
+def _resolve_rec_climate_vectors(
+    climate_scenario: Optional[Dict[str, Any]],
+    city: str,
+    hours: int,
+    scenario_kind: Optional[str] = None,
+) -> tuple:
+    """Resolves the SAME hourly climate vectors the search used.
+
+    Mirrors run_optimization's Phase C contract: a supplied canonical
+    ClimateProfile scenario is authoritative (city statistics never fetched);
+    only when absent are the legacy city-key statistics used.
+    Returns (hourly_t, hourly_ds, hourly_dfs).
+    """
+    if climate_scenario is not None:
+        try:
+            from services.contracts import adapt_to_climate_profile as _adapt_cp
+        except ImportError:
+            from contracts import adapt_to_climate_profile as _adapt_cp  # type: ignore
+        from services.climate_scenario import resolve_optimization_scenario
+
+        profile = _adapt_cp(dict(climate_scenario))
+        scenario = resolve_optimization_scenario(
+            profile, hours=hours, scenario_kind=scenario_kind
+        )
+        return (
+            scenario.hourly_temperature,
+            scenario.hourly_direct_solar,
+            scenario.hourly_diffuse_solar,
+        )
+
+    weather = get_climate_data(city)
+    if "error" in weather:
+        raise ValueError(weather["error"])
+    stats = weather.get("hourly_statistics", {}) or {}
+    temp_stats = stats.get("temperature", {}) or {}
+    solar_stats = stats.get("direct_radiation", {}) or {}
+    diffuse_stats = stats.get("diffuse_radiation", {}) or {}
+
+    def _series(stat_block: Dict[str, Any], keys: List[str]) -> Optional[List[float]]:
+        for k in keys:
+            v = stat_block.get(k)
+            if isinstance(v, list) and len(v) > 0:
+                return [float(x) for x in v]
+        return None
+
+    return (
+        _series(temp_stats, ["hourly_values", "monthly_hourly_mean"]),
+        _series(solar_stats, ["hourly_values", "monthly_hourly_mean"]),
+        _series(diffuse_stats, ["hourly_values", "monthly_hourly_mean"]),
+    )
+
+
+def _simulate_baseline_candidate(
+    baseline_design: Dict[str, Any],
+    city_label: str,
+    hourly_t: Optional[List[float]],
+    hourly_ds: Optional[List[float]],
+    hourly_dfs: Optional[List[float]],
+    home_type: str,
+    occupants: int,
+    hours_to_simulate: int,
+    substeps: int,
+    weights: Dict[str, float],
+) -> Optional[Dict[str, Any]]:
+    """Simulates the baseline user design as a comfort-first candidate.
+
+    Uses the SAME engine and the SAME climate vectors as every search
+    candidate. Returns None when the baseline design is not simulatable —
+    inclusion is best-effort honesty, never a silent degradation of the
+    recommendation.
+    """
+    try:
+        from services.material_service import get_material as _get_material
+    except ImportError:
+        from material_service import get_material as _get_material  # type: ignore
+
+    b_len = float(baseline_design.get("length", 4.0))
+    b_wid = float(baseline_design.get("width", 3.0))
+    b_hgt = float(baseline_design.get("height", 2.8))
+    b_orient = baseline_design.get("orientation", 180.0)
+
+    sim_result = run_simulation(
+        city=city_label,
+        length=b_len,
+        width=b_wid,
+        height=b_hgt,
+        wall_material=str(baseline_design.get("wall_material", "brick")),
+        wall_thickness_m=float(baseline_design.get("wall_thickness_m", 0.23)),
+        insulation_thickness_m=float(baseline_design.get("insulation_thickness_m", 0.0)),
+        insulation_conductivity=float(baseline_design.get("insulation_conductivity", 0.025)),
+        window_area=float(baseline_design.get("window_area", 2.0)),
+        door_area=float(baseline_design.get("door_area", 2.0)),
+        glazing=str(baseline_design.get("glazing", "double_clear")),
+        orientation=b_orient,
+        roof_type=str(baseline_design.get("roof_type", "flat")),
+        pitch_angle_deg=float(baseline_design.get("pitch_angle_deg", 0.0)),
+        ach=float(baseline_design.get("ach", 0.7)),
+        occupants=int(occupants),
+        hours_to_simulate=int(hours_to_simulate),
+        substeps=int(substeps),
+        hourly_temperatures=hourly_t,
+        hourly_direct_solar=hourly_ds,
+        hourly_diffuse_solar=hourly_dfs,
+        shape=str(baseline_design.get("shape", "rectangular")),
+    )
+    if "error" in sim_result:
+        return None
+
+    discomfort_dh = sim_result["discomfort_degree_hours"]
+    heat_loss = sim_result["total_heat_loss_kwh"]
+    solar_gain = sim_result.get("integrated_solar_energy_kwh", 0.0)
+    comfort_score = round(max(0.0, min(100.0, 100.0 - (discomfort_dh / 15.0))), 1)
+    efficiency_score = round(max(0.0, min(100.0, 100.0 - (heat_loss / 10.0))), 1)
+    solar_score = round(min(100.0, solar_gain * 2.0), 1)
+    w_c = weights.get("comfort", 0.50)
+    w_e = weights.get("efficiency", 0.35)
+    w_s = weights.get("solar", 0.15)
+    overall_score = round(w_c * comfort_score + w_e * efficiency_score + w_s * solar_score, 1)
+
+    return {
+        "rank": 0,
+        "label": "Your Design (Baseline)",
+        "rationale": (
+            "The user's own design, re-evaluated on the same climate scenario "
+            "as every optimization candidate."
+        ),
+        "overall_score": overall_score,
+        "sub_scores": {
+            "comfort": comfort_score,
+            "efficiency": efficiency_score,
+            "solar": solar_score,
+        },
+        "insulation_mm": round(float(baseline_design.get("insulation_thickness_m", 0.0)) * 1000.0, 1),
+        "insulation_thickness_m": float(baseline_design.get("insulation_thickness_m", 0.0)),
+        "window_area_m2": float(baseline_design.get("window_area", 2.0)),
+        "wall_material": str(baseline_design.get("wall_material", "brick")),
+        "wall_material_name": _get_material(
+            str(baseline_design.get("wall_material", "brick"))
+        ).get("name", str(baseline_design.get("wall_material", "brick")).title()),
+        "glazing": str(baseline_design.get("glazing", "double_clear")),
+        "glazing_name": GLAZING_PROPERTIES.get(
+            str(baseline_design.get("glazing", "double_clear")), {}
+        ).get("name", "Double Glazed"),
+        "orientation": str(b_orient),
+        "comfort_hours": sim_result["comfort_hours"],
+        "comfort_percentage": sim_result["comfort_percentage"],
+        "discomfort_dh": discomfort_dh,
+        "total_heat_loss_kwh": heat_loss,
+        "solar_gain_kwh": solar_gain,
+        "u_values": sim_result["u_values"],
+        "heating_demand_kwh": sim_result.get(
+            "heating_demand_kwh", sim_result.get("energy_totals_kwh", {}).get("heating_demand_kwh", 0.0)
+        ),
+        "cooling_demand_kwh": sim_result.get(
+            "cooling_demand_kwh", sim_result.get("energy_totals_kwh", {}).get("cooling_demand_kwh", 0.0)
+        ),
+        "total_conditioning_demand_kwh": sim_result.get(
+            "total_conditioning_demand_kwh",
+            sim_result.get("energy_totals_kwh", {}).get("total_conditioning_demand_kwh", 0.0),
+        ),
+        "effective_thermal_capacity_j_k": sim_result.get("effective_thermal_capacity_j_k", 0.0),
+        "thermal_mass_level": str(baseline_design.get("thermal_mass_level", "none")),
+        "shape": str(baseline_design.get("shape", "rectangular")),
+        "is_baseline": True,
+        **_candidate_geometry_fields(sim_result, b_len, b_wid, b_hgt),
+        # The raw engine result lets the endpoint attach the EXACT baseline
+        # canonical design (preserving ACH, wall thickness, roof, mass) as
+        # the recommendation's canonical_design.
+        "_baseline_design": dict(baseline_design),
+    }
+
+
 def _candidate_geometry_fields(sim_result: Dict[str, Any], length: float, width: float, height: float) -> Dict[str, Any]:
     """
     Builds the D5-A candidate geometry payload from ENGINE-REPORTED values.
@@ -176,9 +377,19 @@ def _objective(
     min_aspect_ratio: Optional[float] = None,
     max_aspect_ratio: Optional[float] = None,
     # Product-hardening pass: the user-selected shelter form is authoritative
-    # for every trial simulation. Shape is NOT an optimization variable —
-    # it is evaluated, not searched (documented product decision).
+    # for every trial simulation when shape search is off (documented product
+    # decision). When ``search_shape`` is True the form becomes a genuine
+    # categorical search variable: every candidate is simulated with its own
+    # real shape-specific geometry (services/geometry.calculate_shape_geometry)
+    # — never a rectangular approximation.
     shape: str = "rectangular",
+    search_shape: bool = False,
+    # Optimization-UX pass: when enabled, orientation is a genuine SEARCH
+    # variable (the engine's continuous-degree solar response model makes
+    # the optimal azimuth climate-dependent — simulation decides, never a
+    # hardcoded rule). Default OFF preserves the legacy categorical search
+    # for direct/legacy callers; the app path enables it via the contract.
+    search_orientation: bool = False,
 ) -> float:
     """
     Evaluates one candidate shelter configuration against physical objectives.
@@ -212,6 +423,29 @@ def _objective(
         )
     else:
         trial_length, trial_width, trial_height = float(length), float(width), float(height)
+
+    # 0b. Shelter FORM candidate: categorical search variable when enabled.
+    # Suggested FIRST among the categorical choices but AFTER geometry so the
+    # fixed-geometry sampler order (insulation -> window -> material ->
+    # glazing -> orientation -> thermal mass) stays unchanged when disabled.
+    if search_shape:
+        trial_shape = str(
+            trial.suggest_categorical(
+                "shape", ["rectangular", "cylindrical", "dome", "pyramid"]
+            )
+        )
+    else:
+        trial_shape = str(shape)
+
+    # Radial forms carry the canonical diameter semantics (services/geometry.py
+    # calculate_shape_geometry): length = width = DIAMETER. When shape search
+    # samples a radial form over rectangular L/W candidates, both plan
+    # dimensions collapse to the smaller of the two — a deterministic mapping
+    # that keeps the trial footprint inside the sampled bounds (no invented
+    # dimensions). Pyramid keeps the L/W base; rectangular is unchanged.
+    if trial_shape in ("cylindrical", "dome") and trial_length != trial_width:
+        diameter = min(trial_length, trial_width)
+        trial_length, trial_width = diameter, diameter
 
     # 1. Insulation Thickness Candidate
     upper_ins_bound = min(0.12 if is_temp else 0.25, max_insulation_m)
@@ -297,10 +531,23 @@ def _objective(
         )
 
     # 5. Orientation Candidate
+    #
+    # Optimization-UX pass: orientation is a genuine SEARCH variable when
+    # enabled (and not explicitly pinned or constrained). The engine
+    # resolves continuous azimuth degrees through its solar response model,
+    # so the search spans the full solar-bearing space and the optimum is
+    # climate-dependent — found by simulation, never hardcoded (180° is NOT
+    # universally optimal). Precedence: explicit pin > explicit allowed
+    # list (a caller constraint stays authoritative) > continuous search >
+    # legacy cardinal categorical.
     if orientation and orientation != "auto":
         orient_choice = orientation
     elif allowed_orientations and len(allowed_orientations) > 0:
         orient_choice = trial.suggest_categorical("orientation", allowed_orientations)
+    elif search_orientation:
+        orient_choice = float(
+            trial.suggest_float("orientation_deg", 0.0, 360.0, step=15.0)
+        )
     else:
         orient_choice = trial.suggest_categorical("orientation", ["south", "north", "east", "west"])
 
@@ -332,7 +579,7 @@ def _objective(
         hourly_direct_solar=hourly_direct_solar,
         hourly_diffuse_solar=hourly_diffuse_solar,
         extra_thermal_capacity_j_k=_thermal_mass_capacity_j_k(tm_level_choice, trial_length, trial_width),
-        shape=shape,
+        shape=trial_shape,
     )
 
     if "error" in sim_result:
@@ -423,6 +670,8 @@ def optimize_shelter(opt_input: Union[OptimizationInput, Dict[str, Any]]) -> Opt
         weights=contract_input.weights,
         climate_scenario=contract_input.climate_scenario,
         shape=str(getattr(contract_input, "shape", "rectangular")),
+        search_orientation=bool(getattr(contract_input, "search_orientation", False)),
+        search_shape=bool(getattr(contract_input, "search_shape", False)),
         **_geometry_search_fields(contract_input),
     )
 
@@ -465,9 +714,12 @@ def run_optimization(
     max_height_m: Optional[float] = None,
     min_aspect_ratio: Optional[float] = None,
     max_aspect_ratio: Optional[float] = None,
-    # Product-hardening pass: authoritative shelter form, evaluated (not
-    # searched) for every trial and candidate simulation.
+    # Product-hardening pass: authoritative shelter form. When ``search_shape``
+    # is off the form is evaluated (not searched) for every trial and
+    # candidate simulation; when on, the form is a categorical search variable.
     shape: str = "rectangular",
+    search_orientation: bool = False,
+    search_shape: bool = False,
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
@@ -566,6 +818,8 @@ def run_optimization(
         min_width_m, max_width_m = geom["min_width_m"], geom["max_width_m"]
         min_height_m, max_height_m = geom["min_height_m"], geom["max_height_m"]
         min_aspect_ratio, max_aspect_ratio = geom["min_aspect_ratio"], geom["max_aspect_ratio"]
+        search_orientation = bool(getattr(inp, "search_orientation", True))
+        search_shape = bool(getattr(inp, "search_shape", False))
     else:
         city_str = str(city) if city is not None else "leh"
         # Plain-kwargs path: honour the canonical design's door area under
@@ -659,6 +913,8 @@ def run_optimization(
             min_aspect_ratio=min_aspect_ratio,
             max_aspect_ratio=max_aspect_ratio,
             shape=shape,
+            search_orientation=search_orientation,
+            search_shape=search_shape,
         ),
         n_trials=n_trials,
     )
@@ -693,7 +949,13 @@ def run_optimization(
 
     best_mat = str(best_p.get("wall_material", fallback_mat))
     best_glaze = str(best_p.get("glazing", fallback_glaze))
-    best_orient = str(best_p.get("orientation", fallback_orient))
+    # Continuous-degree search reports the azimuth as a numeric string;
+    # categorical/legacy search reports the cardinal name or pinned value.
+    best_orient = str(
+        best_p.get("orientation", best_p.get("orientation_deg", fallback_orient))
+    )
+    best_shape = str(best_p.get("shape", shape))
+    best_len, best_wid = _collapse_radial_dimensions(best_shape, best_len, best_wid)
     best_score = round(float(study.best_value), 2)
 
 
@@ -716,7 +978,7 @@ def run_optimization(
         hourly_temperatures=hourly_t,
         hourly_direct_solar=hourly_ds,
         hourly_diffuse_solar=hourly_dfs,
-        shape=shape,
+        shape=best_shape,
     )
 
     glaze_name = GLAZING_PROPERTIES.get(best_glaze, {}).get("name", best_glaze.replace("_", " ").title())
@@ -734,16 +996,21 @@ def run_optimization(
         c_win = round(float(p.get("window_area_m2", best_win)), 2)
         c_mat = str(p.get("wall_material", best_mat))
         c_glaze = str(p.get("glazing", best_glaze))
-        c_orient = str(p.get("orientation", best_orient))
+        # Candidates carry their OWN simulated form: the searched shape when
+        # shape search ran, otherwise the authoritative fixed shape.
+        c_shape = str(p.get("shape", shape))
+        c_orient = str(p.get("orientation", p.get("orientation_deg", best_orient)))
         c_tm_level = str(p.get("thermal_mass_level", "none"))
         # D5-B: each candidate carries ITS OWN trial geometry (never the base).
         c_len = round(float(p.get("length", best_len)), 3)
         c_wid = round(float(p.get("width", best_wid)), 3)
         c_hgt = round(float(p.get("height", best_hgt)), 3)
 
+        c_len, c_wid = _collapse_radial_dimensions(c_shape, c_len, c_wid)
+
         config_key = (
             round(c_ins, 2), round(c_win, 1), c_mat, c_glaze, c_orient, c_tm_level,
-            c_len, c_wid, c_hgt,
+            c_len, c_wid, c_hgt, c_shape,
         )
         if config_key in seen_configs:
             continue
@@ -770,7 +1037,7 @@ def run_optimization(
             hourly_direct_solar=hourly_ds,
             hourly_diffuse_solar=hourly_dfs,
             extra_thermal_capacity_j_k=_thermal_mass_capacity_j_k(c_tm_level, c_len, c_wid),
-            shape=shape,
+            shape=c_shape,
         )
         if "error" in c_sim:
             continue
@@ -832,6 +1099,7 @@ def run_optimization(
             "climate_data_mode": scenario_data_mode,
             "climate_fallback_used": scenario_fallback_used,
             "thermal_mass_level": c_tm_level,
+            "shape": c_shape,
             # D5-B: candidate geometry from its OWN ENGINE-REPORTED values
             # (the same simulated envelope Apply/Blueprint/3D/Report will show).
             **_candidate_geometry_fields(c_sim, c_len, c_wid, c_hgt),
@@ -880,6 +1148,7 @@ def run_optimization(
             "cooling_demand_kwh": c_sim.get("cooling_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("cooling_demand_kwh", 0.0)),
             "total_conditioning_demand_kwh": c_sim.get("total_conditioning_demand_kwh", c_sim.get("energy_totals_kwh", {}).get("total_conditioning_demand_kwh", 0.0)),
             "effective_thermal_capacity_j_k": c_sim.get("effective_thermal_capacity_j_k", 0.0),
+            "shape": best_shape,
             # D5-B: edge-case candidate also reports the best trial's geometry.
             **_candidate_geometry_fields(c_sim, best_len, best_wid, best_hgt),
         })
@@ -961,6 +1230,7 @@ def run_comfort_first_recommendation(
     min_aspect_ratio: Optional[float] = None,
     max_aspect_ratio: Optional[float] = None,
     shape: str = "rectangular",
+    baseline_design: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
@@ -985,6 +1255,14 @@ def run_comfort_first_recommendation(
                   (losses are bounded << 1 discomfort-hour equivalent in
                   practice), i.e. NOT a reweighted multi-objective score.
 
+    Optimization-UX pass (baseline inclusion, spec §20/§56): when
+    ``baseline_design`` (flat canonical-design dict) is supplied, the
+    user's own design is simulated on the SAME climate scenario at the
+    SAME substeps and enters the comfort ranking as an explicit
+    candidate. The recommendation's comfort hours can therefore never be
+    lower than a feasible baseline's: if the baseline wins, the
+    recommendation IS the baseline, labelled honestly.
+
     No parameters are hard-coded as "recommended": every value comes from
     the search. Returns None recommendation_data when the search found no
     comfort-feasible configuration — an honest outcome, not an error.
@@ -995,15 +1273,19 @@ def run_comfort_first_recommendation(
     # without ever trading comfort away for them.
     comfort_weights = {"comfort": 1.0, "efficiency": 0.0, "solar": 0.0}
 
-    # When invoked with a structured OptimizationInput (the endpoint path),
-    # clone it with the comfort-first weights - run_optimization reads
-    # weights from the input object, so passing them as kwargs would be
-    # silently ignored. All search bounds/constraints from the input are
-    # preserved exactly (same feasibility, same prototype geometry bounds,
-    # same door area fidelity as the user-constrained run).
+    # Optimization-UX pass: the recommendation is the INDEPENDENT comfort-max
+    # search, so it may legitimately change the shelter FORM. All search
+    # flags ride on the cloned input; bounds/constraints are preserved
+    # exactly (same feasibility, same prototype geometry bounds, same door
+    # area fidelity as the user-constrained run).
     if isinstance(city, OptimizationInput):
         from dataclasses import replace as _dc_replace
-        city = _dc_replace(city, weights=comfort_weights)
+        city = _dc_replace(
+            city,
+            weights=comfort_weights,
+            search_orientation=True,
+            search_shape=True,
+        )
         # Explicit kwargs would be re-read from the input object; drop them
         # so the cloned input is the single source of configuration.
         res = run_optimization(
@@ -1050,10 +1332,51 @@ def run_comfort_first_recommendation(
             min_aspect_ratio=min_aspect_ratio,
             max_aspect_ratio=max_aspect_ratio,
             shape=shape,
+            # Baseline-inclusion contract: the comfort-max search evaluates
+            # the full supported space (continuous orientation + all forms).
+            search_orientation=True,
+            search_shape=True,
             **kwargs,
         )
 
-    ranked = res.get("ranked_designs") or []
+    ranked = list(res.get("ranked_designs") or [])
+
+    # ------------------------------------------------------------------
+    # Baseline inclusion (spec §20/§56): simulate the user's OWN design on
+    # the identical climate scenario and enter it into the comfort ranking.
+    # If the baseline is feasible and genuinely the most comfortable, the
+    # recommendation IS the baseline — labelled honestly — and never a
+    # search result with fewer simulated comfort hours.
+    # ------------------------------------------------------------------
+    baseline_candidate: Optional[Dict[str, Any]] = None
+    if baseline_design:
+        try:
+            hourly_t, hourly_ds, hourly_dfs = _resolve_rec_climate_vectors(
+                climate_scenario if climate_scenario is not None
+                else (city.climate_scenario if isinstance(city, OptimizationInput) else None),
+                (city.city if isinstance(city, OptimizationInput) else str(city or "leh")),
+                hours_to_simulate,
+                scenario_kind,
+            )
+            baseline_candidate = _simulate_baseline_candidate(
+                baseline_design=baseline_design,
+                city_label=(city.city if isinstance(city, OptimizationInput) else str(city or "leh")),
+                hourly_t=hourly_t,
+                hourly_ds=hourly_ds,
+                hourly_dfs=hourly_dfs,
+                home_type=(city.home_type if isinstance(city, OptimizationInput) else home_type),
+                occupants=(city.occupants if isinstance(city, OptimizationInput) else occupants),
+                hours_to_simulate=hours_to_simulate,
+                substeps=substeps,
+                weights=comfort_weights,
+            )
+        except (ValueError, TypeError, KeyError) as _e:
+            # Climate resolution failed — skip baseline inclusion honestly
+            # rather than degrading the recommendation.
+            baseline_candidate = None
+    if baseline_candidate is not None:
+        ranked.append(baseline_candidate)
+
     if not ranked:
         return {
             "status": "no_comfort_feasible",
@@ -1079,15 +1402,29 @@ def run_comfort_first_recommendation(
     )
 
     rec = dict(best)
-    rec["label"] = "ThermoShelter Recommendation"
-    rec["rationale"] = (
-        "Comfort-first configuration: highest simulated comfort hours found "
-        "within the prototype optimization search space for this climate."
-    )
+    if rec.get("is_baseline"):
+        rec["label"] = "Your Design (Baseline)"
+        rec["rationale"] = (
+            "Your current design already delivers the highest simulated comfort "
+            "hours found — ThermoShelter recommends keeping it."
+        )
+    else:
+        rec["label"] = "ThermoShelter Recommendation"
+        rec["rationale"] = (
+            "Comfort-first configuration: highest simulated comfort hours found "
+            "within the prototype optimization search space for this climate."
+        )
+    rec.pop("_baseline_design", None)
 
     return {
         "status": "ok",
         "recommendation": rec,
+        "baseline_candidate": (
+            {k: v for k, v in baseline_candidate.items() if k != "_baseline_design"}
+            if baseline_candidate is not None
+            else None
+        ),
+        "baseline_included": baseline_candidate is not None,
         "n_trials": res.get("n_trials"),
         "n_pruned": res.get("n_pruned"),
         "climate_provenance": res.get("climate_provenance"),

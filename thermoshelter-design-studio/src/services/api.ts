@@ -640,6 +640,11 @@ export interface CanonicalOptimizationCandidate {
   floor_area_m2?: number | null;
   /** Thermal-relevant gross envelope area / enclosed volume (1/m). */
   surface_to_volume_ratio?: number | null;
+  /** The candidate's ACTUAL simulated shelter form (rectangular/cylindrical/dome/pyramid).
+   *  Null on legacy records; always populated by the current optimizer. */
+  shape?: string | null;
+  /** Set on the baseline user-design candidate included in the comfort-first ranking. */
+  is_baseline?: boolean | null;
   canonical_design?: any;
 }  /**
  * Dual-output optimization (E2): the separate comfort-first recommendation

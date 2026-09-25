@@ -292,6 +292,14 @@ class OptimizationAdapter:
         orient_raw = kwargs.get("orientation")
         if not orient_raw:
             orient_raw = str(sd.orientation)
+        # Optimization-UX pass: when orientation search is enabled (the app
+        # default), the design's own azimuth is only the user's current
+        # choice — NOT a constraint. Pinning it here would silently disable
+        # the optimizer's orientation search (the explicit pin wins in the
+        # objective), so it is dropped from the contract and the azimuth is
+        # searched across the full solar-bearing range.
+        if bool(kwargs.get("search_orientation", True)):
+            orient_raw = None
 
         payload = {
             "city": city_str,
@@ -335,6 +343,13 @@ class OptimizationAdapter:
             # Product-hardening pass: the design's form rides with the
             # optimization config so every trial simulates the actual shape.
             "shape": kwargs.get("shape", str(getattr(sd, "shape", "rectangular"))),
+            # Optimization-UX pass: orientation becomes a genuine SEARCH
+            # variable on the app path (the user's design orientation is only
+            # the search seed, not a constraint) — the optimal azimuth is
+            # climate-dependent and found by simulation. Callers may still
+            # pin it explicitly via kwargs (search_orientation=False).
+            "search_orientation": bool(kwargs.get("search_orientation", True)),
+            "search_shape": bool(kwargs.get("search_shape", False)),
         }
 
         return adapt_to_optimization_input(payload)
