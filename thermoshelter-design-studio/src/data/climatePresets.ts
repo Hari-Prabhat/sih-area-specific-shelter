@@ -1,4 +1,4 @@
-import { ClimateData } from '../utils/thermalEngine';
+import { ClimateData } from '../types';
 
 export const climatePresets: ClimateData[] = [
   { location: "Leh, Ladakh", altitude: 3500, ambientTempMin: -25, ambientTempMax: 30, avgAmbientTemp: 5, solarIrradiance: 2000, avgSunshineHours: 7.9, windSpeed: 6.5, humidity: 25, cloudFreeDays: 320 },

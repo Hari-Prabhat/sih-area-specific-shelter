@@ -1,0 +1,26 @@
+{
+  "occupants": 4,
+  "shelter_purpose": "permanent_passive_shelter",
+  "duration_days": null,
+  "permanence": "permanent",
+  "mobility": "permanent",
+  "priorities": [
+    "maximum_heat_retention",
+    "thermal_comfort",
+    "local_materials"
+  ],
+  "available_resources": [
+    "mud_brick",
+    "local_stone",
+    "poplar_willow_timber",
+    "puf_boards"
+  ],
+  "energy_sources": [
+    "passive_solar",
+    "biomass_backup"
+  ],
+  "constraints": {
+    "min_indoor_temp_c": 15.0,
+    "design_outdoor_winter_temp_c": -20.0
+  }
+}

@@ -1,4 +1,4 @@
-﻿"""
+"""
 THERMOSHELTER AI - Thermal Energy & Heat Transfer Formulas
 ===========================================================
 Formulas for multi-layer thermal resistance, U-values, conductive heat loss,
@@ -9,6 +9,8 @@ and transient energy-balance temperature updates.
 from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 from services.formula_constants import (
+    AIR_DENSITY_DEFAULT,
+    AIR_SPECIFIC_HEAT,
     CELSIUS_TO_KELVIN,
     DEFAULT_OCCUPANT_HEAT_GAIN,
     DEFAULT_R_INSIDE_VERTICAL,
@@ -542,33 +544,172 @@ def simulate_temperature_step(
 def calculate_heating_requirement(
     indoor_temperature: float,
     target_temperature: float,
-    thermal_capacity: float,
-    time_step_seconds: float = 3600.0
+    thermal_capacity_or_conductance: float,
+    time_step_seconds: float = 3600.0,
+    is_conductance: Optional[bool] = None
 ) -> float:
     """
-    Calculates supplemental active heating power (Watts) required to raise temperature to target.
+    Calculates supplemental sensible heating power (Watts) required to maintain or raise
+    indoor temperature to the comfort setpoint.
 
-    Formula:
-        If T_in < T_target:
-            Q_heat = (thermal_capacity * (T_target - T_in)) / time_step_seconds
-        Else:
-            Q_heat = 0.0
+    Formulas:
+        If is_conductance=True (Standard continuous space conditioning):
+            Q_heat = G_total * max(0, T_target - T_in)   [Watts]
+        If is_conductance=False (Instantaneous lump temperature step):
+            Q_heat = (C_thermal * max(0, T_target - T_in)) / time_step_seconds   [Watts]
 
     Parameters:
         indoor_temperature (float): Current simulated indoor temperature in °C.
         target_temperature (float): Desired indoor comfort setpoint in °C.
-        thermal_capacity (float): Thermal capacity of the shelter node in J/K.
+        thermal_capacity_or_conductance (float): Total heat loss coefficient (W/K) if conductance,
+                                                or thermal capacitance (J/K) if capacity. Must be > 0.
         time_step_seconds (float): Duration in seconds (s). Default is 3600.0s.
+        is_conductance (Optional[bool]): If None, auto-detects based on value magnitude (< 10000 W/K).
 
     Returns:
-        float: Required auxiliary heating power in Watts (W).
+        float: Required auxiliary sensible heating power in Watts (W).
     """
-    if thermal_capacity <= 0.0:
-        raise ValueError(f"Thermal capacity must be > 0, got {thermal_capacity}")
+    if thermal_capacity_or_conductance <= 0.0:
+        raise ValueError(f"Conductance/capacity must be > 0, got {thermal_capacity_or_conductance}")
     if time_step_seconds <= 0.0:
         raise ValueError(f"Timestep must be > 0, got {time_step_seconds}")
 
     if indoor_temperature < target_temperature:
-        needed_energy = thermal_capacity * (target_temperature - indoor_temperature)
-        return float(needed_energy / time_step_seconds)
+        delta_t = target_temperature - indoor_temperature
+        use_cond = (thermal_capacity_or_conductance < 10000.0) if is_conductance is None else is_conductance
+        if use_cond:
+            return float(thermal_capacity_or_conductance * delta_t)
+        else:
+            return float((thermal_capacity_or_conductance * delta_t) / time_step_seconds)
     return 0.0
+
+
+def calculate_cooling_requirement(
+    indoor_temperature: float,
+    target_temperature: float,
+    thermal_capacity_or_conductance: float,
+    time_step_seconds: float = 3600.0,
+    is_conductance: Optional[bool] = None
+) -> float:
+    """
+    Calculates supplemental sensible cooling power (Watts) required to maintain or lower
+    indoor temperature to the upper comfort setpoint.
+
+    Formulas:
+        If is_conductance=True (Standard continuous space conditioning):
+            Q_cool = G_total * max(0, T_in - T_target)   [Watts]
+        If is_conductance=False (Instantaneous lump temperature step):
+            Q_cool = (C_thermal * max(0, T_in - T_target)) / time_step_seconds   [Watts]
+
+    Parameters:
+        indoor_temperature (float): Current simulated indoor temperature in °C.
+        target_temperature (float): Desired upper indoor comfort setpoint in °C.
+        thermal_capacity_or_conductance (float): Total heat loss coefficient (W/K) if conductance,
+                                                or thermal capacitance (J/K) if capacity. Must be > 0.
+        time_step_seconds (float): Duration in seconds (s). Default is 3600.0s.
+        is_conductance (Optional[bool]): If None, auto-detects based on value magnitude (< 10000 W/K).
+
+    Returns:
+        float: Required auxiliary sensible cooling power in Watts (W).
+    """
+    if thermal_capacity_or_conductance <= 0.0:
+        raise ValueError(f"Conductance/capacity must be > 0, got {thermal_capacity_or_conductance}")
+    if time_step_seconds <= 0.0:
+        raise ValueError(f"Timestep must be > 0, got {time_step_seconds}")
+
+    if indoor_temperature > target_temperature:
+        delta_t = indoor_temperature - target_temperature
+        use_cond = (thermal_capacity_or_conductance < 10000.0) if is_conductance is None else is_conductance
+        if use_cond:
+            return float(thermal_capacity_or_conductance * delta_t)
+        else:
+            return float((thermal_capacity_or_conductance * delta_t) / time_step_seconds)
+    return 0.0
+
+
+def calculate_effective_thermal_capacity(
+    volume: float,
+    solid_wall_area: float,
+    wall_density: float = 1800.0,
+    wall_specific_heat: float = 900.0,
+    wall_thickness_m: float = 0.23,
+    roof_area: float = 0.0,
+    roof_density: float = 1200.0,
+    roof_specific_heat: float = 1000.0,
+    roof_thickness_m: float = 0.15,
+    floor_area: float = 0.0,
+    floor_density: float = 2000.0,
+    floor_specific_heat: float = 880.0,
+    air_density: float = AIR_DENSITY_DEFAULT,
+    air_specific_heat: float = AIR_SPECIFIC_HEAT,
+    active_depth_wall_m: float = 0.05,
+    active_depth_roof_m: float = 0.05,
+    active_depth_floor_m: float = 0.05,
+) -> Dict[str, float]:
+    """
+    Calculates the physically grounded lumped effective thermal capacitance (C_eff) of a shelter.
+    Accounts for air volume, internal contents/furnishings, and participating internal layers
+    of the envelope (walls, roof, floor) based on standard ISO 13790 / ASHRAE diurnal penetration depth.
+
+    Parameters:
+        volume: Enclosed volume in m³. Must be > 0.
+        solid_wall_area: Net opaque wall area in m². Must be >= 0.
+        wall_density: Structural wall material density in kg/m³. Must be > 0.
+        wall_specific_heat: Wall material specific heat capacity in J/(kg·K). Must be > 0.
+        wall_thickness_m: Structural wall thickness in meters.
+        roof_area: Roof area in m². Must be >= 0.
+        roof_density: Roof material density in kg/m³.
+        roof_specific_heat: Roof specific heat in J/(kg·K).
+        roof_thickness_m: Roof thickness in meters.
+        floor_area: Floor slab area in m². Must be >= 0.
+        floor_density: Floor slab density in kg/m³.
+        floor_specific_heat: Floor specific heat in J/(kg·K).
+        air_density: Air density in kg/m³.
+        air_specific_heat: Air specific heat in J/(kg·K).
+        active_depth_wall_m: Thermally active inner wall penetration depth in meters (default 0.05m).
+        active_depth_roof_m: Thermally active inner roof depth in meters (default 0.05m).
+        active_depth_floor_m: Thermally active floor depth in meters (default 0.05m).
+
+    Returns:
+        Dict[str, float] with breakdown:
+          - 'C_air': Air node capacitance (J/K)
+          - 'C_contents': Furnishings / interior contents capacitance (J/K)
+          - 'C_walls': Participating wall layer capacitance (J/K)
+          - 'C_roof': Participating roof layer capacitance (J/K)
+          - 'C_floor': Participating floor layer capacitance (J/K)
+          - 'C_total': Aggregate lumped effective capacitance (J/K)
+    """
+    if volume <= 0.0:
+        raise ValueError(f"Volume must be strictly positive, got {volume}")
+    if solid_wall_area < 0.0 or roof_area < 0.0 or floor_area < 0.0:
+        raise ValueError("Surface areas cannot be negative.")
+    if wall_density <= 0.0 or wall_specific_heat <= 0.0:
+        raise ValueError("Material density and specific heat must be strictly positive.")
+
+    # 1. Air capacitance
+    c_air = volume * air_density * air_specific_heat
+
+    # 2. Internal furnishings / interior layer (approx 0.5 * C_air per ISO 13790)
+    c_contents = 0.5 * c_air
+
+    # 3. Participating wall thermal mass (clamped to available half-thickness)
+    d_wall_eff = min(wall_thickness_m / 2.0, active_depth_wall_m) if wall_thickness_m > 0 else 0.0
+    c_walls = solid_wall_area * d_wall_eff * wall_density * wall_specific_heat
+
+    # 4. Participating roof thermal mass
+    d_roof_eff = min(roof_thickness_m / 2.0, active_depth_roof_m) if roof_thickness_m > 0 else 0.0
+    c_roof = roof_area * d_roof_eff * roof_density * roof_specific_heat
+
+    # 5. Participating floor slab thermal mass
+    c_floor = floor_area * active_depth_floor_m * floor_density * floor_specific_heat
+
+    c_total = c_air + c_contents + c_walls + c_roof + c_floor
+
+    return {
+        "C_air": float(round(c_air, 2)),
+        "C_contents": float(round(c_contents, 2)),
+        "C_walls": float(round(c_walls, 2)),
+        "C_roof": float(round(c_roof, 2)),
+        "C_floor": float(round(c_floor, 2)),
+        "C_total": float(round(c_total, 2)),
+    }

@@ -1,9 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ThermoShelter Design Studio | SIH 2026</title>
+    <script>
+      // Apply the persisted (or system-preferred) theme BEFORE first paint —
+      // no wrong-theme flash. ThemeToggle keeps this attribute in sync after.
+      (function () {
+        try {
+          var t = localStorage.getItem('thermoshelter.theme');
+          if (t !== 'dark' && t !== 'light') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          /* storage unavailable — dark default */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

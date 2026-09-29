@@ -1,0 +1,109 @@
+{
+  "geometry_type": "compact",
+  "length_m": 5.0,
+  "width_m": 4.0,
+  "height_m": 2.7,
+  "roof_type": "flat",
+  "roof_pitch_deg": 0.0,
+  "orientation_deg": 180.0,
+  "floor_area_m2": 20.0,
+  "volume_m3": 54.0,
+  "gross_wall_area_m2": 48.6,
+  "net_wall_area_m2": 41.8,
+  "facade_wall_areas": {
+    "north": 13.5,
+    "south": 13.5,
+    "east": 10.8,
+    "west": 10.8
+  },
+  "roof_area_m2": 20.0,
+  "total_envelope_area_m2": 88.6,
+  "surface_to_volume_ratio": 1.6407,
+  "window_to_wall_ratio": 0.1029,
+  "ridge_height_m": 0.0,
+  "openings": [
+    {
+      "id": "win_south_solar",
+      "name": "South Solar Harvesting Window",
+      "opening_type": "window",
+      "width_m": 2.5,
+      "height_m": 1.6,
+      "area_m2": 4.0,
+      "facade": "south",
+      "orientation_deg": 180.0,
+      "is_operable": true,
+      "glazing_id": "double_low_e_argon_16mm",
+      "shading_factor": 0.95,
+      "overhang_depth_m": 0.3,
+      "ventilation_role": "inlet"
+    },
+    {
+      "id": "win_east_daylight",
+      "name": "East Morning Daylight Window",
+      "opening_type": "window",
+      "width_m": 1.0,
+      "height_m": 1.0,
+      "area_m2": 1.0,
+      "facade": "east",
+      "orientation_deg": 90.0,
+      "is_operable": true,
+      "glazing_id": "double_low_e_argon_16mm",
+      "shading_factor": 1.0,
+      "overhang_depth_m": 0.2,
+      "ventilation_role": "outlet"
+    },
+    {
+      "id": "door_airlock_outer",
+      "name": "Airlock Outer Weather Door",
+      "opening_type": "door",
+      "width_m": 0.9,
+      "height_m": 2.0,
+      "area_m2": 1.8,
+      "facade": "south",
+      "orientation_deg": 180.0,
+      "is_operable": true,
+      "glazing_id": null,
+      "shading_factor": 1.0,
+      "overhang_depth_m": 0.0,
+      "ventilation_role": "none"
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone_living",
+      "name": "Main Heated Living Zone",
+      "zone_type": "occupied",
+      "floor_area_m2": 14.0,
+      "volume_m3": 37.8,
+      "length_m": 3.5,
+      "width_m": 4.0,
+      "height_m": 2.7,
+      "temperature_control_required": true,
+      "notes": "Primary living and sleeping quarters coupled to solar aperture and thermal mass."
+    },
+    {
+      "id": "zone_sunspace",
+      "name": "Direct Solar Gain Sun Zone",
+      "zone_type": "solar",
+      "floor_area_m2": 3.0,
+      "volume_m3": 8.1,
+      "length_m": 1.5,
+      "width_m": 2.0,
+      "height_m": 2.7,
+      "temperature_control_required": false,
+      "notes": "South-facing direct solar gain area buffering interior."
+    },
+    {
+      "id": "zone_airlock",
+      "name": "Entry Airlock Vestibule",
+      "zone_type": "airlock",
+      "floor_area_m2": 2.5,
+      "volume_m3": 6.75,
+      "length_m": 1.5,
+      "width_m": 1.67,
+      "height_m": 2.7,
+      "temperature_control_required": false,
+      "notes": "Dual-door buffer preventing cold air drafts upon entry."
+    }
+  ]
+}

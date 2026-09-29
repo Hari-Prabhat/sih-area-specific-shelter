@@ -1,0 +1,129 @@
+[
+  {
+    "id": "high_performance_insulation",
+    "name": "High-Performance Continuous Envelope Insulation",
+    "category": "cold_region",
+    "climate_applicability": [
+      "extreme_cold",
+      "cold",
+      "high_altitude_desert"
+    ],
+    "enabled": true,
+    "parameters": {
+      "target_wall_u_value": 0.25,
+      "target_roof_u_value": 0.18,
+      "target_floor_u_value": 0.3,
+      "thermal_bridging_factor": 0.05
+    },
+    "affected_openings": [],
+    "affected_surfaces": [],
+    "notes": "Minimizes conductive heat loss across extreme temperature differentials (e.g. -20\u00b0C in Ladakh).",
+    "assumptions": "Continuous insulation layer without uninsulated structural thermal bridges."
+  },
+  {
+    "id": "direct_solar_gain_south_aperture",
+    "name": "South-Oriented Direct Solar Aperture",
+    "category": "cold_region",
+    "climate_applicability": [
+      "extreme_cold",
+      "cold",
+      "high_altitude_desert"
+    ],
+    "enabled": true,
+    "parameters": {
+      "south_window_to_wall_ratio": 0.25,
+      "north_window_to_wall_ratio": 0.05,
+      "glazing_shgc": 0.65,
+      "nighttime_movable_insulation_r": 1.0
+    },
+    "affected_openings": [],
+    "affected_surfaces": [
+      "south"
+    ],
+    "notes": "Captures abundant winter horizontal and vertical solar radiation at high altitude.",
+    "assumptions": "South facade has unobstructed solar exposure between 09:00 and 15:00 solar time."
+  },
+  {
+    "id": "sensible_thermal_mass_storage",
+    "name": "Sensible Thermal Mass Storage Core",
+    "category": "cold_region",
+    "climate_applicability": [
+      "extreme_cold",
+      "cold",
+      "high_altitude_desert",
+      "hot_dry"
+    ],
+    "enabled": true,
+    "parameters": {
+      "mass_material": "mud_brick",
+      "thickness_m": 0.3,
+      "minimum_capacitance_j_per_k": 5000000.0,
+      "solar_radiation_coupling_fraction": 0.7
+    },
+    "affected_openings": [],
+    "affected_surfaces": [],
+    "notes": "Absorbs diurnal solar peaks and re-radiates heat during sub-zero nights.",
+    "assumptions": "Thermal mass is coupled directly to solar gain zone and interior air volume."
+  },
+  {
+    "id": "entry_airlock_vestibule",
+    "name": "Airlock Vestibule (Dual-Door Entrance Buffer)",
+    "category": "cold_region",
+    "climate_applicability": [
+      "extreme_cold",
+      "cold",
+      "high_altitude_desert"
+    ],
+    "enabled": true,
+    "parameters": {
+      "airlock_depth_m": 1.5,
+      "airlock_area_m2": 3.0,
+      "door_seal_infiltration_reduction_factor": 0.65
+    },
+    "affected_openings": [],
+    "affected_surfaces": [],
+    "notes": "Prevents catastrophic cold air gushes upon ingress/egress in sub-zero windy environments.",
+    "assumptions": "Two sequential doors are operated independently so both are never open simultaneously."
+  },
+  {
+    "id": "buffer_zone_layout",
+    "name": "Thermal Buffer Zone Layout",
+    "category": "cold_region",
+    "climate_applicability": [
+      "extreme_cold",
+      "cold",
+      "composite"
+    ],
+    "enabled": true,
+    "parameters": {
+      "buffer_facade": "north",
+      "buffer_use": "storage_or_latrine",
+      "buffer_temp_delta_c": 5.0
+    },
+    "affected_openings": [],
+    "affected_surfaces": [
+      "north"
+    ],
+    "notes": "Places non-habitable or secondary spaces along the harsh north/windward boundary.",
+    "assumptions": "Buffer zone has unheated boundary walls serving as an intermediate thermal step."
+  },
+  {
+    "id": "controlled_low_rate_ventilation",
+    "name": "Controlled Minimum Fresh-Air Ventilation",
+    "category": "cold_region",
+    "climate_applicability": [
+      "extreme_cold",
+      "cold"
+    ],
+    "enabled": true,
+    "parameters": {
+      "ach_baseline": 0.35,
+      "air_preheat_solar_collector": false,
+      "heat_recovery_efficiency": 0.0
+    },
+    "affected_openings": [],
+    "affected_surfaces": [],
+    "notes": "Maintains occupant air quality (CO2 management) while severely restricting cold air infiltration.",
+    "assumptions": "Envelope is well-caulked to limit uncontrolled leakage."
+  }
+]

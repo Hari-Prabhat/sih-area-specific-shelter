@@ -1,0 +1,94 @@
+{
+  "version": "1.0.0",
+  "location": {
+    "place_name": "Leh, Ladakh",
+    "latitude": 34.1526,
+    "longitude": 77.5771,
+    "elevation": 3524.0,
+    "timezone": "Asia/Kolkata",
+    "country": "India",
+    "region": "Ladakh",
+    "source": "IMD Leh Station Climatological Tables & NREL NSRDB"
+  },
+  "climate": {
+    "classification": "EXTREME COLD",
+    "annual_mean_temperature": 5.3,
+    "minimum_temperature": -28.3,
+    "maximum_temperature": 34.8,
+    "diurnal_range_mean": 17.5,
+    "monthly_temperatures": [-7.5, -5.2, 0.8, 6.5, 11.2, 16.0, 19.5, 18.8, 14.2, 7.8, 1.2, -4.8],
+    "temperature_profile": {
+      "winter_mean": -5.8,
+      "spring_mean": 6.2,
+      "summer_mean": 18.1,
+      "autumn_mean": 7.7
+    }
+  },
+  "solar": {
+    "GHI": 239.7,
+    "DNI": 310.5,
+    "DHI": 65.2,
+    "annual_solar_ghi_kwh_m2": 2100.0,
+    "peak_sun_hours_day": 5.75,
+    "unit": "W/m²",
+    "temporal_resolution": "annual_mean_flux",
+    "source": "NREL NSRDB 1998-2022 Satellite Derived / IMD Leh",
+    "provenance": "HISTORICAL"
+  },
+  "wind": {
+    "average_speed": 3.8,
+    "prevailing_direction": "WNW",
+    "seasonal_profile": {
+      "winter": 3.2,
+      "spring": 4.5,
+      "summer": 4.1,
+      "autumn": 3.4
+    },
+    "source": "IMD Climatological Normal Tables",
+    "provenance": "HISTORICAL"
+  },
+  "humidity": {
+    "average_relative_humidity": 32.0,
+    "min_relative_humidity": 18.0,
+    "max_relative_humidity": 48.0,
+    "seasonal_profile": {
+      "winter": 42.0,
+      "spring": 28.0,
+      "summer": 26.0,
+      "autumn": 32.0
+    },
+    "source": "IMD Climatological Normal Tables",
+    "provenance": "HISTORICAL"
+  },
+  "design_extremes": {
+    "cold_extreme": -18.5,
+    "hot_extreme": 26.0,
+    "heating_degree_days_18c": 4850.0,
+    "cooling_degree_days_18c": 45.0,
+    "relevant_design_values": {
+      "ashrae_heating_996": -20.2,
+      "ashrae_cooling_004": 27.5,
+      "freezing_days_annual": 215
+    }
+  },
+  "data_quality": {
+    "confidence": "HIGH",
+    "provenance": "HISTORICAL",
+    "sources": [
+      "IMD Leh Station Climatological Tables",
+      "NREL National Solar Radiation Database (NSRDB)",
+      "ASHRAE Fundamentals Handbook"
+    ],
+    "notes": "Verified high-altitude cold desert benchmark. Extreme sub-zero winter temperatures, thin high-transmission atmosphere, large diurnal temperature swings."
+  },
+  "current_weather": {
+    "temperature": -4.2,
+    "relative_humidity": 35.0,
+    "wind_speed": 3.1,
+    "wind_direction": 290.0,
+    "solar_irradiance": 580.0,
+    "timestamp": "2026-03-01T12:00:00+05:30",
+    "is_observed": false,
+    "source": "Local Fallback Benchmark"
+  }
+}

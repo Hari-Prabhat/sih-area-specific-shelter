@@ -1,8 +1,9 @@
 import { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, Float, Html, RoundedBox, Text } from '@react-three/drei';
+import { OrbitControls, Environment, ContactShadows, Float, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { ShelterDesign } from '../utils/thermalEngine';
+import { ShelterDesign } from '../types';
+import { deriveOpeningLayout } from '../services/openingLayout';
 
 /* ─── colour palette for materials ─── */
 const MATERIAL_COLORS: Record<string, { wall: string; accent: string }> = {
@@ -40,72 +41,152 @@ function GroundGrid() {
   );
 }
 
-/* ─── compass rose ─── */
-function Compass({ orientation }: { orientation: number }) {
-  const ref = useRef<THREE.Group>(null!);
+/**
+ * Static Geographic Compass Rose
+ * Convention:
+ *   North = -Z (0° Azimuth)
+ *   East  = +X (90° Azimuth)
+ *   South = +Z (180° Azimuth - Solar Equator Facing)
+ *   West  = -X (270° Azimuth)
+ * The compass remains geographically fixed. The building rotates by (orientation - 180°).
+ */
+function StaticCompass() {
   return (
-    <group ref={ref} position={[0, 0.02, 0]} rotation={[0, -(orientation * Math.PI) / 180, 0]}>
-      {/* N arrow */}
+    <group position={[0, 0.02, 0]}>
+      {/* North Pointer Arrow (-Z) */}
       <mesh position={[0, 0.01, -8]}>
-        <coneGeometry args={[0.3, 0.8, 4]} />
-        <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.3} />
+        <coneGeometry args={[0.35, 0.9, 4]} />
+        <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.5} />
       </mesh>
-      <Text position={[0, 0.5, -9]} fontSize={0.5} color="#ef4444" anchorX="center" anchorY="middle">
-        N
+      <Text position={[0, 0.5, -9]} fontSize={0.55} color="#ef4444" anchorX="center" anchorY="middle" fontWeight="bold">
+        N (0°)
       </Text>
-      {/* S */}
-      <Text position={[0, 0.5, 9]} fontSize={0.4} color="#64748b" anchorX="center" anchorY="middle">
-        S
+      {/* South Marker (+Z) */}
+      <Text position={[0, 0.5, 9]} fontSize={0.45} color="#38bdf8" anchorX="center" anchorY="middle" fontWeight="bold">
+        S (180° Solar)
       </Text>
-      {/* E */}
+      {/* East Marker (+X) */}
       <Text position={[9, 0.5, 0]} fontSize={0.4} color="#64748b" anchorX="center" anchorY="middle">
-        E
+        E (90°)
       </Text>
-      {/* W */}
+      {/* West Marker (-X) */}
       <Text position={[-9, 0.5, 0]} fontSize={0.4} color="#64748b" anchorX="center" anchorY="middle">
-        W
+        W (270°)
       </Text>
+      {/* Cardinal Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
+        <ringGeometry args={[7.8, 8.0, 64]} />
+        <meshBasicMaterial color="#334155" transparent opacity={0.4} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
 
-/* ─── window panel helper ─── */
-function WindowPanel({ position, rotation, width, height }: {
+/* ─── window with architectural frame trim ─── */
+function FramedWindow({ position, rotation, width, height }: {
   position: [number, number, number]; rotation: [number, number, number];
   width: number; height: number;
 }) {
+  const frameThick = 0.05;
+  const frameDepth = 0.06;
+
   return (
-    <mesh position={position} rotation={rotation} castShadow>
-      <planeGeometry args={[width, height]} />
-      <meshPhysicalMaterial
-        color="#88ccee"
-        transparent
-        opacity={0.4}
-        roughness={0.05}
-        metalness={0.1}
-        transmission={0.7}
-        thickness={0.05}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <group position={position} rotation={rotation}>
+      {/* Glass Pane */}
+      <mesh castShadow>
+        <planeGeometry args={[width, height]} />
+        <meshPhysicalMaterial
+          color="#88ccee"
+          transparent
+          opacity={0.45}
+          roughness={0.05}
+          metalness={0.1}
+          transmission={0.75}
+          thickness={0.04}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Outer Metallic Window Frame */}
+      {/* Top frame */}
+      <mesh position={[0, height / 2 + frameThick / 2, 0.01]}>
+        <boxGeometry args={[width + frameThick * 2, frameThick, frameDepth]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
+      </mesh>
+      {/* Bottom sill */}
+      <mesh position={[0, -height / 2 - frameThick / 2, 0.015]}>
+        <boxGeometry args={[width + frameThick * 2 + 0.04, frameThick, frameDepth + 0.03]} />
+        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.5} />
+      </mesh>
+      {/* Left stile */}
+      <mesh position={[-width / 2 - frameThick / 2, 0, 0.01]}>
+        <boxGeometry args={[frameThick, height, frameDepth]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
+      </mesh>
+      {/* Right stile */}
+      <mesh position={[width / 2 + frameThick / 2, 0, 0.01]}>
+        <boxGeometry args={[frameThick, height, frameDepth]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
+      </mesh>
+      {/* Mullion vertical divider if width > 1.2m */}
+      {width > 1.2 && (
+        <mesh position={[0, 0, 0.01]}>
+          <boxGeometry args={[0.03, height, frameDepth * 0.8]} />
+          <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
+        </mesh>
+      )}
+    </group>
   );
 }
 
-/* ─── door ─── */
-function Door({ position, rotation }: {
+/* ─── parametric door responsive to doorArea ─── */
+function ParametricDoor({ position, rotation, doorArea }: {
   position: [number, number, number]; rotation: [number, number, number];
+  doorArea: number;
 }) {
+  // Deterministic calculation: aspect ratio ~2.2, bounded within realistic doors
+  const area = Math.max(0.8, Math.min(5.0, doorArea || 2.0));
+  const rawWidth = Math.sqrt(area / 2.2);
+  const doorWidth = Math.max(0.8, Math.min(1.8, Math.round(rawWidth * 100) / 100));
+  const doorHeight = Math.max(1.9, Math.min(2.5, Math.round((area / doorWidth) * 100) / 100));
+
+  const frameThick = 0.06;
+
   return (
     <group position={position} rotation={rotation}>
-      <mesh castShadow>
-        <boxGeometry args={[1.0, 2.1, 0.08]} />
-        <meshStandardMaterial color="#5a3825" roughness={0.7} />
+      {/* Door Leaf */}
+      <mesh position={[0, doorHeight / 2, 0]} castShadow>
+        <boxGeometry args={[doorWidth, doorHeight, 0.08]} />
+        <meshStandardMaterial color="#4a2e1b" roughness={0.7} />
       </mesh>
-      {/* handle */}
-      <mesh position={[0.35, 0, 0.06]}>
-        <sphereGeometry args={[0.06, 16, 16]} />
-        <meshStandardMaterial color="#d4a520" metalness={0.8} roughness={0.2} />
+
+      {/* Surrounding Architrave Frame */}
+      <mesh position={[0, doorHeight + frameThick / 2, 0.01]}>
+        <boxGeometry args={[doorWidth + frameThick * 2, frameThick, 0.10]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
       </mesh>
+      <mesh position={[-doorWidth / 2 - frameThick / 2, doorHeight / 2, 0.01]}>
+        <boxGeometry args={[frameThick, doorHeight, 0.10]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
+      </mesh>
+      <mesh position={[doorWidth / 2 + frameThick / 2, doorHeight / 2, 0.01]}>
+        <boxGeometry args={[frameThick, doorHeight, 0.10]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.6} />
+      </mesh>
+
+      {/* Brass Handle */}
+      <mesh position={[doorWidth * 0.35, doorHeight * 0.48, 0.05]}>
+        <sphereGeometry args={[0.04, 16, 16]} />
+        <meshStandardMaterial color="#d4a520" metalness={0.85} roughness={0.2} />
+      </mesh>
+
+      {/* Vision glass panel if door is wide */}
+      {doorWidth > 1.0 && (
+        <mesh position={[0, doorHeight * 0.7, 0.01]}>
+          <planeGeometry args={[doorWidth * 0.4, doorHeight * 0.3]} />
+          <meshPhysicalMaterial color="#88ccee" transparent opacity={0.4} transmission={0.7} side={THREE.DoubleSide} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -129,106 +210,377 @@ function DimensionLabel({ start, end, label, offset = 0.5 }: {
   );
 }
 
-/* ═══════════════════════════════════════════════════
-   RECTANGULAR SHELTER
-   ═══════════════════════════════════════════════════ */
+/**
+ * ═══════════════════════════════════════════════════
+ * RECTANGULAR SHELTER WITH ARCHITECTURAL PARAMETRIC ROOF
+ * ═══════════════════════════════════════════════════
+ * Geometry:
+ *   Length (L) spans along X-axis
+ *   Width (W) spans along Z-axis
+ *   Eave/Wall Height (H) along Y-axis
+ *   Pitch Angle (θ)
+ *   halfSpan = W / 2
+ *   ridgeRise = halfSpan * tan(θ)
+ *   ridgeHeight = H + ridgeRise
+ *   Overhang = 0.20m beyond wall plate
+ */
 function RectangularShelter({ design, wallColor, accentColor }: {
   design: ShelterDesign; wallColor: string; accentColor: string;
 }) {
-  const { length, width, height, roofAngle, wallThickness } = design;
-  const roofRad = (roofAngle * Math.PI) / 180;
-  const roofPeak = Math.tan(roofRad) * (width / 2);
-  const roofHyp = (width / 2) / Math.cos(roofRad);
+  const {
+    length,
+    width,
+    height,
+    roofAngle,
+    wallThickness,
+    windowArea = 3.0,
+    doorArea = 2.0,
+    insulationType,
+    insulationThickness = 0.05,
+    thermalMassEnabled,
+    thermalMassThickness = 0.2,
+  } = design;
+
+  const roofRad = ((roofAngle || 0) * Math.PI) / 180;
+  const isPitched = roofAngle && roofAngle > 0;
+  const halfSpan = width / 2;
+  const ridgeRise = isPitched ? Math.tan(roofRad) * halfSpan : 0.0;
+  const ridgeHeight = height + ridgeRise;
+
+  const overhang = 0.22;
+  const roofThick = 0.12;
+
+  // D4-C2: THE shared deterministic opening layout — identical to the 2D
+  // Engineering Blueprint (2 south windows @ 70% glazing, 1 north window @
+  // 30%, south door). No local window derivation remains in this component.
+  const openings = deriveOpeningLayout(windowArea, doorArea);
+  const winW = openings.south.width;
+  const winH = openings.south.height;
+  const rearW = openings.north.width;
+  const rearH = openings.north.height;
+
+  const hasInsulation = Boolean(insulationType && insulationType !== 'None');
+
+  /* Triangular Gable Geometry Builder for Left (-X) and Right (+X) Wall Tops */
+  const gableGeometry = useMemo(() => {
+    if (!isPitched || ridgeRise <= 0.001) return null;
+
+    // Create 3D triangular prism for gable wall with thickness = wallThickness
+    const halfThick = wallThickness / 2;
+    // Vertices for a prism with triangular base in Z-Y plane, extruded along X
+    // Apex: (0, ridgeHeight, 0)
+    // Front eave: (0, height, halfSpan)
+    // Back eave:  (0, height, -halfSpan)
+    const vertices = new Float32Array([
+      // Front face (+X side of prism)
+      halfThick, height, halfSpan,
+      halfThick, height, -halfSpan,
+      halfThick, ridgeHeight, 0,
+
+      // Back face (-X side of prism)
+      -halfThick, height, -halfSpan,
+      -halfThick, height, halfSpan,
+      -halfThick, ridgeHeight, 0,
+
+      // Slope face 1 (+Z slope)
+      -halfThick, height, halfSpan,
+      halfThick, height, halfSpan,
+      halfThick, ridgeHeight, 0,
+      -halfThick, height, halfSpan,
+      halfThick, ridgeHeight, 0,
+      -halfThick, ridgeHeight, 0,
+
+      // Slope face 2 (-Z slope)
+      halfThick, height, -halfSpan,
+      -halfThick, height, -halfSpan,
+      halfThick, ridgeHeight, 0,
+      -halfThick, height, -halfSpan,
+      -halfThick, ridgeHeight, 0,
+      halfThick, ridgeHeight, 0,
+
+      // Bottom face
+      -halfThick, height, halfSpan,
+      -halfThick, height, -halfSpan,
+      halfThick, height, halfSpan,
+      halfThick, height, halfSpan,
+      -halfThick, height, -halfSpan,
+      halfThick, height, -halfSpan,
+    ]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, [isPitched, height, ridgeHeight, halfSpan, wallThickness, ridgeRise]);
+
+  /* Parametric Pitched Roof Geometry (Watertight solid prism with continuous ridge and eave overhangs) */
+  const pitchedRoofGeometry = useMemo(() => {
+    if (!isPitched || ridgeRise <= 0.001) return null;
+
+    const xMin = -(length / 2 + overhang);
+    const xMax = length / 2 + overhang;
+    const tv = roofThick / Math.max(0.2, Math.cos(roofRad));
+
+    const zSouthEave = halfSpan + overhang;
+    const zNorthEave = -(halfSpan + overhang);
+    const ySouthEaveBot = height - Math.tan(roofRad) * overhang;
+    const ySouthEaveTop = ySouthEaveBot + tv;
+    const yNorthEaveBot = ySouthEaveBot;
+    const yNorthEaveTop = ySouthEaveTop;
+    const yRidgeBot = ridgeHeight;
+    const yRidgeTop = ridgeHeight + tv;
+
+    // Cross-section polygon in Z-Y plane:
+    // P0: South eave bottom, P1: South eave top, P2: Ridge top
+    // P3: North eave top, P4: North eave bottom, P5: Ridge bottom
+    const poly = [
+      [zSouthEave, ySouthEaveBot],
+      [zSouthEave, ySouthEaveTop],
+      [0, yRidgeTop],
+      [zNorthEave, yNorthEaveTop],
+      [zNorthEave, yNorthEaveBot],
+      [0, yRidgeBot],
+    ];
+
+    const verts: number[] = [];
+
+    // 1. Longitudinal faces (6 quads extruded along X from xMin to xMax)
+    for (let i = 0; i < 6; i++) {
+      const pa = poly[i];
+      const pb = poly[(i + 1) % 6];
+
+      // Quad vertices:
+      // v0: (xMin, pa.y, pa.z)
+      // v1: (xMax, pa.y, pa.z)
+      // v2: (xMax, pb.y, pb.z)
+      // v3: (xMin, pb.y, pb.z)
+      verts.push(xMin, pa[1], pa[0]);
+      verts.push(xMax, pa[1], pa[0]);
+      verts.push(xMax, pb[1], pb[0]);
+
+      verts.push(xMin, pa[1], pa[0]);
+      verts.push(xMax, pb[1], pb[0]);
+      verts.push(xMin, pb[1], pb[0]);
+    }
+
+    // 2. East gable end cap (+X face at xMax, outward normal +X)
+    verts.push(xMax, poly[0][1], poly[0][0]);
+    verts.push(xMax, poly[5][1], poly[5][0]);
+    verts.push(xMax, poly[2][1], poly[2][0]);
+
+    verts.push(xMax, poly[0][1], poly[0][0]);
+    verts.push(xMax, poly[2][1], poly[2][0]);
+    verts.push(xMax, poly[1][1], poly[1][0]);
+
+    verts.push(xMax, poly[5][1], poly[5][0]);
+    verts.push(xMax, poly[4][1], poly[4][0]);
+    verts.push(xMax, poly[3][1], poly[3][0]);
+
+    verts.push(xMax, poly[5][1], poly[5][0]);
+    verts.push(xMax, poly[3][1], poly[3][0]);
+    verts.push(xMax, poly[2][1], poly[2][0]);
+
+    // 3. West gable end cap (-X face at xMin, outward normal -X)
+    verts.push(xMin, poly[0][1], poly[0][0]);
+    verts.push(xMin, poly[2][1], poly[2][0]);
+    verts.push(xMin, poly[5][1], poly[5][0]);
+
+    verts.push(xMin, poly[0][1], poly[0][0]);
+    verts.push(xMin, poly[1][1], poly[1][0]);
+    verts.push(xMin, poly[2][1], poly[2][0]);
+
+    verts.push(xMin, poly[5][1], poly[5][0]);
+    verts.push(xMin, poly[3][1], poly[3][0]);
+    verts.push(xMin, poly[4][1], poly[4][0]);
+
+    verts.push(xMin, poly[5][1], poly[5][0]);
+    verts.push(xMin, poly[2][1], poly[2][0]);
+    verts.push(xMin, poly[3][1], poly[3][0]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, [isPitched, length, halfSpan, height, ridgeHeight, ridgeRise, roofRad, overhang, roofThick]);
 
   return (
     <group>
-      {/* ── walls ── */}
-      {/* front */}
-      <mesh position={[0, height / 2, width / 2]} castShadow receiveShadow>
+      {/* ── 1. BASE WALLS ── */}
+      {/* South Facade (Front, +Z) */}
+      <mesh position={[0, height / 2, halfSpan]} castShadow receiveShadow>
         <boxGeometry args={[length, height, wallThickness]} />
         <meshStandardMaterial color={wallColor} roughness={0.8} />
       </mesh>
-      {/* back */}
-      <mesh position={[0, height / 2, -width / 2]} castShadow receiveShadow>
+      {/* North Facade (Back, -Z) */}
+      <mesh position={[0, height / 2, -halfSpan]} castShadow receiveShadow>
         <boxGeometry args={[length, height, wallThickness]} />
         <meshStandardMaterial color={wallColor} roughness={0.8} />
       </mesh>
-      {/* left */}
+      {/* West Wall (Left, -X) */}
       <mesh position={[-length / 2, height / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[wallThickness, height, width]} />
         <meshStandardMaterial color={wallColor} roughness={0.8} />
       </mesh>
-      {/* right */}
+      {/* East Wall (Right, +X) */}
       <mesh position={[length / 2, height / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[wallThickness, height, width]} />
         <meshStandardMaterial color={wallColor} roughness={0.8} />
       </mesh>
 
-      {/* ── pitched roof ── */}
-      <mesh position={[0, height + roofPeak / 2, width / 4]}
-        rotation={[roofRad, 0, 0]} castShadow>
-        <boxGeometry args={[length + 0.4, roofHyp + 0.2, 0.12]} />
-        <meshStandardMaterial color={accentColor} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, height + roofPeak / 2, -width / 4]}
-        rotation={[-roofRad, 0, 0]} castShadow>
-        <boxGeometry args={[length + 0.4, roofHyp + 0.2, 0.12]} />
-        <meshStandardMaterial color={accentColor} roughness={0.6} />
-      </mesh>
-      {/* ridge beam */}
-      <mesh position={[0, height + roofPeak, 0]}>
-        <boxGeometry args={[length + 0.5, 0.1, 0.1]} />
-        <meshStandardMaterial color="#5a4a3a" roughness={0.6} />
-      </mesh>
+      {/* ── 2. TRIANGULAR GABLE WALL INFILLS (Seals ends completely) ── */}
+      {isPitched && gableGeometry && (
+        <>
+          <mesh geometry={gableGeometry} position={[-length / 2, 0, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={wallColor} roughness={0.8} />
+          </mesh>
+          <mesh geometry={gableGeometry} position={[length / 2, 0, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={wallColor} roughness={0.8} />
+          </mesh>
+        </>
+      )}
 
-      {/* ── gable end walls ── */}
-      <mesh castShadow receiveShadow>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={6}
-            array={new Float32Array([
-              // left gable
-              -length / 2, height, width / 2,
-              -length / 2, height + roofPeak, 0,
-              -length / 2, height, -width / 2,
-              // right gable
-              length / 2, height, -width / 2,
-              length / 2, height + roofPeak, 0,
-              length / 2, height, width / 2,
-            ])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <meshStandardMaterial color={wallColor} roughness={0.8} side={THREE.DoubleSide} />
-      </mesh>
+      {/* ── 3. ARCHITECTURAL ROOF SYSTEM ── */}
+      {isPitched && pitchedRoofGeometry ? (
+        <group>
+          {/* Monolithic parametric pitched roof solid with eaves overhang */}
+          <mesh geometry={pitchedRoofGeometry} castShadow receiveShadow>
+            <meshStandardMaterial color={accentColor} roughness={0.5} />
+          </mesh>
 
-      {/* ── floor slab ── */}
+          {/* Weatherproof Ridge Cap Beam */}
+          <mesh
+            position={[
+              0,
+              ridgeHeight + (roofThick / Math.max(0.2, Math.cos(roofRad))) + 0.02,
+              0,
+            ]}
+            castShadow
+          >
+            <boxGeometry args={[length + overhang * 2 + 0.05, 0.05, 0.18]} />
+            <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
+          </mesh>
+        </group>
+      ) : (
+        /* Flat Roof Construction when roofAngle === 0 */
+        <mesh position={[0, height + roofThick / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[length + overhang * 2, roofThick, width + overhang * 2]} />
+          <meshStandardMaterial color={accentColor} roughness={0.5} />
+        </mesh>
+      )}
+
+      {/* ── 4. INSULATION LAYER VISUALIZATION (D4-C2: actual design thickness) ── */}
+      {hasInsulation && (
+        <>
+          <mesh position={[0, height / 2, 0]}>
+            <boxGeometry args={[length + 0.15, height + 0.05, width + 0.15]}
+            />
+            <meshStandardMaterial color="#eab308" transparent opacity={0.12} wireframe />
+          </mesh>
+          <Html
+            position={[0, height + 0.55, 0]}
+            center
+            transform={false}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{
+              background: 'rgba(15,23,42,0.92)',
+              border: '1px solid rgba(234,179,8,0.55)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              color: '#fbbf24',
+              fontSize: '11px',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              whiteSpace: 'nowrap',
+            }}>
+              {insulationType} — {Math.round(insulationThickness * 10)} mm
+            </div>
+          </Html>
+        </>
+      )}
+
+      {/* ── 5. STRUCTURAL FLOOR SLAB ── */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
-        <boxGeometry args={[length + 0.2, 0.1, width + 0.2]} />
-        <meshStandardMaterial color="#4a4a48" roughness={0.9} />
+        <boxGeometry args={[length + 0.3, 0.1, width + 0.3]} />
+        <meshStandardMaterial color="#334155" roughness={0.9} />
       </mesh>
 
-      {/* ── windows on front wall ── */}
-      <WindowPanel position={[-length / 4, height / 2, width / 2 + 0.16]}
-        rotation={[0, 0, 0]} width={1.2} height={1.0} />
-      <WindowPanel position={[length / 4, height / 2, width / 2 + 0.16]}
-        rotation={[0, 0, 0]} width={1.2} height={1.0} />
+      {/* ── 6. THERMAL MASS INTERNAL STORAGE CORE (D4-C2: actual design thickness) ── */}
+      {thermalMassEnabled && (
+        <>
+          <mesh position={[0, 0.11, 0]} receiveShadow>
+            <boxGeometry args={[length * 0.75, thermalMassThickness / 100, width * 0.75]} />
+            <meshStandardMaterial color="#2563eb" roughness={0.4} opacity={0.8} transparent />
+          </mesh>
+          <Html
+            position={[length * 0.38, 0.3, 0]}
+            center
+            transform={false}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{
+              background: 'rgba(15,23,42,0.92)',
+              border: '1px solid rgba(96,165,250,0.5)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              color: '#93c5fd',
+              fontSize: '11px',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              whiteSpace: 'nowrap',
+            }}>
+              Thermal mass — {Math.round(thermalMassThickness * 10)} mm
+            </div>
+          </Html>
+        </>
+      )}
 
-      {/* ── windows on back wall ── */}
-      <WindowPanel position={[0, height / 2, -(width / 2 + 0.16)]}
-        rotation={[0, Math.PI, 0]} width={1.2} height={1.0} />
+      {/* ── 7. PARAMETRIC SOLAR WINDOWS (SOUTH FACADE +Z) ── */}
+      <FramedWindow
+        position={[-length / 4, height * 0.52, halfSpan + wallThickness / 2 + 0.01]}
+        rotation={[0, 0, 0]}
+        width={winW}
+        height={winH}
+      />
+      <FramedWindow
+        position={[length / 4, height * 0.52, halfSpan + wallThickness / 2 + 0.01]}
+        rotation={[0, 0, 0]}
+        width={winW}
+        height={winH}
+      />
 
-      {/* ── door on front ── */}
-      <Door position={[0, 1.05, width / 2 + 0.06]} rotation={[0, 0, 0]} />
+      {/* ── 8. PARAMETRIC REAR WINDOW (NORTH FACADE -Z) ── */}
+      <FramedWindow
+        position={[0, height * 0.52, -(halfSpan + wallThickness / 2 + 0.01)]}
+        rotation={[0, Math.PI, 0]}
+        width={rearW}
+        height={rearH}
+      />
 
-      {/* ── dimension labels ── */}
-      <DimensionLabel start={[-length / 2, 0, width / 2 + 1.5]} end={[length / 2, 0, width / 2 + 1.5]}
-        label={`${length}m`} offset={0.3} />
-      <DimensionLabel start={[length / 2 + 1.5, 0, -width / 2]} end={[length / 2 + 1.5, 0, width / 2]}
-        label={`${width}m`} offset={0.3} />
-      <DimensionLabel start={[length / 2 + 1, 0, width / 2]} end={[length / 2 + 1, height, width / 2]}
-        label={`${height}m`} offset={0} />
+      {/* ── 9. PARAMETRIC ACCESS DOOR (SOUTH FACADE +Z) ── */}
+      <ParametricDoor
+        position={[0, 0, halfSpan + wallThickness / 2 + 0.01]}
+        rotation={[0, 0, 0]}
+        doorArea={doorArea}
+      />
+
+      {/* ── 10. CAD DIMENSION CALLOUT LABELS ── */}
+      <DimensionLabel
+        start={[-length / 2, 0, halfSpan + 1.6]}
+        end={[length / 2, 0, halfSpan + 1.6]}
+        label={`L = ${length.toFixed(1)}m`}
+        offset={0.3}
+      />
+      <DimensionLabel
+        start={[length / 2 + 1.6, 0, -halfSpan]}
+        end={[length / 2 + 1.6, 0, halfSpan]}
+        label={`W = ${width.toFixed(1)}m`}
+        offset={0.3}
+      />
+      <DimensionLabel
+        start={[length / 2 + 1.2, 0, halfSpan]}
+        end={[length / 2 + 1.2, height, halfSpan]}
+        label={`H = ${height.toFixed(1)}m (Ridge: ${ridgeHeight.toFixed(1)}m)`}
+        offset={0}
+      />
     </group>
   );
 }
@@ -249,24 +601,31 @@ function CylindricalShelter({ design, wallColor, accentColor }: {
         <cylinderGeometry args={[r, r, h, 48, 1, true]} />
         <meshStandardMaterial color={wallColor} roughness={0.8} side={THREE.DoubleSide} />
       </mesh>
-      {/* flat roof */}
-      <mesh position={[0, h, 0]} castShadow>
-        <cylinderGeometry args={[r + 0.15, r + 0.15, 0.15, 48]} />
-        <meshStandardMaterial color={accentColor} roughness={0.6} />
-      </mesh>
+      {/* conical roof if pitched, else flat disc */}
+      {design.roofAngle && design.roofAngle > 0 ? (
+        <mesh position={[0, h + (r * Math.tan((design.roofAngle * Math.PI) / 180)) / 2, 0]} castShadow>
+          <coneGeometry args={[r + 0.2, r * Math.tan((design.roofAngle * Math.PI) / 180), 48]} />
+          <meshStandardMaterial color={accentColor} roughness={0.6} />
+        </mesh>
+      ) : (
+        <mesh position={[0, h, 0]} castShadow>
+          <cylinderGeometry args={[r + 0.15, r + 0.15, 0.15, 48]} />
+          <meshStandardMaterial color={accentColor} roughness={0.6} />
+        </mesh>
+      )}
       {/* floor */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
         <cylinderGeometry args={[r + 0.1, r + 0.1, 0.1, 48]} />
         <meshStandardMaterial color="#4a4a48" roughness={0.9} />
       </mesh>
       {/* windows */}
-      <WindowPanel position={[0, h / 2, r + 0.05]} rotation={[0, 0, 0]} width={1.2} height={1.0} />
-      <WindowPanel position={[r + 0.05, h / 2, 0]} rotation={[0, Math.PI / 2, 0]} width={1.2} height={1.0} />
+      <FramedWindow position={[0, h / 2, r + 0.05]} rotation={[0, 0, 0]} width={1.2} height={1.0} />
+      <FramedWindow position={[r + 0.05, h / 2, 0]} rotation={[0, Math.PI / 2, 0]} width={1.2} height={1.0} />
       {/* door */}
-      <Door position={[0, 1.05, r + 0.05]} rotation={[0, 0, 0]} />
+      <ParametricDoor position={[0, 0, r + 0.05]} rotation={[0, 0, 0]} doorArea={design.doorArea} />
       {/* labels */}
-      <DimensionLabel start={[0, 0, 0]} end={[r, 0, 0]} label={`R=${r.toFixed(1)}m`} offset={0.3} />
-      <DimensionLabel start={[r + 1, 0, 0]} end={[r + 1, h, 0]} label={`${h}m`} offset={0} />
+      <DimensionLabel start={[0, 0, 0]} end={[r, 0, 0]} label={`Radius = ${r.toFixed(1)}m`} offset={0.3} />
+      <DimensionLabel start={[r + 1, 0, 0]} end={[r + 1, h, 0]} label={`H = ${h}m`} offset={0} />
     </group>
   );
 }
@@ -298,13 +657,13 @@ function DomeShelter({ design, wallColor, accentColor }: {
         <meshStandardMaterial color="#4a4a48" roughness={0.9} />
       </mesh>
       {/* door opening frame */}
-      <Door position={[0, 1.05, r - 0.05]} rotation={[0, 0, 0]} />
+      <ParametricDoor position={[0, 0, r - 0.05]} rotation={[0, 0, 0]} doorArea={design.doorArea} />
       {/* windows */}
-      <WindowPanel position={[r * 0.7, r * 0.5, r * 0.7]} rotation={[0, Math.PI / 4, 0]} width={0.9} height={0.7} />
-      <WindowPanel position={[-r * 0.7, r * 0.5, r * 0.7]} rotation={[0, -Math.PI / 4, 0]} width={0.9} height={0.7} />
+      <FramedWindow position={[r * 0.7, r * 0.5, r * 0.7]} rotation={[0, Math.PI / 4, 0]} width={0.9} height={0.7} />
+      <FramedWindow position={[-r * 0.7, r * 0.5, r * 0.7]} rotation={[0, -Math.PI / 4, 0]} width={0.9} height={0.7} />
       {/* labels */}
-      <DimensionLabel start={[0, 0, 0]} end={[r, 0, 0]} label={`R=${r.toFixed(1)}m`} offset={0.3} />
-      <DimensionLabel start={[r + 1, 0, 0]} end={[r + 1, r, 0]} label={`${h}m`} offset={0} />
+      <DimensionLabel start={[0, 0, 0]} end={[r, 0, 0]} label={`Radius = ${r.toFixed(1)}m`} offset={0.3} />
+      <DimensionLabel start={[r + 1, 0, 0]} end={[r + 1, r, 0]} label={`H = ${h}m`} offset={0} />
     </group>
   );
 }
@@ -315,15 +674,14 @@ function DomeShelter({ design, wallColor, accentColor }: {
 function PyramidShelter({ design, wallColor, accentColor }: {
   design: ShelterDesign; wallColor: string; accentColor: string;
 }) {
-  const { length, width, height } = design;
+  const { length, width, height, doorArea = 2.0 } = design;
 
-  /* Build a simple truncated pyramid using a custom geometry */
   const vertices = useMemo(() => {
     const topScale = 0.15;
     const tl = length * topScale;
     const tw = width * topScale;
     return new Float32Array([
-      // base quad (two triangles)
+      // base quad
       -length / 2, 0, -width / 2,   length / 2, 0, -width / 2,   length / 2, 0, width / 2,
       -length / 2, 0, -width / 2,   length / 2, 0, width / 2,    -length / 2, 0, width / 2,
       // front face
@@ -356,29 +714,25 @@ function PyramidShelter({ design, wallColor, accentColor }: {
       <mesh geometry={geometry} castShadow receiveShadow>
         <meshStandardMaterial color={wallColor} roughness={0.8} side={THREE.DoubleSide} />
       </mesh>
-      {/* edge accent */}
       <mesh geometry={geometry}>
         <meshStandardMaterial color={accentColor} transparent opacity={0.15} wireframe side={THREE.DoubleSide} />
       </mesh>
-      {/* floor */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
         <boxGeometry args={[length + 0.2, 0.1, width + 0.2]} />
         <meshStandardMaterial color="#4a4a48" roughness={0.9} />
       </mesh>
-      {/* door */}
-      <Door position={[0, 1.05, width / 2 + 0.06]} rotation={[0, 0, 0]} />
-      {/* labels */}
+      <ParametricDoor position={[0, 0, width / 2 + 0.06]} rotation={[0, 0, 0]} doorArea={doorArea} />
       <DimensionLabel start={[-length / 2, 0, width / 2 + 1.5]} end={[length / 2, 0, width / 2 + 1.5]}
-        label={`${length}m`} offset={0.3} />
+        label={`L = ${length}m`} offset={0.3} />
       <DimensionLabel start={[length / 2 + 1.5, 0, -width / 2]} end={[length / 2 + 1.5, 0, width / 2]}
-        label={`${width}m`} offset={0.3} />
+        label={`W = ${width}m`} offset={0.3} />
       <DimensionLabel start={[length / 2 + 1, 0, width / 2]} end={[length / 2 + 1, height, width / 2]}
-        label={`${height}m`} offset={0} />
+        label={`H = ${height}m`} offset={0} />
     </group>
   );
 }
 
-/* ─── animated sun ─── */
+/* ─── animated sun position ─── */
 function SunLight() {
   const ref = useRef<THREE.DirectionalLight>(null!);
   useFrame(({ clock }) => {
@@ -451,35 +805,63 @@ function InfoBadge({ design, comfortIndex, avgTemp }: {
   );
 }
 
-/* ═══════════════════════════════════════════════════
-   MAIN 3D SCENE
-   ═══════════════════════════════════════════════════ */
+/**
+ * ═══════════════════════════════════════════════════
+ * MAIN 3D SCENE
+ * ═══════════════════════════════════════════════════
+ * Coordinate Frame:
+ *   Static Geographic Compass:
+ *     North = -Z (0°)
+ *     East  = +X (90°)
+ *     South = +Z (180° Solar Equator)
+ *     West  = -X (270°)
+ *
+ * Shelter Orientation:
+ *   The shelter's principal solar aperture faces South (+Z) when orientation === 180°.
+ *   The shelter group rotates by (design.orientation - 180°) around Y-axis.
+ *   This rotates the building with respect to fixed geographic coordinates.
+ */
 function ShelterScene({ design, materialName, comfortIndex, avgTemp }: {
   design: ShelterDesign; materialName: string; comfortIndex?: number; avgTemp?: number;
 }) {
   const colors = getColors(materialName);
-  const groupRef = useRef<THREE.Group>(null!);
+  const shelterGroupRef = useRef<THREE.Group>(null!);
 
-  /* Slow gentle auto-rotation */
-  useFrame(({ clock }) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(clock.getElapsedTime() * 0.05) * 0.15;
-    }
-  });
+  // Orientation angle in radians: building rotates relative to static compass
+  // When orientation === 180 (South), rotation is 0 rad (facade faces +Z).
+  const shelterRotationY = -(((design.orientation ?? 180) - 180) * Math.PI) / 180;
 
   const shelterProps = { design, wallColor: colors.wall, accentColor: colors.accent };
 
   return (
     <>
-      <ambientLight intensity={0.35} />
+      <ambientLight intensity={0.4} />
       <SunLight />
       <pointLight position={[-8, 8, -8]} intensity={0.4} color="#b0c4de" />
       {comfortIndex !== undefined && <ThermalGlow comfortIndex={comfortIndex} />}
 
-      <group ref={groupRef}>
-        <Compass orientation={design.orientation} />
-        <GroundGrid />
+      {/* 1. FIXED GEOGRAPHIC COMPASS & GROUND (Does NOT rotate with building) */}
+      <StaticCompass />
+      <GroundGrid />
 
+      {/* D4-C2: honesty label for the animated sun — illustrative only. */}
+      <Html position={[0, 13.8, 0]} center transform={false} style={{ pointerEvents: 'none' }}>
+        <div style={{
+          background: 'rgba(15,23,42,0.85)',
+          border: '1px solid rgba(148,163,184,0.4)',
+          borderRadius: '9999px',
+          padding: '3px 12px',
+          color: '#cbd5e1',
+          fontSize: '11px',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          whiteSpace: 'nowrap',
+        }}>
+          Illustrative solar direction
+        </div>
+      </Html>
+
+      {/* 2. ROTATING SHELTER ASSEMBLY (Rotates to true solar azimuth) */}
+      <group ref={shelterGroupRef} rotation={[0, shelterRotationY, 0]}>
         {design.shape === 'rectangular' && <RectangularShelter {...shelterProps} />}
         {design.shape === 'cylindrical' && <CylindricalShelter {...shelterProps} />}
         {design.shape === 'dome' && <DomeShelter {...shelterProps} />}
@@ -493,9 +875,9 @@ function ShelterScene({ design, materialName, comfortIndex, avgTemp }: {
       <OrbitControls
         makeDefault
         minPolarAngle={0.2}
-        maxPolarAngle={Math.PI / 2.1}
+        maxPolarAngle={Math.PI / 2.05}
         minDistance={5}
-        maxDistance={30}
+        maxDistance={32}
         enablePan
         target={[0, design.height / 2, 0]}
       />
@@ -533,31 +915,33 @@ export default function ShelterModel3D({ design, materialName, comfortIndex, avg
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-xs font-semibold text-slate-300">3D Shelter Visualization</span>
             <span className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full font-medium">
-              Interactive
+              Parametric CAD Model
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500">Drag to rotate • Scroll to zoom</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-slate-400 font-mono">
+              Azimuth: <strong className="text-amber-400">{design.orientation}°</strong> | Roof Pitch: <strong className="text-cyan-400">{design.roofAngle || 0}°</strong>
+            </span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="text-[10px] px-2 py-1 bg-slate-700/50 text-slate-400 rounded hover:bg-slate-600/50 hover:text-white transition"
+              className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-700/50 hover:bg-slate-700"
             >
-              {isFullscreen ? '✕ Close' : '⛶ Fullscreen'}
+              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
             </button>
           </div>
         </div>
 
-        {/* canvas */}
-        <div className={isFullscreen ? 'h-[calc(100%-40px)]' : 'h-[420px]'}>
+        {/* 3D Canvas — data-twin-root is the D4-D report snapshot hook; the
+            preserveDrawingBuffer flag is the only permitted renderer config
+            change (report artifact capture, no logic touched). */}
+        <div
+          className={isFullscreen ? 'h-[calc(100vh-45px)]' : 'h-[360px]'}
+          data-twin-root
+        >
           <Canvas
             camera={{ position: cameraPos, fov: 45 }}
             shadows
-            dpr={[1, 2]}
-            gl={{ antialias: true, alpha: false }}
-            onCreated={({ gl }) => {
-              gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.2;
-            }}
+            gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
           >
             <ShelterScene
               design={design}
@@ -566,6 +950,12 @@ export default function ShelterModel3D({ design, materialName, comfortIndex, avg
               avgTemp={avgTemp}
             />
           </Canvas>
+        </div>
+
+        {/* Caption footer */}
+        <div className="px-4 py-2 bg-slate-900/90 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-500">
+          <span>Fixed Geographic Compass: North (-Z) | South (+Z Solar Aperture)</span>
+          <span>Parametric ISO 6946 Envelope Digital Twin</span>
         </div>
       </div>
     </div>

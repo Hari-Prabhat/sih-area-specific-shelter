@@ -9,6 +9,7 @@ Architecture:
 app.py / optimize.py -> simulation_service.py -> thermal.py -> formulas.py
 """
 
+import math
 import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -189,6 +190,8 @@ def run_simulation(
     insulation_thickness_m: float = 0.0,
     insulation_conductivity: float = 0.025,
     window_area: float = 2.0,
+    door_area: float = 2.0,
+    door_u_value: float = 1.80,
     glazing: str = "double_clear",
     orientation: Union[str, float] = "south",
     roof_type: str = "flat",
@@ -206,34 +209,60 @@ def run_simulation(
     initial_indoor_temp: float = 20.0,
     hours_to_simulate: int = 168,
     substeps: int = 60,
+    hourly_temperatures: Optional[List[float]] = None,
+    hourly_direct_solar: Optional[List[float]] = None,
+    hourly_diffuse_solar: Optional[List[float]] = None,
+    extra_thermal_capacity_j_k: Optional[float] = None,
+    shape: str = "rectangular",
 ) -> Dict[str, Any]:
     """
     Authoritative physical simulation runner for shelter thermal response.
 
     Features:
-      - Multi-layer ISO 6946 U-values for walls, roof, and fenestration.
+      - Multi-layer ISO 6946 U-values for walls, roof, fenestration, and doors.
       - Support for glazing types (single_clear, double_clear, double_low_e, triple_low_e).
       - Support for multiple shelter models (rectangular flat/pitched, compact, elongated, custom).
-      - Orientation solar harvesting factors (south, north, east, west).
+      - Continuous physical orientation solar harvesting factors across [0, 360] degrees.
       - Sub-hour explicit forward Euler numerical integration (dt = 3600 / substeps).
-      - Hourly component heat flow balance tracking (solar, internal, walls, roof, floor, glass, vent, radiation).
+      - Hourly component heat flow balance tracking (solar, internal, walls, roof, floor, glass, doors, vent, radiation).
       - Cumulative energy metrics (kWh) and thermal comfort statistics.
     """
-    # 1. Fetch Weather Data
-    weather = get_climate_data(city)
-    if "error" in weather:
-        return {"error": weather["error"]}
-
-    outdoor_temps = weather["hourly_temperature"]
-    direct_solar = weather["hourly_direct_solar"]
-    diffuse_solar = weather["hourly_diffuse_solar"]
+    # 1. Fetch Weather Data (from input arrays if provided, else from climate service cache)
+    if hourly_temperatures is not None and hourly_direct_solar is not None and hourly_diffuse_solar is not None:
+        outdoor_temps = hourly_temperatures
+        direct_solar = hourly_direct_solar
+        diffuse_solar = hourly_diffuse_solar
+    else:
+        weather = get_climate_data(city)
+        if "error" in weather:
+            return {"error": weather["error"]}
+        outdoor_temps = weather["hourly_temperature"]
+        direct_solar = weather["hourly_direct_solar"]
+        diffuse_solar = weather["hourly_diffuse_solar"]
 
     available_hours = min(len(outdoor_temps), hours_to_simulate)
     if available_hours <= 0:
         return {"error": f"No weather data available for city: {city}"}
 
     # 2. Geometric Calculations via services/geometry.py
-    floor_area = f.calculate_floor_area(length, width)
+    # Product-hardening pass: shape-aware canonical geometry. The selected
+    # shelter form (rectangular / cylindrical / dome / pyramid) is authoritative
+    # here — a dome is simulated AS a dome via its true curved-envelope
+    # metrics, never silently converted back to a rectangular box.
+    _shape_geo = f.calculate_shape_geometry(shape, length, width, height)
+    if shape == "cylindrical" and width != length:
+        # Diameter convention: L and W both denote the diameter; keep them
+        # consistent rather than guessing which the user meant.
+        raise ValueError(
+            f"Cylindrical shelter requires length == width (diameter), "
+            f"got L={length}, W={width}"
+        )
+    if shape == "dome" and width != length:
+        raise ValueError(
+            f"Dome shelter requires length == width (diameter), "
+            f"got L={length}, W={width}"
+        )
+    floor_area = _shape_geo["floor_area_m2"]
 
     # Determine roof type from model if provided
     effective_roof_type = roof_type
@@ -242,7 +271,13 @@ def run_simulation(
     elif shelter_model in ("rectangular_flat", "compact_shelter", "elongated_shelter"):
         effective_roof_type = "flat"
 
-    if effective_roof_type == "pitched":
+    if shape in ("cylindrical", "dome", "pyramid"):
+        # Shape-specific envelope: consume the canonical shape geometry
+        # directly (curved walls, spherical cap, sloped pyramid faces).
+        volume = _shape_geo["volume_m3"]
+        roof_area = _shape_geo["roof_area_m2"]
+        gross_wall_area = _shape_geo["gross_wall_area_m2"]
+    elif effective_roof_type == "pitched":
         p_geo = f.calculate_pitched_roof_geometry(length, width, height, pitch_angle_deg)
         roof_area = p_geo["roof_area"]
         gross_wall_area = p_geo["gross_wall_area"]
@@ -253,7 +288,8 @@ def run_simulation(
         gross_wall_area = f.calculate_wall_area(length, width, height)
 
     window_area_clamped = min(window_area, gross_wall_area * 0.85)
-    solid_wall_area = f.calculate_net_wall_area(gross_wall_area, window_area_clamped, 0.0)
+    door_area_clamped = max(0.0, min(door_area, gross_wall_area * 0.15))
+    solid_wall_area = f.calculate_net_wall_area(gross_wall_area, window_area_clamped, door_area_clamped)
 
 
     # 3. Envelope U-values via ISO 6946 multi-layer formulation
@@ -288,11 +324,23 @@ def run_simulation(
         u_glass = float(1.0 / r_glass_film)
         effective_shgc = 0.80 if shgc is None else float(shgc)
 
-    # Resolve orientation factor
+    # Resolve orientation factor with continuous physical solar azimuth model
     if isinstance(orientation, str):
-        orient_factor = ORIENTATION_FACTORS.get(orientation.lower(), 1.0)
+        orient_clean = orientation.strip().lower()
+        if orient_clean in ORIENTATION_FACTORS:
+            orient_factor = ORIENTATION_FACTORS[orient_clean]
+        else:
+            try:
+                deg = float(orient_clean)
+                theta_rad = math.radians(deg % 360.0)
+                factor = 0.45 + 0.55 * ((1.0 - math.cos(theta_rad)) / 2.0) - 0.025 * math.sin(theta_rad)
+                orient_factor = float(max(0.0, min(1.0, factor)))
+            except ValueError:
+                orient_factor = 1.0
     elif isinstance(orientation, (int, float)):
-        orient_factor = float(max(0.0, min(1.0, orientation)))
+        theta_rad = math.radians(float(orientation) % 360.0)
+        factor = 0.45 + 0.55 * ((1.0 - math.cos(theta_rad)) / 2.0) - 0.025 * math.sin(theta_rad)
+        orient_factor = float(max(0.0, min(1.0, factor)))
     else:
         orient_factor = 1.0
 
@@ -300,17 +348,49 @@ def run_simulation(
     u_roof = roof_u_data["U_value"]
     u_floor = floor_u_data["U_value"]
 
-    # 4. Thermal Mass (Air mass + interior multiplier)
-    air_mass = volume * AIR_DENSITY_DEFAULT
-    total_thermal_mass = (air_mass * AIR_SPECIFIC_HEAT) * 3.0
+    # 4. Resolve wall material thermal mass properties & calculate effective capacitance
+    if isinstance(wall_material, str):
+        mat_dict = get_material(wall_material)
+        wall_density = float(mat_dict.get("density", 1800.0)) if "error" not in mat_dict else 1800.0
+        wall_spec_heat = float(mat_dict.get("specific_heat", 900.0)) if "error" not in mat_dict else 900.0
+    elif isinstance(wall_material, dict):
+        wall_density = float(wall_material.get("density", 1800.0))
+        wall_spec_heat = float(wall_material.get("specific_heat", 900.0))
+    else:
+        wall_density = 1800.0
+        wall_spec_heat = 900.0
+
+    thermal_mass_data = f.calculate_effective_thermal_capacity(
+        volume=volume,
+        solid_wall_area=solid_wall_area,
+        wall_density=wall_density,
+        wall_specific_heat=wall_spec_heat,
+        wall_thickness_m=wall_thickness_m,
+        roof_area=roof_area,
+        roof_density=1200.0,
+        roof_specific_heat=1000.0,
+        roof_thickness_m=roof_thickness_m,
+        floor_area=floor_area,
+        floor_density=2000.0,
+        floor_specific_heat=880.0,
+    )
+    total_thermal_mass = thermal_mass_data["C_total"]
+
+    # Optional user-specified sensible thermal-mass storage (e.g. a dedicated
+    # floor-core element requested through the canonical design). This is added
+    # ON TOP of the ISO 13790 active-depth envelope capacitance above. When the
+    # parameter is omitted (None), behavior is identical to previous releases.
+    if extra_thermal_capacity_j_k:
+        total_thermal_mass += float(extra_thermal_capacity_j_k)
 
     # Precompute invariant conductance coefficients
     ua_walls = float(u_wall * solid_wall_area)
     ua_roof = float(u_roof * roof_area)
     ua_floor = float(u_floor * floor_area)
     ua_windows = float(u_glass * window_area_clamped)
+    ua_doors = float(door_u_value * door_area_clamped)
     ua_vent = float((ach * volume * AIR_DENSITY_DEFAULT * AIR_SPECIFIC_HEAT) / SECONDS_PER_HOUR)
-    ua_cond_vent = ua_walls + ua_roof + ua_floor + ua_windows + ua_vent
+    ua_cond_vent = ua_walls + ua_roof + ua_floor + ua_windows + ua_doors + ua_vent
     rad_coeff = float(5.670374419e-8 * 0.90 * roof_area)
 
     # 5. Simulation Time-stepping
@@ -327,9 +407,14 @@ def run_simulation(
     hourly_q_roof: List[float] = []
     hourly_q_floor: List[float] = []
     hourly_q_windows: List[float] = []
+    hourly_q_doors: List[float] = []
     hourly_q_vent: List[float] = []
     hourly_q_rad: List[float] = []
     hourly_q_net: List[float] = []
+    hourly_q_storage: List[float] = []
+    hourly_q_heat: List[float] = []
+    hourly_q_cool: List[float] = []
+    hourly_q_net_load: List[float] = []
     comfort_status_series: List[str] = []
 
     # Internal occupant gain
@@ -354,6 +439,7 @@ def run_simulation(
         hour_q_roof = 0.0
         hour_q_floor = 0.0
         hour_q_windows = 0.0
+        hour_q_doors = 0.0
         hour_q_vent = 0.0
         hour_q_rad = 0.0
         hour_q_net = 0.0
@@ -371,9 +457,15 @@ def run_simulation(
             hour_q_roof += ua_roof * delta_t
             hour_q_floor += ua_floor * delta_t
             hour_q_windows += ua_windows * delta_t
+            hour_q_doors += ua_doors * delta_t
             hour_q_vent += ua_vent * delta_t
             hour_q_rad += q_rad
             hour_q_net += q_net
+
+        prev_t = indoor_temps[-1] if indoor_temps else initial_indoor_temp
+        q_store = (total_thermal_mass * (t_in - prev_t)) / SECONDS_PER_HOUR
+        q_heat = f.calculate_heating_requirement(t_in, DEFAULT_COMFORT_MIN, ua_cond_vent, is_conductance=True)
+        q_cool = f.calculate_cooling_requirement(t_in, DEFAULT_COMFORT_MAX, ua_cond_vent, is_conductance=True)
 
         indoor_temps.append(round(float(t_in), 4))
         hourly_solar_irradiance.append(round(float(solar_flux), 2))
@@ -384,9 +476,14 @@ def run_simulation(
         hourly_q_roof.append(round(float(hour_q_roof / substeps), 2))
         hourly_q_floor.append(round(float(hour_q_floor / substeps), 2))
         hourly_q_windows.append(round(float(hour_q_windows / substeps), 2))
+        hourly_q_doors.append(round(float(hour_q_doors / substeps), 2))
         hourly_q_vent.append(round(float(hour_q_vent / substeps), 2))
         hourly_q_rad.append(round(float(hour_q_rad / substeps), 2))
         hourly_q_net.append(round(float(hour_q_net / substeps), 2))
+        hourly_q_storage.append(round(float(q_store), 2))
+        hourly_q_heat.append(round(float(q_heat), 2))
+        hourly_q_cool.append(round(float(q_cool), 2))
+        hourly_q_net_load.append(round(float(q_heat - q_cool), 2))
         comfort_status_series.append(f.calculate_comfort_status(t_in, DEFAULT_COMFORT_MIN, DEFAULT_COMFORT_MAX))
 
     # 6. Thermal Comfort Indicators via services/comfort.py
@@ -431,10 +528,14 @@ def run_simulation(
     total_window_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_windows), 2)
     total_vent_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_vent), 2)
     total_rad_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_rad), 2)
+    total_door_loss_kwh = round(f.calculate_total_heat_loss(hourly_q_doors), 2)
+    total_heating_kwh = round(sum(hourly_q_heat) / 1000.0, 2)
+    total_cooling_kwh = round(sum(hourly_q_cool) / 1000.0, 2)
+    total_conditioning_kwh = round(total_heating_kwh + total_cooling_kwh, 2)
 
     total_component_loss_kwh = round(
         total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh +
-        total_window_loss_kwh + total_vent_loss_kwh + total_rad_loss_kwh, 2
+        total_window_loss_kwh + total_door_loss_kwh + total_vent_loss_kwh + total_rad_loss_kwh, 2
     )
 
     component_heat_loss = {
@@ -442,6 +543,7 @@ def run_simulation(
         "roof_loss_kwh": total_roof_loss_kwh,
         "floor_loss_kwh": total_floor_loss_kwh,
         "window_loss_kwh": total_window_loss_kwh,
+        "door_loss_kwh": total_door_loss_kwh,
         "ventilation_loss_kwh": total_vent_loss_kwh,
         "radiation_loss_kwh": total_rad_loss_kwh,
     }
@@ -454,10 +556,14 @@ def run_simulation(
         "roof_loss_kwh": total_roof_loss_kwh,
         "floor_loss_kwh": total_floor_loss_kwh,
         "window_loss_kwh": total_window_loss_kwh,
+        "door_loss_kwh": total_door_loss_kwh,
         "vent_loss_kwh": total_vent_loss_kwh,
         "radiation_loss_kwh": total_rad_loss_kwh,
         "total_heat_loss_kwh": total_component_loss_kwh,
-        "total_envelope_loss_kwh": round(total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh + total_window_loss_kwh, 2),
+        "total_envelope_loss_kwh": round(total_wall_loss_kwh + total_roof_loss_kwh + total_floor_loss_kwh + total_window_loss_kwh + total_door_loss_kwh, 2),
+        "heating_demand_kwh": total_heating_kwh,
+        "cooling_demand_kwh": total_cooling_kwh,
+        "total_conditioning_demand_kwh": total_conditioning_kwh,
     }
 
     return {
@@ -479,10 +585,22 @@ def run_simulation(
         "floor_heat_flow": hourly_q_floor,
         "window_heat_flow": hourly_q_windows,
         "hourly_window_loss": hourly_q_windows,
+        "door_heat_flow": hourly_q_doors,
+        "hourly_door_loss": hourly_q_doors,
         "ventilation_heat_flow": hourly_q_vent,
         "hourly_vent_loss": hourly_q_vent,
         "radiation_heat_flow": hourly_q_rad,
         "net_heat_flow": hourly_q_net,
+        "thermal_storage_flow": hourly_q_storage,
+        "hourly_thermal_storage": hourly_q_storage,
+        "hourly_heating_demand": hourly_q_heat,
+        "hourly_cooling_demand": hourly_q_cool,
+        "hourly_net_load": hourly_q_net_load,
+        "heating_demand_kwh": total_heating_kwh,
+        "cooling_demand_kwh": total_cooling_kwh,
+        "total_conditioning_demand_kwh": total_conditioning_kwh,
+        "effective_thermal_capacity_j_k": total_thermal_mass,
+        "thermal_mass_breakdown": thermal_mass_data,
 
         "comfort_status": overall_comfort_status,
         "comfort_status_series": comfort_status_series,
@@ -501,6 +619,7 @@ def run_simulation(
             "floor_u": u_floor,
             "glass_u": round(u_glass, 4),
             "window_u": round(u_glass, 4),
+            "door_u": round(door_u_value, 4),
             "wall_r_total": wall_u_data["R_total"],
             "roof_r_total": roof_u_data["R_total"],
             "floor_r_total": floor_u_data["R_total"],
@@ -511,13 +630,20 @@ def run_simulation(
             "solid_wall_area_m2": round(solid_wall_area, 2),
             "roof_area_m2": round(roof_area, 2),
             "window_area_m2": round(window_area_clamped, 2),
+            "door_area_m2": round(door_area_clamped, 2),
             "roof_type": effective_roof_type,
             "shelter_model": shelter_model or ("rectangular_pitched" if effective_roof_type == "pitched" else "rectangular_flat"),
+            # Product-hardening pass: report the authoritative shape and its
+            # gross envelope areas so every consumer (Apply, Blueprint, 3D,
+            # Report) sees the same truth the engine simulated.
+            "shape": _shape_geo["shape"],
+            "gross_wall_area_m2": round(gross_wall_area, 2),
         },
         "specs": {
             "wall_material": wall_material if isinstance(wall_material, str) else "custom",
             "insulation_thickness_m": insulation_thickness_m,
             "window_area_m2": window_area_clamped,
+            "door_area_m2": round(door_area_clamped, 2),
             "glazing": glazing,
             "orientation": orientation,
             "roof_type": effective_roof_type,
